@@ -1,0 +1,7 @@
+# Only needed when running against Postgres instead of SQLite.
+# psycopg2-binary ships prebuilt wheels, but only for Python versions it has
+# built for - on a very new interpreter pip falls back to compiling from
+# source, which needs pg_config and the Postgres dev headers. If that bites,
+# use psycopg (v3) instead and change the DATABASE_URL scheme to
+# postgresql+psycopg://
+psycopg2-binary>=2.9.9

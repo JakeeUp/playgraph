@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+
+# Secrets - never commit these
+.env
+.env.local
+
+# Local dev database (SQLite, including its WAL sidecar files)
+*.db
+*.db-wal
+*.db-shm
+
+# Editor / AI tooling config - local to one machine, not part of the project
+.claude/
+.qodo/
+.cursor/
+.aider*
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

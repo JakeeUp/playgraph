@@ -1,0 +1,22 @@
+# Local dev runs on SQLite, so no Postgres driver is needed here.
+# For a Postgres deployment, also install requirements-postgres.txt.
+#
+# Versions are floors rather than exact pins so this resolves on newer
+# Python releases. Python 3.14 in particular has no wheels yet for a lot of
+# packages built before it shipped, and pinning exact old versions forces
+# pip to try compiling them from source.
+
+fastapi>=0.115
+uvicorn>=0.30
+sqlalchemy>=2.0.35
+alembic>=1.13
+pydantic>=2.9
+pydantic-settings>=2.5
+httpx>=0.27
+redis>=5.0
+arq>=0.26
+python-jose[cryptography]>=3.3
+python-multipart>=0.0.9
+
+pytest>=8.3
+pytest-asyncio>=0.24
