@@ -133,6 +133,28 @@ Postgres and Redis locally, in which case also install
 
 ```bash
 pip install -r requirements.txt
+dev.bat
+```
+
+`dev.bat` opens two labelled windows, one for the API and one for the sync
+worker. Running them by hand got old fast and I kept Ctrl+C-ing the wrong
+terminal without noticing the worker had died.
+
+If a window gets closed badly and the API comes back with "address already in
+use", `stop.bat` clears whatever is still holding port 8000.
+
+I tried honcho first, which runs both from the Procfile in a single window.
+It starts fine but its Ctrl+C handling throws InterruptedError on Windows with
+Python 3.14 and can orphan the child processes, so two native windows it is.
+On Mac or Linux `honcho start` works properly and is nicer.
+
+Either way the Procfile stays, because it is also the format Railway, Render
+and Heroku read to figure out what to run. Same two lines describe local dev
+and deployment.
+
+To run them separately:
+
+```bash
 python -m uvicorn app.main:app --reload    # the API
 python -m arq app.worker.WorkerSettings    # the sync worker, separate terminal
 ```

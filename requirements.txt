@@ -20,3 +20,8 @@ python-multipart>=0.0.9
 
 pytest>=8.3
 pytest-asyncio>=0.24
+
+# Dev only, optional. Runs the API and the worker together from the Procfile.
+# Works well on Mac and Linux. On Windows its Ctrl+C handling is broken under
+# Python 3.14, so dev.bat opens two windows instead.
+honcho>=2.0
