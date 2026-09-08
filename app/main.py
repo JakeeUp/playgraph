@@ -56,6 +56,13 @@ app.include_router(auth.router)
 app.include_router(library.router)
 app.include_router(reviews.router)
 
+if settings.environment == "development":
+    # Hand-testing UI at /app. Never mounted in production, so the CSP
+    # relaxation it needs cannot apply there either.
+    from app.routers import devui
+
+    app.include_router(devui.router)
+
 
 @app.get("/health")
 def health():
