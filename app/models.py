@@ -123,7 +123,7 @@ class Review(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     # Denormalized at write-time from the user's latest PlaytimeSnapshot -
-    # see services/reviews.py (TODO). Kept on the review itself rather than
+    # see routers/reviews.py. Kept on the review itself rather than
     # computed live so a review's "credibility" reflects what they'd actually
     # played *at the time they wrote it*, not their current playtime.
     verified_playtime_minutes = Column(Integer, nullable=True)

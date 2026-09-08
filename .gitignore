@@ -8,7 +8,15 @@ venv/
 
 # Secrets - never commit these
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
+.audit-venv/
+
+# Local planning and session notes
+/ROADMAP.md
+/HANDOFF.md
 
 # Local dev database (SQLite, including its WAL sidecar files)
 *.db

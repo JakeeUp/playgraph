@@ -20,14 +20,13 @@ async def get_owned_games(steam_id: str) -> list[dict]:
     """
     url = f"{STEAM_API_BASE}/IPlayerService/GetOwnedGames/v1/"
     params = {
-        "key": settings.steam_api_key,
         "steamid": steam_id,
         "include_appinfo": 1,
         "include_played_free_games": 1,
         "format": "json",
     }
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(url, params=params)
+        resp = await client.get(url, params=params, headers={"x-webapi-key": settings.steam_api_key.get_secret_value()})
         resp.raise_for_status()
     return resp.json().get("response", {}).get("games", [])
 
@@ -39,9 +38,9 @@ async def get_player_achievements(steam_id: str, appid: int) -> dict | None:
     that case, which is a normal/expected response, not a real error).
     """
     url = f"{STEAM_API_BASE}/ISteamUserStats/GetPlayerAchievements/v1/"
-    params = {"key": settings.steam_api_key, "steamid": steam_id, "appid": appid}
+    params = {"steamid": steam_id, "appid": appid}
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(url, params=params)
+        resp = await client.get(url, params=params, headers={"x-webapi-key": settings.steam_api_key.get_secret_value()})
 
     if resp.status_code != 200:
         # Steam returns 400 (not 200-with-success:false) for some no-schema
@@ -107,9 +106,9 @@ async def get_player_summary(steam_id: str) -> dict | None:
     someone to have.
     """
     url = f"{STEAM_API_BASE}/ISteamUser/GetPlayerSummaries/v2/"
-    params = {"key": settings.steam_api_key, "steamids": steam_id}
+    params = {"steamids": steam_id}
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(url, params=params)
+        resp = await client.get(url, params=params, headers={"x-webapi-key": settings.steam_api_key.get_secret_value()})
 
     if resp.status_code != 200:
         return None

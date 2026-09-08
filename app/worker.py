@@ -27,6 +27,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import Game, LinkedAccount, Platform, PlaytimeSnapshot, utcnow
 from app.services import steam
+from app.queue_codec import QUEUE_NAME, deserialize, serialize
 
 # Steam has no officially documented per-second rate limit (just a
 # 100,000 calls/day cap per API key), but community consensus is to pace
@@ -154,6 +155,9 @@ async def sync_steam_library(ctx, user_id: int) -> dict:
 
 class WorkerSettings:
     functions = [sync_steam_library]
+    queue_name = QUEUE_NAME
+    job_serializer = staticmethod(serialize)
+    job_deserializer = staticmethod(deserialize)
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
 
     # Run one job at a time. arq defaults to 10 concurrent jobs, which for

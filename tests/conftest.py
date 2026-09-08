@@ -3,10 +3,10 @@ import os
 # app.config validates required settings at import time, so these have to be
 # in the environment before anything under app/ gets imported. They are dummy
 # values - no test in this suite talks to Steam, Postgres, or Redis.
-os.environ.setdefault("STEAM_API_KEY", "test-key")
-os.environ.setdefault("JWT_SECRET", "test-secret")
-os.environ.setdefault("DATABASE_URL", "sqlite://")
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+# Override inherited settings so running tests never opens the developer's database.
+os.environ.update(STEAM_API_KEY="test-key", JWT_SECRET="test-only-signing-key-at-least-32-bytes",
+                  DATABASE_URL="sqlite://", REDIS_URL="redis://localhost:6379/0",
+                  APP_BASE_URL="http://localhost:8000", ENVIRONMENT="development")
 
 import pytest
 from sqlalchemy import create_engine

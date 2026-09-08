@@ -1,119 +1,150 @@
-"""Steam login via OpenID 2.0.
+"""Steam-only OpenID login with browser binding and one-time assertions."""
 
-Worth understanding why this looks different from a typical OAuth2 "Login
-with X" flow: Steam never adopted OAuth for identity. "Sign in through
-Steam" is OpenID 2.0 - an older, simpler protocol. There's no client
-secret and no token exchange step; instead you redirect the user to Steam,
-Steam redirects back with a set of signed `openid.*` query params, and you
-verify that signature by POSTing the params back to Steam and checking it
-says "is_valid".
-
-Verification matters: without that round trip anyone could hand us a
-handcrafted callback URL claiming any SteamID they liked. The signature
-check is the only thing making this authentication rather than a suggestion.
-
-If valid, `openid.claimed_id` contains the user's SteamID64.
-
-This does NOT get us an API token for the Steam Web API - that's a separate
-flat API key (STEAM_API_KEY) tied to this app, used with the SteamID we get
-from login. Two different auth systems for two different purposes: login
-(who is this) vs API access (fetch this person's data).
-"""
-
-from datetime import timedelta
+import hashlib
+import logging
+import re
+import secrets
+from datetime import datetime
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
-from jose import jwt
+from fastapi.responses import JSONResponse, RedirectResponse, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.deps import get_current_user
 from app.models import LinkedAccount, Platform, User, utcnow
+from app.security import LOGIN_TTL, NONCE_TTL, issue_session, redis_call, state_key
 from app.services import steam
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
 STEAM_OPENID_URL = "https://steamcommunity.com/openid/login"
+OPENID_NS = "http://specs.openid.net/auth/2.0"
+SIGNED_FIELDS = {"op_endpoint", "claimed_id", "identity", "return_to", "response_nonce", "assoc_handle"}
+logger = logging.getLogger("playgraph.security")
+
+
+def cookie_name():
+    return "__Host-playgraph-login" if settings.app_base_url.startswith("https://") else "playgraph-login"
 
 
 @router.get("/steam/login")
-def steam_login():
-    """Redirect the user to Steam to sign in."""
-    return_to = f"{settings.app_base_url}/auth/steam/callback"
+async def steam_login(request: Request):
+    state = secrets.token_urlsafe(32)
+    browser_secret = secrets.token_urlsafe(32)
+    await redis_call(request, "set", state_key("login", state),
+                     hashlib.sha256(browser_secret.encode()).hexdigest(), ex=LOGIN_TTL)
+    return_to = f"{settings.app_base_url}/auth/steam/callback?{urlencode({'state': state})}"
     params = {
-        "openid.ns": "http://specs.openid.net/auth/2.0",
+        "openid.ns": OPENID_NS,
         "openid.mode": "checkid_setup",
         "openid.return_to": return_to,
         "openid.realm": settings.app_base_url,
-        "openid.identity": "http://specs.openid.net/auth/2.0/identifier_select",
-        "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
+        "openid.identity": f"{OPENID_NS}/identifier_select",
+        "openid.claimed_id": f"{OPENID_NS}/identifier_select",
     }
-    query = "&".join(f"{k}={v}" for k, v in params.items())
-    return RedirectResponse(f"{STEAM_OPENID_URL}?{query}")
+    response = RedirectResponse(f"{STEAM_OPENID_URL}?{urlencode(params)}")
+    response.set_cookie(cookie_name(), browser_secret, max_age=LOGIN_TTL,
+                        httponly=True, secure=settings.app_base_url.startswith("https://"),
+                        samesite="lax", path="/")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.get("/steam/callback")
 async def steam_callback(request: Request, db: Session = Depends(get_db)):
-    """Where Steam sends the user back after they sign in.
-
-    The params arrive as query string values, so they are read off the
-    Request directly. They cannot be declared as a typed body model the way
-    a POST payload would be, since this is a GET redirect and there is no
-    body to parse.
-    """
-    params = dict(request.query_params)
-    if not params.get("openid.claimed_id"):
-        raise HTTPException(status_code=400, detail="Not a valid Steam callback")
-
-    # Hand the exact params back to Steam and ask whether it really signed
-    # them. Only the mode changes; every other value must be echoed
-    # untouched or the signature will not match.
-    verify_params = dict(params)
+    pairs = request.query_params.multi_items()
+    params = dict(pairs)
+    if len(pairs) != len(params) or len(request.url.query) > 8192:
+        raise HTTPException(status_code=400, detail="Invalid Steam callback")
+    state = params.get("state", "")
+    browser_secret = request.cookies.get(cookie_name(), "")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{43}", state):
+        raise HTTPException(status_code=401, detail="Steam login state is invalid or expired. Start again.")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{43}", browser_secret):
+        raise HTTPException(
+            status_code=401,
+            detail="Steam login cookie is missing. Start at http://localhost:8000/auth/steam/login and finish in that same browser tab.",
+        )
+    expected_return = f"{settings.app_base_url}/auth/steam/callback?{urlencode({'state': state})}"
+    identity = params.get("openid.claimed_id", "")
+    match = re.fullmatch(r"https?://steamcommunity\.com/openid/id/([0-9]{17})", identity)
+    if (params.get("openid.ns") != OPENID_NS or params.get("openid.mode") != "id_res"
+            or params.get("openid.op_endpoint") != STEAM_OPENID_URL
+            or params.get("openid.return_to") != expected_return
+            or params.get("openid.identity") != identity or match is None
+            or not SIGNED_FIELDS.issubset(set(params.get("openid.signed", "").split(",")))
+            or not params.get("openid.sig") or not params.get("openid.assoc_handle")):
+        raise HTTPException(status_code=401, detail="Invalid Steam assertion")
+    nonce = params.get("openid.response_nonce", "")
+    try:
+        if not 21 <= len(nonce) <= 255:
+            raise ValueError("Invalid nonce")
+        timestamp = datetime.strptime(nonce[:20], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=utcnow().tzinfo)
+        age = (utcnow() - timestamp).total_seconds()
+        if not -60 <= age <= LOGIN_TTL:
+            raise ValueError("Expired nonce")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Steam assertion expired") from None
+    key = state_key("login", state)
+    expected_browser = hashlib.sha256(browser_secret.encode()).hexdigest().encode()
+    stored = await redis_call(request, "get", key)
+    if isinstance(stored, str):
+        stored = stored.encode()
+    if stored is None:
+        raise HTTPException(status_code=401, detail="Steam login state expired. Start the Steam login again.")
+    if not secrets.compare_digest(stored, expected_browser):
+        raise HTTPException(status_code=401, detail="Steam login belongs to a different browser session. Start the Steam login again.")
+    consumed = await redis_call(request, "getdel", key)
+    if consumed != stored:
+        raise HTTPException(status_code=401, detail="Steam login was already used. Start the Steam login again.")
+    verify_params = {k: v for k, v in params.items() if k.startswith("openid.")}
     verify_params["openid.mode"] = "check_authentication"
-
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(STEAM_OPENID_URL, data=verify_params)
-
-    if "is_valid:true" not in resp.text:
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
+            result = await client.post(STEAM_OPENID_URL, data=verify_params)
+            result.raise_for_status()
+    except httpx.HTTPError:
+        raise HTTPException(status_code=502, detail="Steam login service unavailable") from None
+    verified = dict(line.split(":", 1) for line in result.text.splitlines() if ":" in line)
+    if verified.get("is_valid") != "true":
         raise HTTPException(status_code=401, detail="Steam login verification failed")
-
-    # claimed_id looks like https://steamcommunity.com/openid/id/76561198...
-    steam_id = params["openid.claimed_id"].rstrip("/").rsplit("/", 1)[-1]
-    if not steam_id.isdigit():
-        raise HTTPException(status_code=400, detail="Could not parse SteamID")
-
-    linked = (
-        db.query(LinkedAccount)
-        .filter_by(platform=Platform.steam, platform_user_id=steam_id)
-        .first()
-    )
-
+    if not await redis_call(request, "set", state_key("nonce", nonce), "used", nx=True, ex=NONCE_TTL):
+        raise HTTPException(status_code=401, detail="Steam assertion already used")
+    steam_id = match.group(1)
+    linked = db.query(LinkedAccount).filter_by(platform=Platform.steam, platform_user_id=steam_id).first()
     if linked:
         user = linked.user
     else:
         summary = await steam.get_player_summary(steam_id)
-        display_name = (summary or {}).get("persona_name") or f"Player{steam_id[-6:]}"
-        user = User(display_name=display_name)
+        user = User(display_name=(summary or {}).get("persona_name") or f"Player{steam_id[-6:]}")
         db.add(user)
-        db.flush()
-        linked = LinkedAccount(
-            user_id=user.id, platform=Platform.steam, platform_user_id=steam_id
-        )
-        db.add(linked)
+        try:
+            db.flush()
+            db.add(LinkedAccount(user_id=user.id, platform=Platform.steam, platform_user_id=steam_id))
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            linked = db.query(LinkedAccount).filter_by(platform=Platform.steam, platform_user_id=steam_id).first()
+            if linked is None:
+                raise
+            user = linked.user
+    token = await issue_session(request, user.id)
+    logger.info("login_succeeded user_id=%s", user.id)
+    response = JSONResponse({"access_token": token, "token_type": "bearer",  # nosec B105
+                             "expires_in": settings.session_minutes * 60, "user_id": user.id,
+                             "display_name": user.display_name, "steam_id": steam_id})
+    response.delete_cookie(cookie_name(), path="/", secure=settings.app_base_url.startswith("https://"),
+                           httponly=True, samesite="lax")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
-    db.commit()
 
-    token = jwt.encode(
-        {"sub": str(user.id), "exp": utcnow() + timedelta(days=30)},
-        settings.jwt_secret,
-        algorithm="HS256",
-    )
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user_id": user.id,
-        "display_name": user.display_name,
-        "steam_id": steam_id,
-    }
+@router.post("/logout", status_code=204)
+async def logout(request: Request, user: User = Depends(get_current_user)):
+    await redis_call(request, "delete", state_key("session", request.state.session_id))
+    logger.info("logout user_id=%s", user.id)
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})

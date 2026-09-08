@@ -17,9 +17,11 @@ Working:
 - Sign in through Steam
 - Full library sync, running in the background
 - Genre breakdown by playtime
+- Reviews with playtime and achievement verification frozen at creation
+- Comments under reviews
+- Browser-bound Steam login, short revocable API sessions and request limits
 
 Not built yet:
-- Reviews and the verified badge
 - Recommendations
 
 ## Steam only, on purpose
@@ -105,7 +107,8 @@ There's a test pinning this down so nobody comes along later and "fixes" it.
   achievements for one game. Append only, so a re-sync adds a row instead of
   overwriting. That means I can chart playtime over time later, not just show
   a running total
-- `Review` and `Comment` are the social layer, not built yet
+- `Review` stores a rating and verified stats at write time. `Comment` belongs
+  to one review and its author
 
 The append only thing has a catch worth knowing: every query that wants
 "current" playtime has to pull the newest snapshot per game, not just any
@@ -132,7 +135,7 @@ Postgres and Redis locally, in which case also install
 `requirements-postgres.txt`.
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.lock
 dev.bat
 ```
 
@@ -165,19 +168,42 @@ authorize in the docs UI, then `POST /me/sync`.
 If the queue gets into a weird state with stale jobs retrying:
 
 ```bash
-python scripts/reset_queue.py
+python scripts/reset_queue.py --yes
 ```
 
 ## Tests
 
 ```bash
-pytest
+python -m pytest
 ```
 
-Seven tests, no Steam key or Redis or database needed. They run against an in
-memory SQLite database. Most of them cover the genre aggregation, including
-the full credit rule, since that's a decision rather than an obvious
-behaviour.
+The default tests run against an in memory SQLite database, with no Steam or
+hosted Redis calls. An optional localhost Redis integration test runs in CI. They cover genre aggregation, review verification and snapshot isolation,
+validation, authentication, duplicate reviews, ordering, and comments.
+
+## Reviews and comments
+
+Use a game's internal `id` from `/me/library`, not its Steam appid.
+`POST /games/{game_id}/reviews` accepts a rating from 0.5 to 5 in half star
+steps, plus an optional body of up to 10,000 characters. Sign in first.
+There's one review per user per game. A duplicate returns 409.
+
+Verified minutes and achievement percentage come from your latest snapshot
+for that game when you write the review. Later syncs don't change the review.
+Without a snapshot, both fields are null and the review is unverified. Zero
+minutes is a known value, not proof of meaningful play. Missing achievement
+data or zero total achievements leaves the percentage null.
+
+`GET /games/{game_id}/reviews` is public and sorts by verified minutes,
+highest first, with unverified reviews last. Ties use newest review first.
+
+`POST /reviews/{review_id}/comments` accepts a nonblank body of up to 5,000
+characters and requires sign in. `GET /reviews/{review_id}/comments` is public
+and returns oldest first. Comments form a flat thread under each review;
+nested replies aren't supported yet.
+
+Both list routes accept `limit` (1 to 100, default 20) and `offset` (default 0).
+Missing games or reviews return 404. Review and comment creation return 201.
 
 ## Known rough edges
 
@@ -188,3 +214,24 @@ behaviour.
   average hours per genre, that wants its own table and a join
 - The genre aggregation happens in Python, not SQL, for the same reason
 - No frontend yet. Everything goes through the docs UI
+
+## Security and next steps
+
+Read [SECURITY.md](SECURITY.md) before deploying or upgrading the API and worker.
+It lists implemented protections, test limits and the remaining launch gates.
+[DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) defines the sprint sequence,
+acceptance criteria, and release gates for continued development.
+
+Steam handles the user's password. PlayGraph uses its own server-side Steam
+API key to import available data. It does not ask users for personal API keys.
+Tokens now expire after 30 minutes and POST /auth/logout revokes the current
+session. Start login in the same browser that receives the callback. Old tokens
+stop working. Swagger no longer saves bearer tokens across reloads.
+
+Set ENVIRONMENT=production and an HTTPS APP_BASE_URL for deployment. Redis must
+use TLS and authentication in production. The API accepts only the configured
+host. Configure trusted proxy addresses explicitly at the ASGI server.
+
+The JSON queue upgrade requires restarting both API and worker after active
+syncs finish. Old queued jobs aren't automatically migrated. Re-request syncs
+using the new API. No database migration is required by this security update.

@@ -16,11 +16,14 @@ from arq.jobs import Job
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from redis.exceptions import RedisError
 
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Game, LinkedAccount, Platform, PlaytimeSnapshot, User
 from app.schemas import GenreBreakdownOut, LibraryEntryOut
+from app.queue_codec import QUEUE_NAME, deserialize
+from app.security import rate_limit
 
 router = APIRouter(prefix="/me", tags=["library"])
 
@@ -76,15 +79,20 @@ async def sync_library(
     if linked is None:
         raise HTTPException(status_code=400, detail="No linked Steam account")
 
+    await rate_limit(request, "sync", str(user.id), 3, 3600)
+
     # A fixed job id per user makes this idempotent: arq refuses to enqueue
     # a second job with an id that is already queued, running, or holding a
     # recent result, and returns None instead. Without this, double-clicking
     # the button starts two syncs that race each other writing the same rows
     # (which on SQLite shows up as "database is locked", and on Postgres
     # would just be wasted API quota and duplicate snapshots).
-    job = await request.app.state.arq_pool.enqueue_job(
-        "sync_steam_library", user.id, _job_id=f"sync-user-{user.id}"
-    )
+    try:
+        job = await request.app.state.arq_pool.enqueue_job(
+            "sync_steam_library", user.id, _job_id=f"sync-json-user-{user.id}"
+        )
+    except RedisError:
+        raise HTTPException(status_code=503, detail="Sync service unavailable") from None
 
     if job is None:
         raise HTTPException(
@@ -99,13 +107,23 @@ async def sync_library(
 
 
 @router.get("/sync/status/{job_id}")
-async def sync_status(job_id: str, request: Request):
-    job = Job(job_id, request.app.state.arq_pool)
-    status = await job.status()
-    result = None
-    if status.name == "complete":
-        result = await job.result(timeout=0)
-    return {"job_id": job_id, "status": status.name, "result": result}
+async def sync_status(job_id: str, request: Request, user: User = Depends(get_current_user)):
+    if job_id != f"sync-json-user-{user.id}":
+        raise HTTPException(status_code=404, detail="Sync job not found")
+    job = Job(job_id, request.app.state.arq_pool, _queue_name=QUEUE_NAME, _deserializer=deserialize)
+    try:
+        status = await job.status()
+        result = None
+        if status.name == "complete":
+            info = await job.result_info()
+            if info is None or not info.success:
+                return {"job_id": job_id, "status": "failed", "result": None}
+            data = info.result if isinstance(info.result, dict) else {}
+            result = {k: data[k] for k in ("games_synced", "genres_fetched")
+                      if type(data.get(k)) is int}
+        return {"job_id": job_id, "status": status.name, "result": result}
+    except RedisError:
+        raise HTTPException(status_code=503, detail="Sync status unavailable") from None
 
 
 @router.get("/library", response_model=list[LibraryEntryOut])
