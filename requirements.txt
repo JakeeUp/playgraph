@@ -6,7 +6,7 @@
 # packages built before it shipped, and pinning exact old versions forces
 # pip to try compiling them from source.
 
-fastapi>=0.115
+fastapi>=0.141.1
 uvicorn>=0.30
 sqlalchemy>=2.0.35
 alembic>=1.13
