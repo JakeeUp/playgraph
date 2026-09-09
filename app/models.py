@@ -14,6 +14,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from app.database import Base
 
@@ -87,6 +88,16 @@ class Game(Base):
     playtime_snapshots = relationship("PlaytimeSnapshot", back_populates="game")
     reviews = relationship("Review", back_populates="game")
 
+    @hybrid_property
+    def content_kind(self):
+        from app.content import content_kind
+        return content_kind(self.steam_appid, self.genres)
+
+    @content_kind.expression
+    def content_kind(cls):
+        from app.content import content_kind_sql
+        return content_kind_sql(cls)
+
 
 class PlaytimeSnapshot(Base):
     """A point-in-time capture of a user's playtime/achievement progress for
@@ -133,6 +144,10 @@ class Review(Base):
     game = relationship("Game", back_populates="reviews")
     comments = relationship("Comment", back_populates="review")
 
+    @property
+    def author_name(self):
+        return self.user.display_name
+
 
 class Comment(Base):
     __tablename__ = "comments"
@@ -144,3 +159,8 @@ class Comment(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     review = relationship("Review", back_populates="comments")
+    user = relationship("User")
+
+    @property
+    def author_name(self):
+        return self.user.display_name
