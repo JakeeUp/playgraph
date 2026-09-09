@@ -1,7 +1,23 @@
 # PlayGraph development plan
 
-Status: proposed delivery plan. Sprint 0 is next. Later sprints are backlog,
-not commitments. This document records process and scope, not completed work.
+Status: active local development plan, updated 2026-09-09. Baseline acceptance
+is still open. The first browser UI was brought forward at the owner's request.
+It is implemented locally and in Verify. Later sprints remain backlog.
+See PHASES.md for the short phase checklist and UI_NOTES.md for acceptance steps.
+
+Current owner-requested increment: Phase 1B adds drag half-star input, separate
+software classification and stats, a real review feed and shareable discussions.
+The implementation has 104 passing Python tests, one skipped Redis integration
+test, and seven passing JavaScript tests. Desktop browser acceptance with synthetic
+accounts passed for ratings, software separation, review discussions and logout.
+Real-device touch/layout and a fresh Steam login/sync acceptance run remain open.
+This brings forward part of social discovery; follows, blocking, reporting and
+moderation are still release gates. It does not authorize public participation.
+
+Next scope is managed PlayGraph accounts with all three requested sign-in
+methods, MFA, migrations and safe platform linking. No identity provider has
+been configured. ACCOUNT_PLAN.md defines that work. PLATFORM_PLAN.md records
+the multi-console catalog model and each provider's current access constraints.
 
 ## Product objective
 
@@ -22,14 +38,22 @@ followed by a long repair phase. Each increment must preserve the working flows.
   Real browser login and hosted-service behavior still need acceptance evidence.
 - Local startup and callback errors have recently needed fixes. Treat them as
   stabilization work until a clean end-to-end run is demonstrated.
-- No consumer frontend, migrations, diary, backlog, lists, or social feed yet.
-- Existing work is uncommitted. CI configuration is present locally but its
-  successful execution has not been established.
+- The first consumer frontend covers sign-in, library, catalog, stats, reviews
+  and comments. A basic review feed is now present. Migrations, diary, backlog,
+  lists and richer social controls remain.
+- The backend baseline and developer UI were committed before this increment.
+  This browser increment is local and uncommitted. CI success is unverified.
 - The earlier security pass reported 80 passing local tests and one skipped
   real-Redis integration test. Record fresh results in Sprint 0; this number
   is historical evidence, not a permanent quality target.
 
 ## Cadence and responsibilities
+
+Current increment: PG-020, PG-030 through PG-033 and the PG-053 public review
+disclosure have local implementations without schema changes. Their sprint
+gates are still open. Earlier Phase 1A verification: 90 Python tests passed,
+one real-Redis test was skipped, and five JavaScript data tests passed. Browser/Steam acceptance
+and mobile/keyboard checks remain. Nothing has been hosted.
 
 Use two-week sprints as the initial planning assumption. Schedule the dates
 when a sprint begins and adjust capacity around school and other commitments.
