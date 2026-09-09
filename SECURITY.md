@@ -1,6 +1,6 @@
 # Security review and operating requirements
 
-Reviewed 2026-09-07. This is a code review and automated test pass, not a
+Reviewed 2026-09-08. This is a code review and automated test pass, not a
 penetration-test certification. Public launch still has requirements below.
 
 ## What PlayGraph actually stores
@@ -78,14 +78,29 @@ Old tokens without the new claims and Redis record stop working. Logging out
 does not cancel a sync already in progress. Redis loss expires sessions and
 requires signing in again. Security-store failures return 503, not access.
 
-Before building the public browser client, move browser sessions to Secure,
-HttpOnly cookies with explicit CSRF and Origin checks on writes. Never put
-bearer tokens in localStorage or URLs. The current API authenticates writes
-only from an explicit Authorization header, not an automatically sent cookie.
-Do not add cookie-based authentication without also adding CSRF protection.
+The browser starts at `/app` and uses `/auth/steam/login?ui=1`. Login mode is
+bound in Redis and the signed return URL. Success sets an HttpOnly, SameSite=Lax
+session cookie and redirects to `/app`. HTTPS uses Secure and the `__Host-`
+prefix. Local HTTP cookies are development-only. No bearer token is placed
+in page content, URLs, localStorage or sessionStorage.
+
+`GET /auth/session` returns identity, expiry and a session-bound HMAC CSRF token.
+The UI keeps that CSRF token in memory. Cookie writes require the exact Origin
+and matching X-CSRF-Token. Explicit invalid Authorization cannot fall back to
+a cookie. Bearer API clients retain their existing behavior.
+See [OWASP CSRF prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html).
+
+Logout revokes Redis state and clears the cookie. The UI clears private records,
+dialogs and timers and aborts pending requests when a session ends. Other tabs
+revalidate through a credential-free BroadcastChannel signal and on focus.
+Browser history restoration reloads the page. No service worker caches data.
 
 Reviews, comments, game names, and Steam persona names are untrusted text.
-The API returns JSON. The future UI must render them as text, never raw HTML.
+The API returns JSON. The UI builds DOM nodes and renders those values as text,
+never raw HTML. Its CSP permits local scripts/styles and specific Steam image
+hosts without inline-script permission. Stored artwork URLs also pass an HTTPS
+host allowlist. Image requests contact Steam's CDN directly and reveal the image
+being requested and the visitor's IP to that host.
 If Markdown is added, sanitize the rendered result with a maintained allowlist.
 See [OWASP XSS prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html).
 
@@ -158,13 +173,35 @@ rejection, request limits, and existing review/genre behavior. Test databases
 are in-memory and test configuration overrides inherited production settings.
 Real Steam and hosted Redis were not contacted by tests.
 
+Browser changes add negative tests for login-mode tampering, missing or foreign
+CSRF/Origin values, cross-session CSRF, cookie revocation, Authorization precedence,
+catalog bounds and CSP. Results: 90 Python tests passed, one optional real-Redis
+test skipped, and five JavaScript data tests passed. These are not browser
+layout or real Steam end-to-end acceptance evidence.
+
+Phase 1B adds public review-feed reads and authenticated personal ranking.
+Responses expose existing public review/game fields and comment counts, not raw
+personal libraries or Steam account IDs. Ranking input comes from the current
+session's game snapshots. SQL input is bound, pagination is capped and the
+personalized candidate set is capped at 500. Software is excluded before ranking.
+Feed/dialog state clears on session changes, and user text is still rendered
+through textContent. Existing comment/review writes retain CSRF and ownership checks.
+Current results are 98 passing Python tests, one skipped Redis test, and seven
+passing JavaScript tests. Live browser interaction checks remain open.
+
+PlayGraph-native account creation and MFA are not implemented or enabled yet.
+ACCOUNT_PLAN.md defines the managed identity boundary and linking threats. A
+platform data link must never bypass the PlayGraph account's second factor.
+No PSN/Nintendo/Epic browser-session cookies or platform passwords are collected.
+
 A separate Redis integration test runs only with TEST_REDIS_URL set to a local
 server. CI provisions an isolated Redis service for atomic Lua/GETDEL and an
 arq JSON worker round trip. It is skipped on this Windows machine, which lacks
 a local Redis server. The GitHub workflow has not run yet.
 
-The 35-package dependency snapshot returned no known advisories on review day.
-Bandit reported no actionable findings; its hardcoded-password check is
+The earlier 2026-09-07 audit of the 35-package dependency snapshot returned no
+known advisories. That earlier Bandit run reported no actionable findings;
+its hardcoded-password check is
 locally suppressed only for the public protocol label "bearer". Those tools
 do not prove the absence of vulnerabilities or validate hosting controls.
 
