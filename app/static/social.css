@@ -1,0 +1,43 @@
+.rating-picker { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; margin-bottom:20px; }
+.review-form .rating-picker label { margin:0; }
+.rating-picker .helper { width:100%; margin:0; }
+.rating-track { position:relative; display:block; width:240px; height:52px; border-radius:8px; }
+.rating-track:focus-within { outline:2px solid var(--accent); outline-offset:4px; }
+.rating-stars { display:inline-flex; font-family:Arial,sans-serif; white-space:nowrap; gap:0; color:#525c49; }
+.rating-track>.rating-stars { width:100%; font-size:48px; line-height:52px; }
+.rating-star { position:relative; display:inline-block; width:1em; height:1em; }
+.rating-star svg { display:block; width:1em; height:1em; fill:currentColor; max-width:none; }
+.star-fill { position:absolute; inset:0 auto 0 0; width:0; overflow:hidden; color:var(--accent); }
+.star-fill.half { width:50%; }
+.star-fill.full { width:100%; }
+.rating-track .rating-input { position:absolute; inset:0; opacity:0; width:100%; height:100%; margin:0; cursor:ew-resize; touch-action:none; }
+.rating-value { min-width:70px; font-size:14px; color:var(--accent); padding-top:24px; }
+.rating-clear { margin-top:24px; }
+.review-rating .rating-stars { font-size:18px; }
+.thread-link { margin-left:16px; }
+.feed-items { display:grid; gap:20px; max-width:960px; }
+.feed-card { border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:24px; }
+.feed-game { display:flex; gap:18px; align-items:center; padding-bottom:20px; border-bottom:1px solid var(--line); }
+.feed-cover { width:74px; flex-shrink:0; border:0; background:none; padding:0; }
+.feed-game-copy { min-width:0; }
+.feed-title { display:block; color:var(--text); font-size:21px; letter-spacing:-.4px; font-weight:600; border:0; background:none; padding:0; text-align:left; }
+.feed-title:hover { color:var(--accent); }
+.feed-reason { font-size:12px; color:var(--accent); margin:8px 0; }
+.feed-card .review-card { border-bottom:0; padding-bottom:0; }
+.feed-card .review-body { max-height:260px; overflow:auto; }
+.feed-count { font-size:12px; color:var(--muted); margin:12px 0 0; }
+.feed-empty { max-width:700px; }
+.feed-empty .button { display:flex; width:fit-content; margin:20px auto 0; }
+@media(max-width:600px) {
+  .sidebar nav { gap:2px; }
+  .sidebar .nav-item { padding-inline:2px; font-size:12px; min-width:0; overflow-wrap:anywhere; }
+  .feed-card { padding:18px; }
+  .feed-title { font-size:18px; }
+  .feed-cover { width:58px; }
+  .rating-track { width:220px; }
+  .rating-track>.rating-stars { font-size:44px; }
+  .rating-picker { gap:8px 12px; }
+  .rating-value { padding-top:24px; }
+  .rating-clear { margin-top:0; }
+  .thread-link { margin-left:12px; }
+}
