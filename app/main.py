@@ -1,14 +1,18 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from arq import create_pool
 from arq.connections import RedisSettings
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import auth, library, reviews
+from app.routers import auth, catalog, feed, library, reviews
 from app.middleware import SecurityMiddleware
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
 from app.security_logging import configure_access_logging
@@ -48,6 +52,13 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=[urlsplit(settings.app_b
                    www_redirect=False)
 app.add_middleware(SecurityMiddleware)
 
+
+@app.exception_handler(HTTPException)
+async def browser_login_error(request: Request, exc: HTTPException):
+    if request.url.path == "/auth/steam/callback" and request.query_params.get("ui") == "1":
+        return RedirectResponse("/app?login_error=1", status_code=303)
+    return await http_exception_handler(request, exc)
+
 # TODO: switch to Alembic migrations before this has real user data - fine
 # for local dev to just create tables from the models on startup for now
 Base.metadata.create_all(bind=engine)
@@ -55,13 +66,21 @@ Base.metadata.create_all(bind=engine)
 app.include_router(auth.router)
 app.include_router(library.router)
 app.include_router(reviews.router)
+app.include_router(catalog.router)
+app.include_router(feed.router)
 
-if settings.environment == "development":
-    # Hand-testing UI at /app. Never mounted in production, so the CSP
-    # relaxation it needs cannot apply there either.
-    from app.routers import devui
+STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
-    app.include_router(devui.router)
+
+@app.get("/", include_in_schema=False)
+def home():
+    return RedirectResponse("/app", status_code=307)
+
+
+@app.get("/app", include_in_schema=False)
+def web_app():
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")
