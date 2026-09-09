@@ -20,16 +20,25 @@ Working:
 - Reviews with playtime and achievement verification frozen at creation
 - Comments under reviews
 - Browser-bound Steam login, short revocable API sessions and request limits
+- Responsive UI at `/app`: Steam covers, library search, filters and playtime stats
+- Game details with review and comment forms
+- HttpOnly browser sessions, CSRF protection and sign-out
+- Draggable half-star ratings, with touch and keyboard support
+- Separate Software shelf and usage totals; apps stay out of gaming stats
+- For You and Latest review feeds, with shareable review discussions
 
 Not built yet:
 - Recommendations
+- Standalone PlayGraph sign-up, passkeys, email links and MFA (provider setup pending)
+- Cross-console catalog imports and platform connections beyond Steam
 
-## Steam only, on purpose
+## Steam first
 
-Xbox and PlayStation don't have real public APIs. Xbox has unofficial
-wrappers, PSN has nothing. Supporting either means scraping or leaning on
-reverse engineered endpoints that break whenever Sony or Microsoft feel like
-it. Not worth it for a v1.
+Steam is the implemented importer today. Broader catalog coverage will be
+separate from account connections. Xbox documents a website authentication flow;
+other providers offer different levels of access, often limited to particular
+products or approved developers. PLATFORM_PLAN.md records the current evidence
+and gaps. A provider login does not guarantee a complete library or playtime API.
 
 One thing that caught me off guard: "Sign in through Steam" is OpenID 2.0,
 not OAuth. There's no client secret and no token exchange. Steam redirects
@@ -45,11 +54,12 @@ actually fetches your data afterward.
 
 ## How the sync works
 
-Syncing a library is slow and I couldn't engineer around it.
-`GetPlayerAchievements` takes one appid per call, so a 300 game library is
-300+ requests. Steam caps you at 100,000 calls a day and doesn't publish a
-per second limit, but everyone lands on roughly 1 request a second to avoid
-getting throttled. That put my first sync at about 13 minutes.
+Large library syncs can take several minutes. `GetPlayerAchievements` takes
+one appid per call. The current worker checks played games sequentially and
+pauses between requests. Cached genres skip that work on later syncs. The
+worker's estimate assumes uncached genres and can overstate the time remaining.
+Connection reuse, measured concurrency and better estimates are performance
+backlog items, not a fixed Steam requirement.
 
 13 minutes doesn't fit in an HTTP request. So `POST /me/sync` drops a job on
 a queue and hands back a job id immediately, and you poll
@@ -162,8 +172,18 @@ python -m uvicorn app.main:app --reload    # the API
 python -m arq app.worker.WorkerSettings    # the sync worker, separate terminal
 ```
 
-Docs at http://localhost:8000/docs. Hit `/auth/steam/login`, copy the token,
-authorize in the docs UI, then `POST /me/sync`.
+Open **http://localhost:8000/app**. Choose **Connect Steam**, finish Steam's
+sign-in, then choose **Sync Steam**. Keep the API and worker running. An existing
+synced library appears after sign-in without another import.
+
+Use the exact origin configured in `APP_BASE_URL`, normally `localhost`,
+throughout sign-in. Browser sessions last 30 minutes. Connect Steam again when
+one expires. No token copying, npm install or separate frontend server is needed.
+This is a responsive browser app; native mobile packaging is future work.
+
+API docs remain at http://localhost:8000/docs. `/auth/steam/login` still returns
+a bearer token for developer tools. The browser uses `/auth/steam/login?ui=1`,
+which sets an HttpOnly session cookie and redirects to `/app`.
 
 If the queue gets into a weird state with stale jobs retrying:
 
@@ -175,6 +195,7 @@ python scripts/reset_queue.py --yes
 
 ```bash
 python -m pytest
+node tests/test_library_ui.mjs
 ```
 
 The default tests run against an in memory SQLite database, with no Steam or
@@ -213,7 +234,9 @@ Missing games or reviews return 404. Review and comment creation return 201.
   user's breakdown, but if I ever want to ask cross user questions like
   average hours per genre, that wants its own table and a join
 - The genre aggregation happens in Python, not SQL, for the same reason
-- No frontend yet. Everything goes through the docs UI
+- Review editing/deletion, backlog statuses, diary entries and social feeds remain
+- Catalog browsing covers imported games, not the complete Steam catalog
+- Missing Steam covers use an available stored header, then a title placeholder
 
 ## Security and next steps
 
@@ -227,6 +250,29 @@ API key to import available data. It does not ask users for personal API keys.
 Tokens now expire after 30 minutes and POST /auth/logout revokes the current
 session. Start login in the same browser that receives the callback. Old tokens
 stop working. Swagger no longer saves bearer tokens across reloads.
+
+Cookie-authenticated browser writes require both a session-bound CSRF token and
+the configured Origin. Authentication credentials stay out of JavaScript storage.
+Reviews and comments are public; the form explains which verified stats are shared.
+
+[PHASES.md](PHASES.md) shows our current phase and completion gates.
+[ACCOUNT_PLAN.md](ACCOUNT_PLAN.md) covers PlayGraph accounts, MFA and provider setup.
+[PLATFORM_PLAN.md](PLATFORM_PLAN.md) distinguishes game catalog coverage from
+account linking and verified import support.
+[UI_NOTES.md](UI_NOTES.md) records the design sources, artwork choice and local
+acceptance steps. Real Steam browser acceptance is still required for this update.
+
+`GET /games` now defaults to games. Use `kind=software` for apps or `kind=all`
+for the complete imported catalog. `/me/library` preserves all records by default
+and accepts the same filter. `/me/genres` defaults to games. Software is classified
+using explicit known app IDs and conservative software genre tokens; Steam's
+appdetails type alone is not reliable. This needs a versioned metadata source later.
+
+`GET /feed` returns recent public game reviews. `/me/feed` requires a session
+and ranks the latest 500 other-player reviews by library/genre overlap and recency.
+Both paginate with a `before` anchor. `/reviews/{id}` exposes a public discussion
+entry; `/app#review={id}` opens it in the UI. The feed uses real comments and
+does not include software reviews, fabricated popularity or a follow graph.
 
 Set ENVIRONMENT=production and an HTTPS APP_BASE_URL for deployment. Redis must
 use TLS and authentication in production. The API accepts only the configured
