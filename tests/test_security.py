@@ -63,14 +63,14 @@ def verification(monkeypatch):
     return stub
 
 
-def begin(client, nonce=None):
-    response = client.get("/auth/steam/login", follow_redirects=False)
+def begin(client, nonce=None, ui=False):
+    response = client.get("/auth/steam/login", params={"ui": "1"} if ui else {}, follow_redirects=False)
     assert response.status_code == 307
     target = urlsplit(response.headers["location"])
     assert target.scheme == "https" and target.netloc == "steamcommunity.com"
     return_to = parse_qs(target.query)["openid.return_to"][0]
     state = parse_qs(urlsplit(return_to).query)["state"][0]
-    return {"state": state, "openid.ns": auth.OPENID_NS, "openid.mode": "id_res",
+    return {"state": state, **({"ui": "1"} if ui else {}), "openid.ns": auth.OPENID_NS, "openid.mode": "id_res",
             "openid.op_endpoint": auth.STEAM_OPENID_URL, "openid.return_to": return_to,
             "openid.identity": "https://steamcommunity.com/openid/id/76561198000000001",
             "openid.claimed_id": "https://steamcommunity.com/openid/id/76561198000000001",
@@ -296,3 +296,86 @@ def test_secrets_are_masked_in_config():
     config = Settings(_env_file=None)
     assert config.jwt_secret.get_secret_value() not in repr(config)
     assert config.steam_api_key.get_secret_value() not in repr(config)
+
+
+def browser_login(client):
+    response = client.get("/auth/steam/callback", params=begin(client, ui=True), follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/app"
+    assert "access_token" not in response.text
+    cookie = response.headers["set-cookie"]
+    assert "playgraph-session=" in cookie and "HttpOnly" in cookie and "SameSite=lax" in cookie
+    assert "Domain=" not in cookie
+    session = client.get("/auth/session")
+    assert session.status_code == 200
+    assert session.json()["user"] == {"id": 1, "display_name": "One"}
+    assert "access_token" not in session.text
+    return session.json()["csrf_token"]
+
+
+def test_browser_login_and_csrf_protected_review_and_logout(client, verification):
+    csrf = browser_login(client)
+    assert len(csrf) == 64
+    for headers in [{}, {"Origin": settings.app_base_url}, {"X-CSRF-Token": csrf},
+                    {"Origin": "https://attacker.example", "X-CSRF-Token": csrf},
+                    {"Origin": "null", "X-CSRF-Token": csrf},
+                    {"Origin": settings.app_base_url, "X-CSRF-Token": "x" * 64}]:
+        assert client.post("/games/1/reviews", json={"rating": 4}, headers=headers).status_code == 403
+    headers = {"Origin": settings.app_base_url, "X-CSRF-Token": csrf}
+    review = client.post("/games/1/reviews", json={"rating": 4, "body": "A real review"}, headers=headers)
+    assert review.status_code == 201
+    assert review.json()["author_name"] == "One"
+    assert client.post("/auth/logout").status_code == 403
+    cookie = client.cookies.get(auth.session_cookie_name())
+    assert client.post("/auth/logout", headers=headers).status_code == 204
+    assert client.cookies.get(auth.session_cookie_name()) is None
+    client.cookies.set(auth.session_cookie_name(), cookie)
+    assert client.get("/auth/session").status_code == 401
+
+
+@pytest.mark.parametrize("start_ui", [True, False])
+def test_login_mode_cannot_be_switched_even_with_matching_return_to(client, verification, start_ui):
+    params = begin(client, ui=start_ui)
+    if start_ui:
+        params.pop("ui")
+        params["openid.return_to"] = params["openid.return_to"].replace("&ui=1", "")
+    else:
+        params["ui"] = "1"
+        params["openid.return_to"] += "&ui=1"
+    assert client.get("/auth/steam/callback", params=params, follow_redirects=False).status_code == 401
+    assert not verification.calls
+
+
+def test_cookie_session_does_not_override_bad_authorization(client, verification):
+    browser_login(client)
+    for header in ["Bearer bad", "Basic abc", "Bearer"]:
+        assert client.get("/auth/session", headers={"Authorization": header}).status_code == 401
+
+
+def test_csrf_from_another_session_is_rejected(client, verification):
+    first_csrf = browser_login(client)
+    second_csrf = browser_login(client)
+    assert first_csrf != second_csrf
+    response = client.post("/auth/logout", headers={"Origin": settings.app_base_url, "X-CSRF-Token": first_csrf})
+    assert response.status_code == 403
+    assert client.get("/auth/session").status_code == 200
+
+
+def test_browser_session_expiry_and_owner_boundary(client, verification):
+    browser_login(client)
+    assert client.get("/me/library").status_code == 200
+    assert client.get("/me/sync/status/sync-json-user-2").status_code == 404
+    client.app.state.arq_pool.now += 1801
+    assert client.get("/auth/session").status_code == 401
+
+
+def test_browser_cookie_is_host_only_and_secure_under_https(client, verification, monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "app_base_url", "https://localhost")
+    client.base_url = "https://localhost"
+    response = client.get("/auth/steam/callback", params=begin(client, ui=True), follow_redirects=False)
+    assert response.status_code == 303
+    cookies = response.headers.get_list("set-cookie")
+    session = next(cookie for cookie in cookies if cookie.startswith("__Host-playgraph-session="))
+    assert "HttpOnly" in session and "Secure" in session and "Path=/" in session and "SameSite=lax" in session
+    assert "Domain=" not in session
