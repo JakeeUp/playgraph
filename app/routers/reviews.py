@@ -2,19 +2,34 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Comment, Game, PlaytimeSnapshot, Review, User
+from app.routers.parameters import ResourceId
 from app.schemas import CommentCreate, CommentOut, ReviewCreate, ReviewOut
 
 router = APIRouter(tags=["reviews"])
 
 
+@router.get("/me/games/{game_id}/review", response_model=ReviewOut | None)
+def own_review(
+    game_id: ResourceId,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if db.get(Game, game_id) is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return (
+        db.query(Review).options(joinedload(Review.user))
+        .filter_by(game_id=game_id, user_id=user.id).first()
+    )
+
+
 @router.post("/games/{game_id}/reviews", response_model=ReviewOut, status_code=201)
 def create_review(
-    game_id: int,
+    game_id: ResourceId,
     review: ReviewCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -52,7 +67,7 @@ def create_review(
 
 @router.get("/games/{game_id}/reviews", response_model=list[ReviewOut])
 def list_reviews(
-    game_id: int,
+    game_id: ResourceId,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -60,7 +75,7 @@ def list_reviews(
     if db.get(Game, game_id) is None:
         raise HTTPException(status_code=404, detail="Game not found")
     return (
-        db.query(Review)
+        db.query(Review).options(joinedload(Review.user))
         .filter_by(game_id=game_id)
         .order_by(
             Review.verified_playtime_minutes.is_(None),
@@ -74,7 +89,7 @@ def list_reviews(
 
 @router.post("/reviews/{review_id}/comments", response_model=CommentOut, status_code=201)
 def create_comment(
-    review_id: int,
+    review_id: ResourceId,
     comment: CommentCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -90,7 +105,7 @@ def create_comment(
 
 @router.get("/reviews/{review_id}/comments", response_model=list[CommentOut])
 def list_comments(
-    review_id: int,
+    review_id: ResourceId,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -98,7 +113,7 @@ def list_comments(
     if db.get(Review, review_id) is None:
         raise HTTPException(status_code=404, detail="Review not found")
     return (
-        db.query(Comment).filter_by(review_id=review_id)
+        db.query(Comment).options(joinedload(Comment.user)).filter_by(review_id=review_id)
         .order_by(Comment.created_at, Comment.id)
         .offset(offset).limit(limit).all()
     )
