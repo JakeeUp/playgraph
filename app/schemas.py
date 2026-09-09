@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -11,6 +12,7 @@ class GameOut(BaseModel):
     name: str
     genres: str | None
     header_image_url: str | None
+    content_kind: Literal["game", "software"]
 
 
 class LibraryEntryOut(BaseModel):
@@ -53,6 +55,7 @@ class ReviewOut(BaseModel):
 
     id: int
     user_id: int
+    author_name: str
     game_id: int
     rating: float
     body: str | None
@@ -79,6 +82,7 @@ class CommentOut(BaseModel):
     id: int
     review_id: int
     user_id: int
+    author_name: str
     body: str
     created_at: datetime
 
