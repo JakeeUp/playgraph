@@ -1,6 +1,7 @@
 """Shared, expiring security state. Redis failures never grant access."""
 
 import hashlib
+import hmac
 import logging
 import secrets
 from datetime import timedelta
@@ -17,6 +18,16 @@ AUDIENCE = "playgraph-api"
 LOGIN_TTL = 600
 NONCE_TTL = 1200
 logger = logging.getLogger("playgraph.security")
+
+
+def session_cookie_name() -> str:
+    return "__Host-playgraph-session" if settings.app_base_url.startswith("https://") else "playgraph-session"
+
+
+def csrf_token(session_id: str) -> str:
+    """A token bound to this session, separate from its authentication credential."""
+    return hmac.new(settings.jwt_secret.get_secret_value().encode(),
+                    f"playgraph-csrf:{session_id}".encode(), hashlib.sha256).hexdigest()
 
 
 def state_key(purpose: str, value: str) -> str:
