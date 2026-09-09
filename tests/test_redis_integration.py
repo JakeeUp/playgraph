@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 import pytest
 from arq import create_pool
 from arq.connections import RedisSettings
-from arq.worker import Worker
+from arq.worker import Worker, func
 from fastapi import FastAPI, HTTPException
 from starlette.requests import Request
 
@@ -47,7 +47,8 @@ async def test_atomic_security_state_and_json_worker():
             return {"value": value}
 
         job = await redis.enqueue_job("echo", 7, _job_id=job_id)
-        worker = Worker([echo], redis_pool=redis, queue_name=queue, burst=True,
+        # Nested functions default to their qualified name; match the queued job name.
+        worker = Worker([func(echo, name="echo")], redis_pool=redis, queue_name=queue, burst=True,
                          job_serializer=serialize, job_deserializer=deserialize,
                          handle_signals=False)
         await worker.async_run()
