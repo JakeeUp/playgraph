@@ -93,6 +93,29 @@ def test_duplicate_is_conflict(api, db):
     assert db.query(Review).count() == 1
 
 
+def test_own_review_ignores_public_pagination_and_scopes_to_session(api, db):
+    own = post_review(api, body="My review below the first page").json()
+    for user_id in range(3, 24):
+        db.add(User(id=user_id, display_name=f"Player {user_id}"))
+        db.add(Review(user_id=user_id, game_id=1, rating=4, verified_playtime_minutes=100))
+    db.commit()
+    assert own["id"] not in [row["id"] for row in api.get("/games/1/reviews").json()]
+    assert api.get("/me/games/1/review", headers=auth()).json() == own
+    assert api.get("/me/games/1/review?user_id=1", headers=auth(2)).json() is None
+    assert api.get("/me/games/2/review", headers=auth()).json() is None
+    assert api.get("/me/games/999/review", headers=auth()).status_code == 404
+    assert api.get("/me/games/1/review").status_code == 401
+
+
+@pytest.mark.parametrize("resource_id", [0, -1, 9223372036854775808])
+def test_resource_ids_are_bounded_before_database_lookup(api, resource_id):
+    for path in [f"/games/{resource_id}/reviews", f"/reviews/{resource_id}/comments",
+                 f"/me/games/{resource_id}/review"]:
+        assert api.get(path, headers=auth()).status_code == 422
+    assert api.post(f"/games/{resource_id}/reviews", headers=auth(), json={"rating": 4}).status_code == 422
+    assert api.post(f"/reviews/{resource_id}/comments", headers=auth(), json={"body": "hello"}).status_code == 422
+
+
 @pytest.mark.parametrize("rating", [0, 5.5, 4.2, "NaN", "Infinity"])
 def test_invalid_rating(api, rating):
     assert post_review(api, rating=rating).status_code == 422
