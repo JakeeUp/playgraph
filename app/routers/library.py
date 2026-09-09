@@ -12,6 +12,8 @@ for the thing the graph is actually answering, which is "how much time has
 this person spent on games with X in them."
 """
 
+from typing import Literal
+
 from arq.jobs import Job
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
@@ -28,30 +30,34 @@ from app.security import rate_limit
 router = APIRouter(prefix="/me", tags=["library"])
 
 
-def _latest_snapshots(db: Session, user_id: int):
+def _latest_snapshots(db: Session, user_id: int, before_id: int | None = None):
     """Every game the user owns, paired with its most recent snapshot.
 
     Snapshots are append-only (see models.py), so a game accumulates one row
     per sync. Both /library and /genres need the newest row per game, so the
     subquery lives here instead of being written twice and drifting.
     """
-    latest_per_game = (
+    snapshot_query = (
         db.query(
-            PlaytimeSnapshot.game_id,
-            func.max(PlaytimeSnapshot.captured_at).label("latest_captured_at"),
+            PlaytimeSnapshot.id.label("snapshot_id"),
+            func.row_number().over(
+                partition_by=PlaytimeSnapshot.game_id,
+                order_by=(PlaytimeSnapshot.captured_at.desc(), PlaytimeSnapshot.id.desc()),
+            ).label("position"),
         )
         .filter(PlaytimeSnapshot.user_id == user_id)
-        .group_by(PlaytimeSnapshot.game_id)
-        .subquery()
     )
+    if before_id is not None:
+        snapshot_query = snapshot_query.filter(PlaytimeSnapshot.id <= before_id)
+    latest_per_game = snapshot_query.subquery()
 
     return (
         db.query(PlaytimeSnapshot, Game)
         .join(Game, Game.id == PlaytimeSnapshot.game_id)
         .join(
             latest_per_game,
-            (PlaytimeSnapshot.game_id == latest_per_game.c.game_id)
-            & (PlaytimeSnapshot.captured_at == latest_per_game.c.latest_captured_at),
+            (PlaytimeSnapshot.id == latest_per_game.c.snapshot_id)
+            & (latest_per_game.c.position == 1),
         )
         .filter(PlaytimeSnapshot.user_id == user_id)
         .order_by(PlaytimeSnapshot.playtime_minutes.desc())
@@ -127,7 +133,8 @@ async def sync_status(job_id: str, request: Request, user: User = Depends(get_cu
 
 
 @router.get("/library", response_model=list[LibraryEntryOut])
-def get_library(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_library(user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                kind: Literal["game", "software", "all"] = "all"):
     """Each owned game joined with its most recent PlaytimeSnapshot."""
     return [
         LibraryEntryOut(
@@ -138,12 +145,14 @@ def get_library(user: User = Depends(get_current_user), db: Session = Depends(ge
             captured_at=snapshot.captured_at,
         )
         for snapshot, game in _latest_snapshots(db, user.id)
+        if kind == "all" or game.content_kind == kind
     ]
 
 
 @router.get("/genres", response_model=list[GenreBreakdownOut])
 def get_genre_breakdown(
-    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    user: User = Depends(get_current_user), db: Session = Depends(get_db),
+    kind: Literal["game", "software", "all"] = "game",
 ):
     """Playtime aggregated by genre. This is what the profile graph reads.
 
@@ -157,6 +166,8 @@ def get_genre_breakdown(
     totals: dict[str, dict[str, int]] = {}
 
     for snapshot, game in _latest_snapshots(db, user.id):
+        if kind != "all" and game.content_kind != kind:
+            continue
         if not game.genres:
             continue
         minutes = snapshot.playtime_minutes or 0
