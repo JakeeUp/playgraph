@@ -35,16 +35,13 @@ class SecurityMiddleware:
                 headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
                 if settings.environment == "production":
                     headers["Strict-Transport-Security"] = "max-age=31536000"
-                if request.url.path == "/app" and settings.environment == "development":
-                    # The dev UI is a single self-contained page with inline
-                    # script and style and no external requests, so 'self'
-                    # plus inline is the whole surface it needs. This branch
-                    # cannot be reached in production because the route is
-                    # only mounted in development.
+                if request.url.path == "/app":
                     headers["Content-Security-Policy"] = (
-                        "default-src 'none'; script-src 'unsafe-inline'; "
-                        "style-src 'unsafe-inline'; connect-src 'self'; "
-                        "frame-ancestors 'none'; base-uri 'none'"
+                        "default-src 'none'; script-src 'self'; style-src 'self'; "
+                        "connect-src 'self'; img-src 'self' https://shared.fastly.steamstatic.com "
+                        "https://shared.akamai.steamstatic.com https://cdn.akamai.steamstatic.com "
+                        "https://cdn.cloudflare.steamstatic.com; "
+                        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
                     )
                 elif request.url.path not in {"/docs", "/docs/oauth2-redirect", "/redoc"}:
                     headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
