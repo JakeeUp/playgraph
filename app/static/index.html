@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10130f">
+  <meta name="description" content="Your games, your time, your point of view. A personal game library with Steam playtime and verified reviews.">
+  <title>PlayGraph | Your life in games</title>
+  <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script type="module" src="/assets/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to your games</a>
+  <aside class="sidebar">
+    <a class="brand" href="/app"><img src="/assets/mark.svg" alt="" width="30" height="30">PlayGraph<span class="beta">BETA</span></a>
+    <p class="nav-label">YOUR SPACE</p>
+    <nav aria-label="Main navigation">
+      <button class="nav-item active" data-view="library"><span aria-hidden="true">▦</span> My library <span id="nav-count" class="nav-count"></span></button>
+      <button class="nav-item" data-view="feed"><span aria-hidden="true">✧</span> For you</button>
+      <button class="nav-item" data-view="explore"><span aria-hidden="true">◎</span> Explore games</button>
+      <button class="nav-item" data-view="software"><span aria-hidden="true">⌘</span> Software</button>
+      <button class="nav-item" data-view="stats"><span aria-hidden="true">▥</span> My playtime</button>
+    </nav>
+    <div class="sidebar-note"><span class="small-mark" aria-hidden="true">↗</span><strong>Built around your play.</strong><p>Your collection and reviews, backed by your Steam playtime.</p></div>
+    <div class="sidebar-bottom"><span class="connection-dot"></span><span>Powered by your play</span></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="search" type="search" placeholder="Find your next obsession..." maxlength="120" aria-label="Search games"><kbd>/</kbd></label>
+      <div id="account" class="account"><a class="button primary compact" href="/auth/steam/login?ui=1">Connect Steam <span aria-hidden="true">↗</span></a></div>
+    </header>
+    <main id="main" tabindex="-1">
+      <div id="notice" class="notice" role="status" hidden></div>
+      <section class="page-heading"><div><p class="eyebrow" id="eyebrow">A LITTLE MORE THAN A BACKLOG</p><h1 id="page-title">Your life in games<span class="accent">.</span></h1><p id="page-subtitle" class="subtitle">The ones you love. The ones you finish. The ones you keep coming back to.</p></div><button id="sync-button" class="button secondary" hidden><span aria-hidden="true">↻</span> Sync Steam</button></section>
+      <section id="welcome" class="welcome"><div><span class="pill">YOUR STEAM LIBRARY, CONNECTED</span><h2>Your games.<br>Your point of view.</h2><p>Bring in your Steam library, see where your time goes, and give every game an honest review.</p><a href="/auth/steam/login?ui=1" class="button primary">Connect your Steam library <span aria-hidden="true">↗</span></a><span class="helper">Sign in on Steam. Your password stays there.</span></div><div class="welcome-art" aria-hidden="true"><img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1145360/library_600x900.jpg" alt=""><img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1245620/library_600x900.jpg" alt=""><img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1086940/library_600x900.jpg" alt=""></div></section>
+      <section id="summary" class="summary" aria-label="Your library at a glance" hidden></section>
+      <section id="insights" class="insights" hidden></section>
+      <section id="feed" hidden aria-label="Review feed">
+        <div class="section-heading"><div class="filter-chips"><button id="feed-for-you" class="chip selected" aria-pressed="true">For you</button><button id="feed-latest" class="chip" aria-pressed="false">Latest reviews</button></div><button id="refresh-feed" class="button secondary">Refresh</button></div>
+        <p id="feed-description" class="collection-note"></p>
+        <div id="feed-items" class="feed-items" aria-live="polite"></div>
+        <div class="load-more"><button id="more-feed" class="button secondary" hidden>More reviews</button></div>
+      </section>
+      <section id="collection" aria-labelledby="collection-title">
+        <div class="section-heading"><div class="heading-with-count"><h2 id="collection-title">On the shelf</h2><span id="result-count" class="count-label"></span></div><div class="display-controls"><label class="sort-label"><span class="sr-only">Sort games</span><select id="sort"><option value="name">Title: A to Z</option><option value="playtime">Most played</option><option value="achievements">Achievement progress</option></select></label><div class="view-toggle" aria-label="Display style"><button id="grid-view" aria-label="Cover grid" aria-pressed="true">▦</button><button id="list-view" aria-label="Compact list" aria-pressed="false">☰</button></div></div></div>
+        <div id="filters" class="filters" hidden><div id="play-filters" class="filter-chips" aria-label="Play status"><button data-filter="all" class="chip selected" aria-pressed="true">All games</button><button data-filter="played" class="chip" aria-pressed="false">Played</button><button data-filter="unplayed" class="chip" aria-pressed="false">Yet to play</button></div><label><span class="sr-only">Filter by genre</span><select id="genre"><option value="">All genres</option></select></label></div>
+        <p id="collection-note" class="collection-note">Games in the PlayGraph catalog. Connect Steam to see your own collection.</p>
+        <div id="games" class="game-grid" aria-live="polite"><p class="empty-message">Loading the shelf...</p></div>
+        <div class="load-more"><button id="load-more" class="button secondary" hidden>Show more games</button><span id="shown-count" class="helper"></span></div>
+      </section>
+      <footer><span>PlayGraph<span class="accent">.</span> A home for your gaming life.</span><span>Game artwork via Steam <span aria-hidden="true">·</span> Local beta</span></footer>
+    </main>
+  </div>
+  <dialog id="game-dialog" aria-labelledby="detail-title"><button id="close-dialog" class="close-button" aria-label="Close game details">×</button><div id="detail-content"></div></dialog>
+  <noscript><p class="noscript">Enable JavaScript to browse your games. Steam sign-in requires JavaScript in this app.</p></noscript>
+</body>
+</html>
