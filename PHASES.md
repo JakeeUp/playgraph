@@ -1,6 +1,6 @@
 # PlayGraph phases
 
-Updated 2026-09-09. **Current phase: 1B, desktop acceptance passed; final device and Steam checks open.**
+Updated 2026-09-09. **Current phase: 2A, database migration foundation.**
 The first UI is running. Drag ratings, software separation and the review feed
 are implemented in this increment. Account-provider setup is the next dependency.
 Keep development local until the privacy and release gates are complete.
@@ -9,8 +9,8 @@ Keep development local until the privacy and release gates are complete.
 |---|---|---|---|
 | 0. Backend foundation | Steam login, queued sync, library, genres, verified reviews and comments | Implemented; live queue and login acceptance still open | Repeatable startup and a successful real sync, review and logout |
 | 1A. Usable local app | Responsive UI, covers, library, stats, Steam login, reviews and comments | Implemented; owner screenshot shows signed-in imported data | Finish baseline acceptance checks |
-| 1B. Better ratings and discovery | Drag half-stars, Software shelf, For You/latest feeds, shareable review discussions | **Current: desktop browser checks passed, Verify** | Finish real-phone touch/layout and fresh Steam login/sync acceptance |
-| 2. Account and data foundations | Alembic, PlayGraph identity, password/email-link/passkey choices, MFA, secure Steam linking, contribution editing | Planned; identity provider not configured | Existing IDs/data survive; account linking and MFA cannot be bypassed |
+| 1B. Better ratings and discovery | Drag half-stars, Software shelf, For You/latest feeds, shareable review discussions | Desktop checks passed; device and real Steam checks carried forward | Finish real-phone touch/layout and fresh Steam login/sync acceptance |
+| 2. Account and data foundations | Alembic, PlayGraph identity, password/email-link/passkey choices, MFA, secure Steam linking, contribution editing | **In progress: 2A migrations; Clerk development setup started** | Existing IDs/data survive; account linking and MFA cannot be bypassed |
 | 3. Cross-console catalog and connections | Canonical titles, IGDB metadata, platform/source mappings; supported provider adapters | Research recorded; credentials/access not configured | Cross-console games browse without account linking; imports preserve source and distinguish verified/manual data |
 | 4. Personal tracking | Want to play, playing, completed, paused, dropped; diary, favorites and lists | Planned | Manual organization survives resyncs |
 | 5. Privacy and account control | Visibility defaults, export, deletion and retention policy | Planned | Verify boundaries with two accounts and test deletion |
@@ -64,6 +64,17 @@ No phase is complete just because its code exists. Mark acceptance checks only
 after they are observed. Real Steam and hosted Redis are not used by unit tests.
 
 ## Sprint cadence
+
+Phase 2 sequence:
+
+1. **2A: database migrations.** Freeze and validate the legacy schema, back up
+   before adoption, preserve records and require explicit upgrades at startup.
+2. **2B: PlayGraph accounts.** Connect the owner's Clerk development application,
+   verify provider sessions, add durable identity mappings and visible account controls.
+3. **2C: secure conversion/linking.** Preserve existing Steam ownership, bind link
+   attempts to authenticated sessions and prove Steam cannot bypass provider MFA.
+4. **2D: account controls and acceptance.** Revocation, recovery, contribution editing,
+   browser verification and regression checks. Keep the app local throughout.
 
 Use two-week sprints with one goal and roughly 25% capacity reserved for defects.
 Track tickets as Backlog, Ready, In progress, Review, Verify and Done.

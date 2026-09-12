@@ -22,6 +22,10 @@ venv/
 *.db
 *.db-wal
 *.db-shm
+.backups/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 
 # Editor / AI tooling config - local to one machine, not part of the project
 .claude/
@@ -34,3 +38,6 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local helper scripts, not part of the project
+/push.bat

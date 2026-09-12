@@ -1,8 +1,16 @@
 # PlayGraph accounts and connected platforms
 
-Status: proposed Phase 2 implementation. **Not enabled yet.** The owner wants
-password, passkey and email-link choices, plus MFA. No identity provider is set up.
+Status: Phase 2 in progress. **App account sign-in is not enabled yet.** The owner wants
+password, passkey and email-link choices, plus MFA. A Clerk development application
+has been created and linked through the authenticated CLI. Development keys are
+stored separately in ignored `.env.clerk`; the current app does not load them yet.
+The CLI initializer did not recognize FastAPI/plain JavaScript, so integration
+must follow the official JavaScript and backend verification guidance.
 Existing Steam sign-in remains the functioning local beta path.
+
+Phase 2A adds explicit Alembic migration/adoption with backup and preservation
+tests. MIGRATIONS.md documents the required upgrade and recovery process. No
+AuthIdentity rows, native account sessions or MFA enforcement exist yet.
 
 ## Provider decision
 

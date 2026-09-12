@@ -14,9 +14,11 @@ Real-device touch/layout and a fresh Steam login/sync acceptance run remain open
 This brings forward part of social discovery; follows, blocking, reporting and
 moderation are still release gates. It does not authorize public participation.
 
-Next scope is managed PlayGraph accounts with all three requested sign-in
+Current scope is Phase 2A migrations, followed by managed PlayGraph accounts with all three requested sign-in
 methods, MFA, migrations and safe platform linking. No identity provider has
-been configured. ACCOUNT_PLAN.md defines that work. PLATFORM_PLAN.md records
+been integrated into the app. The owner created a Clerk development application;
+the CLI is authenticated and linked, with keys in ignored .env.clerk. ACCOUNT_PLAN.md
+defines the remaining work. PLATFORM_PLAN.md records
 the multi-console catalog model and each provider's current access constraints.
 
 ## Product objective
