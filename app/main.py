@@ -11,7 +11,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import settings
-from app.database import Base, engine
+from app.database import engine
+from app.migrations import require_current_schema
 from app.routers import auth, catalog, feed, library, reviews
 from app.middleware import SecurityMiddleware
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
@@ -22,6 +23,7 @@ configure_access_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    require_current_schema(engine)
     # One shared arq/Redis connection pool for the app's lifetime, used to
     # enqueue jobs (like the Steam sync) from request handlers. Created here
     # instead of per-request so we're not opening a new Redis connection on
@@ -58,10 +60,6 @@ async def browser_login_error(request: Request, exc: HTTPException):
     if request.url.path == "/auth/steam/callback" and request.query_params.get("ui") == "1":
         return RedirectResponse("/app?login_error=1", status_code=303)
     return await http_exception_handler(request, exc)
-
-# TODO: switch to Alembic migrations before this has real user data - fine
-# for local dev to just create tables from the models on startup for now
-Base.metadata.create_all(bind=engine)
 
 app.include_router(auth.router)
 app.include_router(library.router)

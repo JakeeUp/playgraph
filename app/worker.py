@@ -24,7 +24,8 @@ import logging
 from arq.connections import RedisSettings
 
 from app.config import settings
-from app.database import SessionLocal
+from app.database import SessionLocal, engine
+from app.migrations import require_current_schema
 from app.models import Game, LinkedAccount, Platform, PlaytimeSnapshot, utcnow
 from app.services import steam
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
@@ -153,7 +154,12 @@ async def sync_steam_library(ctx, user_id: int) -> dict:
         db.close()
 
 
+async def check_database_schema(ctx):
+    require_current_schema(engine)
+
+
 class WorkerSettings:
+    on_startup = check_database_schema
     functions = [sync_steam_library]
     queue_name = QUEUE_NAME
     job_serializer = staticmethod(serialize)
