@@ -7,19 +7,19 @@
   <meta name="description" content="Your games, your time, your point of view. A personal game library with Steam playtime and verified reviews.">
   <title>PlayGraph | Your life in games</title>
   <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/styles.css?v=3">
   <script type="module" src="/assets/app.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to your games</a>
+  <div class="shell">
   <aside class="sidebar">
     <a class="brand" href="/app"><img src="/assets/mark.svg" alt="" width="30" height="30">PlayGraph<span class="beta">BETA</span></a>
     <p class="nav-label">YOUR SPACE</p>
     <nav aria-label="Main navigation">
       <button class="nav-item active" data-view="library"><span aria-hidden="true">▦</span> My library <span id="nav-count" class="nav-count"></span></button>
       <button class="nav-item" data-view="feed"><span aria-hidden="true">✧</span> For you</button>
-      <button class="nav-item" data-view="explore"><span aria-hidden="true">◎</span> Explore games</button>
-      <button class="nav-item" data-view="software"><span aria-hidden="true">⌘</span> Software</button>
+      <button class="nav-item" data-view="explore"><span aria-hidden="true">◎</span> Explore</button>
       <button class="nav-item" data-view="stats"><span aria-hidden="true">▥</span> My playtime</button>
     </nav>
     <div class="sidebar-note"><span class="small-mark" aria-hidden="true">↗</span><strong>Built around your play.</strong><p>Your collection and reviews, backed by your Steam playtime.</p></div>
@@ -43,7 +43,7 @@
         <div class="load-more"><button id="more-feed" class="button secondary" hidden>More reviews</button></div>
       </section>
       <section id="collection" aria-labelledby="collection-title">
-        <div class="section-heading"><div class="heading-with-count"><h2 id="collection-title">On the shelf</h2><span id="result-count" class="count-label"></span></div><div class="display-controls"><label class="sort-label"><span class="sr-only">Sort games</span><select id="sort"><option value="name">Title: A to Z</option><option value="playtime">Most played</option><option value="achievements">Achievement progress</option></select></label><div class="view-toggle" aria-label="Display style"><button id="grid-view" aria-label="Cover grid" aria-pressed="true">▦</button><button id="list-view" aria-label="Compact list" aria-pressed="false">☰</button></div></div></div>
+        <div class="section-heading"><div class="heading-with-count"><h2 id="collection-title">On the shelf</h2><span id="result-count" class="count-label"></span></div><div class="display-controls"><div class="kind-switch" role="group" aria-label="Library content"><button class="nav-item active" data-view="library">Games</button><button class="nav-item" data-view="software">Software</button></div><label class="sort-label"><span class="sr-only">Sort games</span><select id="sort"><option value="name">Title: A to Z</option><option value="playtime">Most played</option><option value="achievements">Achievement progress</option></select></label><div class="view-toggle" aria-label="Display style"><button id="grid-view" aria-label="Cover grid" aria-pressed="true">▦</button><button id="list-view" aria-label="Compact list" aria-pressed="false">☰</button></div></div></div>
         <div id="filters" class="filters" hidden><div id="play-filters" class="filter-chips" aria-label="Play status"><button data-filter="all" class="chip selected" aria-pressed="true">All games</button><button data-filter="played" class="chip" aria-pressed="false">Played</button><button data-filter="unplayed" class="chip" aria-pressed="false">Yet to play</button></div><label><span class="sr-only">Filter by genre</span><select id="genre"><option value="">All genres</option></select></label></div>
         <p id="collection-note" class="collection-note">Games in the PlayGraph catalog. Connect Steam to see your own collection.</p>
         <div id="games" class="game-grid" aria-live="polite"><p class="empty-message">Loading the shelf...</p></div>
@@ -52,6 +52,14 @@
       <footer><span>PlayGraph<span class="accent">.</span> A home for your gaming life.</span><span>Game artwork via Steam <span aria-hidden="true">·</span> Local beta</span></footer>
     </main>
   </div>
+  </div>
+
+  <nav class="tabbar" aria-label="Mobile navigation">
+    <button class="nav-item" data-view="feed"><span aria-hidden="true">▦</span> Home</button>
+    <button class="nav-item" data-view="explore"><span aria-hidden="true">⌕</span> Search</button>
+    <button class="nav-item log" id="tab-log"><span aria-hidden="true">+</span> Log</button>
+    <button class="nav-item active" data-view="library"><span aria-hidden="true">▤</span> Library</button>
+  </nav>
   <dialog id="game-dialog" aria-labelledby="detail-title"><button id="close-dialog" class="close-button" aria-label="Close game details">×</button><div id="detail-content"></div></dialog>
   <noscript><p class="noscript">Enable JavaScript to browse your games. Steam sign-in requires JavaScript in this app.</p></noscript>
 </body>

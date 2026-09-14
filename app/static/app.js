@@ -242,6 +242,7 @@ async function pollSync(jobId, restore = false) {
   } catch (error) { if (generation === state.generation) { stopPolling(); if (!restore) report(error); } }
 }
 document.querySelectorAll('[data-view]').forEach((node) => node.addEventListener('click', () => navigate(node.dataset.view)));
+document.getElementById('tab-log')?.addEventListener('click', () => { navigate('library'); $('#search').focus(); });
 document.querySelectorAll('[data-filter]').forEach((node) => node.addEventListener('click', () => { state.filter = node.dataset.filter; state.shown = 48; renderCollection(); }));
 $('#genre').addEventListener('change', (event) => { state.genre = event.target.value; state.shown = 48; renderCollection(); });
 $('#sort').addEventListener('change', (event) => { state.sort = event.target.value; renderCollection(); });
