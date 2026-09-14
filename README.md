@@ -1,5 +1,7 @@
 # PlayGraph
 
+[![Tests and security](https://github.com/JakeeUp/playgraph/actions/workflows/security.yml/badge.svg)](https://github.com/JakeeUp/playgraph/actions/workflows/security.yml)
+
 Letterboxd for games, except the reviews actually mean something.
 
 You link your Steam account and PlayGraph pulls your real playtime and

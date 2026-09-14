@@ -27,11 +27,7 @@ venv/
 *.sqlite-wal
 *.sqlite-shm
 
-# Editor / AI tooling config - local to one machine, not part of the project
-.claude/
-.qodo/
-.cursor/
-.aider*
+# Editor workspace settings - specific to one machine, not part of the project
 .vscode/
 .idea/
 
