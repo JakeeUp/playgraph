@@ -1,12 +1,13 @@
 """Reviews retain the verified play data available when they were written."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import insert, literal, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Comment, Game, PlaytimeSnapshot, Review, User
+from app.models import Comment, Game, PlaytimeSnapshot, Review, User, utcnow
 from app.routers.parameters import ResourceId
 from app.schemas import CommentCreate, CommentOut, ReviewCreate, ReviewOut
 
@@ -65,6 +66,43 @@ def create_review(
     return row
 
 
+@router.patch("/reviews/{review_id}", response_model=ReviewOut)
+def edit_review(
+    review_id: ResourceId,
+    review: ReviewCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    row = db.query(Review).filter_by(id=review_id, user_id=user.id).with_for_update().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Review not found")
+    # An edit cannot refresh or forge the original verified snapshot or posting date.
+    row.rating = review.rating
+    row.body = review.body
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/reviews/{review_id}", status_code=204)
+def delete_review(
+    review_id: ResourceId,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    row = db.query(Review).filter_by(id=review_id, user_id=user.id).with_for_update().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Review not found")
+    try:
+        db.query(Comment).filter_by(review_id=review_id).delete(synchronize_session=False)
+        db.query(Review).filter_by(id=review_id, user_id=user.id).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return Response(status_code=204)
+
+
 @router.get("/games/{game_id}/reviews", response_model=list[ReviewOut])
 def list_reviews(
     game_id: ResourceId,
@@ -94,13 +132,21 @@ def create_comment(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if db.get(Review, review_id) is None:
+    if db.query(Review.id).filter_by(id=review_id).with_for_update().first() is None:
         raise HTTPException(status_code=404, detail="Review not found")
-    row = Comment(review_id=review_id, user_id=user.id, body=comment.body)
-    db.add(row)
+    # The conditional insert also covers SQLite, where FOR UPDATE is a no-op:
+    # if deletion won the write lock, a late comment cannot create an orphan.
+    statement = insert(Comment).from_select(
+        ["review_id", "user_id", "body", "created_at"],
+        select(Review.id, literal(user.id), literal(comment.body), literal(utcnow()))
+        .where(Review.id == review_id),
+    ).returning(Comment.id)
+    comment_id = db.execute(statement).scalar_one_or_none()
+    if comment_id is None:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Review not found")
     db.commit()
-    db.refresh(row)
-    return row
+    return db.get(Comment, comment_id)
 
 
 @router.get("/reviews/{review_id}/comments", response_model=list[CommentOut])

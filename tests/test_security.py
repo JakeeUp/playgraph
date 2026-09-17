@@ -313,6 +313,26 @@ def browser_login(client):
     return session.json()["csrf_token"]
 
 
+def test_review_edit_delete_enforce_browser_origin_csrf_and_revocation(client, verification):
+    csrf = browser_login(client)
+    headers = {"Origin": settings.app_base_url, "X-CSRF-Token": csrf}
+    row = client.post("/games/1/reviews", json={"rating": 4, "body": "Original"}, headers=headers).json()
+    target = f"/reviews/{row['id']}"
+    for method in ("patch", "delete"):
+        options = {"json": {"rating": 3, "body": "Changed"}} if method == "patch" else {}
+        for invalid in ({}, {"Origin": "https://attacker.example", "X-CSRF-Token": csrf},
+                        {"Origin": settings.app_base_url, "X-CSRF-Token": "bad"}):
+            assert getattr(client, method)(target, headers=invalid, **options).status_code == 403
+    assert client.get("/games/1/reviews").json() == [row]
+    assert client.patch(target, json={"rating": 3, "body": "Changed"}, headers=headers).status_code == 200
+    assert client.delete(target, headers=headers).status_code == 204
+    cookie = client.cookies.get(auth.session_cookie_name())
+    assert client.post("/auth/logout", headers=headers).status_code == 204
+    client.cookies.set(auth.session_cookie_name(), cookie)
+    assert client.patch(target, json={"rating": 5}, headers=headers).status_code == 401
+    assert client.delete(target, headers=headers).status_code == 401
+
+
 def test_browser_login_and_csrf_protected_review_and_logout(client, verification):
     csrf = browser_login(client)
     assert len(csrf) == 64

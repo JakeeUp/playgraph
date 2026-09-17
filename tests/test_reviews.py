@@ -7,7 +7,7 @@ import jwt
 
 from app.config import settings
 from app.database import get_db
-from app.models import Game, PlaytimeSnapshot, Review, User, utcnow
+from app.models import Comment, Game, PlaytimeSnapshot, Review, User, utcnow
 from app.routers.reviews import router
 from tests.security_helpers import MemoryRedis, auth_headers
 
@@ -33,6 +33,90 @@ def auth(user_id=1):
 
 def post_review(api, **values):
     return api.post("/games/1/reviews", json={"rating": 4.5, **values}, headers=auth())
+
+
+def test_owner_edit_preserves_identity_date_and_verified_stats(api, db):
+    db.add(PlaytimeSnapshot(user_id=1, game_id=1, playtime_minutes=120,
+                           achievements_unlocked=2, achievements_total=10))
+    db.commit()
+    original = post_review(api, body="First thoughts").json()
+    db.add(PlaytimeSnapshot(user_id=1, game_id=1, playtime_minutes=9999))
+    db.commit()
+    response = api.patch(f"/reviews/{original['id']}", headers=auth(), json={
+        "rating": 3.5, "body": "After reflection", "user_id": 2, "game_id": 2,
+        "verified_playtime_minutes": 99999, "verified_achievement_pct": 100,
+        "created_at": "2099-01-01T00:00:00Z",
+    })
+    assert response.status_code == 200
+    expected = {**original, "rating": 3.5, "body": "After reflection"}
+    assert response.json() == expected
+    assert api.get("/games/1/reviews").json() == [expected]
+    assert api.get("/me/games/1/review", headers=auth()).json() == expected
+
+
+@pytest.mark.parametrize("method", ["patch", "delete"])
+def test_review_mutations_require_owner_and_live_auth(api, db, method):
+    row = post_review(api, body="Keep this").json()
+    path = f"/reviews/{row['id']}"
+    options = {"json": {"rating": 1, "body": "Other account"}} if method == "patch" else {}
+    request = getattr(api, method)
+    assert request(path, **options).status_code == 401
+    assert request(path, headers=auth(2), **options).status_code == 404
+    assert request("/reviews/99999", headers=auth(), **options).status_code == 404
+    assert request("/reviews/9999999999999999999", headers=auth(), **options).status_code == 422
+    assert api.get("/games/1/reviews").json() == [row]
+
+
+@pytest.mark.parametrize("payload", [{"rating": 0}, {"rating": 5.5}, {"rating": 2.3},
+                                      {"rating": 4, "body": "x" * 10001}, {}])
+def test_invalid_review_edit_leaves_original_intact(api, payload):
+    original = post_review(api, body="Original").json()
+    assert api.patch(f"/reviews/{original['id']}", json=payload, headers=auth()).status_code == 422
+    assert api.get("/games/1/reviews").json() == [original]
+
+
+def test_owner_delete_removes_only_its_thread_and_allows_new_review(api, db):
+    own = post_review(api).json()
+    other = api.post("/games/2/reviews", json={"rating": 5}, headers=auth(2)).json()
+    for user_id in (1, 2):
+        assert api.post(f"/reviews/{own['id']}/comments", json={"body": "Discussion"}, headers=auth(user_id)).status_code == 201
+    assert api.post(f"/reviews/{other['id']}/comments", json={"body": "Retain"}, headers=auth()).status_code == 201
+    result = api.delete(f"/reviews/{own['id']}", headers=auth())
+    assert result.status_code == 204 and not result.content
+    assert db.query(Comment).filter_by(review_id=own["id"]).count() == 0
+    assert db.query(Comment).filter_by(review_id=other["id"]).count() == 1
+    assert api.get(f"/reviews/{own['id']}/comments").status_code == 404
+    assert api.post(f"/reviews/{own['id']}/comments", json={"body": "Too late"}, headers=auth(2)).status_code == 404
+    assert api.get("/me/games/1/review", headers=auth()).json() is None
+    assert post_review(api, body="A new review").status_code == 201
+
+
+def test_review_delete_rolls_back_comments_when_parent_delete_fails(api, db):
+    from sqlalchemy import event
+
+    own = post_review(api).json()
+    api.post(f"/reviews/{own['id']}/comments", json={"body": "Keep this too"}, headers=auth(2))
+
+    def fail_parent_delete(connection, cursor, statement, parameters, context, executemany):
+        if statement.startswith("DELETE FROM reviews"):
+            raise RuntimeError("Simulated parent delete failure")
+
+    event.listen(db.bind, "before_cursor_execute", fail_parent_delete)
+    try:
+        with pytest.raises(RuntimeError, match="Simulated parent"):
+            api.delete(f"/reviews/{own['id']}", headers=auth())
+    finally:
+        event.remove(db.bind, "before_cursor_execute", fail_parent_delete)
+    assert api.get("/games/1/reviews").json() == [own]
+    assert db.query(Comment).filter_by(review_id=own["id"]).count() == 1
+
+
+def test_deleting_last_review_does_not_recycle_its_shared_link(api):
+    old = post_review(api).json()
+    assert api.delete(f"/reviews/{old['id']}", headers=auth()).status_code == 204
+    new = post_review(api).json()
+    assert new["id"] > old["id"]
+    assert api.get(f"/reviews/{old['id']}/comments").status_code == 404
 
 
 def test_verification_is_latest_scoped_and_frozen(api, db):
