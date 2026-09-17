@@ -28,6 +28,16 @@ separate rehearsal before deployment; the local backup wrapper accepts SQLite on
 
 ## Recovery and future revisions
 
+Revision `0002_review_ids` adds SQLite AUTOINCREMENT to the reviews table using
+a table copy. It preserves all IDs, review data, constraints and comment references.
+This keeps deleted discussion links permanently retired, including after deleting
+the last review. PostgreSQL already has a non-recycling sequence, so its schema
+is unchanged by this revision. Downgrading is refused to prevent ID reuse.
+
+The populated-upgrade test verifies all six tables before/after the copy, then
+deletes a review and checks the next ID is larger. Existing backup/rollback tests
+remain required. Use the same explicit, backed-up upgrade command above.
+
 Stop all database writers before recovery. Preserve the failed database and any
 WAL/SHM files for diagnosis. Restore a selected, verified backup to a separate file,
 check its integrity and record counts, and point DATABASE_URL at that recovered file

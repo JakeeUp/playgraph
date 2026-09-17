@@ -20,7 +20,10 @@ def database(tmp_path):
 
 
 def seed_legacy(engine):
-    Base.metadata.create_all(engine)
+    from app.migrations import BASELINE, migration_config
+    from alembic.script import ScriptDirectory
+    # A legacy fixture must use the frozen schema, not today's evolving model.
+    ScriptDirectory.from_config(migration_config()).get_revision(BASELINE).module.schema().create_all(engine)
     with Session(engine) as db:
         db.add(User(id=17, display_name="Synthetic player")); db.flush()
         db.add(Game(id=29, steam_appid=123, name="Synthetic game")); db.flush()
@@ -43,6 +46,28 @@ def test_empty_install_matches_application_schema(database, tmp_path):
     require_current_schema(database)
     with database.connect() as connection:
         assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
+
+
+def test_review_id_migration_preserves_rows_and_never_reuses_deleted_link(database, tmp_path):
+    from alembic import command
+    from app.migrations import BASELINE, migration_config
+
+    seed_legacy(database)
+    with database.begin() as connection:
+        command.stamp(migration_config(connection), BASELINE)
+    before = records(database)
+    backup = upgrade_database(database, tmp_path / "backups")
+    assert backup.is_file()
+    assert records(database) == before
+    require_current_schema(database)
+    with Session(database) as db:
+        db.query(Comment).delete()
+        db.query(Review).delete()
+        db.commit()
+        row = Review(user_id=17, game_id=29, rating=5)
+        db.add(row)
+        db.commit()
+        assert row.id > 53
 
 
 def test_legacy_adoption_preserves_all_records_and_restorable_backup(database, tmp_path):

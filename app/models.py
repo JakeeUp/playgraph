@@ -124,7 +124,8 @@ class PlaytimeSnapshot(Base):
 
 class Review(Base):
     __tablename__ = "reviews"
-    __table_args__ = (UniqueConstraint("user_id", "game_id"),)
+    # Deleted discussion links must never resolve to a newly created review.
+    __table_args__ = (UniqueConstraint("user_id", "game_id"), {"sqlite_autoincrement": True})
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
