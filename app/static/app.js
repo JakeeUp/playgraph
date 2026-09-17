@@ -13,6 +13,7 @@ const shelfLibrary = () => state.view === 'software'
   ? state.library.filter((entry) => entry.game.content_kind === 'software') : gameLibrary();
 const gameDialog = createGameDialog(state, api, report);
 const feed = createFeed(state, api, gameDialog, () => navigate(state.user ? 'library' : 'explore'), report);
+document.addEventListener('review-changed', () => { if (state.view === 'feed') void feed.load(); else feed.invalidate(); });
 const sessionChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('playgraph-session') : null;
 let sessionReady = false;
 let checkingSession = false;
@@ -297,9 +298,18 @@ async function start() {
 }
 await start();
 sessionReady = true;
+let linkRequest = 0;
 async function openLinkedReview() {
-  const match = /^#review=([1-9][0-9]{0,9})$/.exec(location.hash);
-  if (match) { try { await gameDialog.openThread(Number(match[1])); } catch (error) { report(error); } }
+  const request = ++linkRequest;
+  const match = /^#(review|game)=([1-9][0-9]{0,9})$/.exec(location.hash);
+  if (!match) return;
+  try {
+    if (match[1] === 'review') await gameDialog.openThread(Number(match[2]));
+    else {
+      const game = await api(`/games/${match[2]}`);
+      if (request === linkRequest) await gameDialog.open(game);
+    }
+  } catch (error) { if (request === linkRequest) report(error); }
 }
 window.addEventListener('hashchange', () => void openLinkedReview());
 await openLinkedReview();

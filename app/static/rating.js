@@ -23,7 +23,7 @@ export function starDisplay(value) {
   return stars;
 }
 
-export function createRatingPicker() {
+export function createRatingPicker(initialValue = 0) {
   const root = el('div', 'rating-picker');
   const label = el('label', '', 'Your rating');
   const track = el('span', 'rating-track');
@@ -67,6 +67,6 @@ export function createRatingPicker() {
   track.append(range); label.append(track);
   root.append(label, display, button('Clear', 'text-button rating-clear', () => { commit(0); range.focus(); }),
     el('p', 'helper', 'Drag, tap, or use the arrow keys. Half-stars welcome.'));
-  commit(0);
+  commit(initialValue);
   return { element: root, input: range, value: () => Number(range.value) };
 }

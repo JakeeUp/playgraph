@@ -8,7 +8,7 @@
 dialog {
   border:1px solid var(--edge); border-radius:6px; padding:0;
   background:var(--surface); color:var(--ink);
-  width:min(760px,calc(100vw - 32px)); max-height:88vh; overflow:auto;
+  width:min(1040px,calc(100vw - 32px)); max-height:90vh; overflow:auto;
 }
 dialog::backdrop { background:rgba(9,11,14,.78); }
 .close-button {
@@ -21,14 +21,36 @@ dialog::backdrop { background:rgba(9,11,14,.78); }
 
 /* ---------------- detail header ---------------- */
 
-.detail-header { display:grid; grid-template-columns:132px minmax(0,1fr); gap:20px; padding:20px 22px 0; }
-.detail-header .cover { width:132px; }
-.detail-info h2 { font-size:22px; font-weight:800; line-height:1.08; margin-bottom:6px; }
-.detail-info .eyebrow { margin-bottom:6px; }
+.game-profile { display:grid; grid-template-columns:192px minmax(0,1fr); gap:32px; padding:32px; clear:both; }
+.game-profile-aside { display:flex; flex-direction:column; align-items:flex-start; gap:16px; position:sticky; top:24px; align-self:start; }
+.game-profile-aside .cover { width:100%; border-radius:4px; }
+.game-profile-aside .button { width:100%; justify-content:center; }
+.game-profile-main { min-width:0; }
+.detail-header { padding:0 0 24px; }
+.detail-info h2 { font-size:clamp(24px,3vw,36px); font-weight:800; line-height:1.08; margin:0 0 12px; overflow-wrap:anywhere; }
+.detail-info .detail-kind { font-size:12px; color:var(--ink-dim); margin-bottom:8px; }
 .detail-info p { margin:0 0 10px; font-size:13px; color:var(--ink-mid); line-height:1.55; }
 
-.detail-stats { display:flex; flex-wrap:wrap; gap:8px 24px; margin:12px 0; }
+.detail-stats { display:grid; grid-template-columns:max-content 1fr; gap:8px 16px; margin:16px 0; font-size:13px; }
+.detail-stats span { color:var(--ink-mid); }
 .detail-genres { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
+.detail-tabs { display:flex; flex-wrap:wrap; gap:16px; border-bottom:1px solid var(--edge); margin-bottom:24px; }
+.detail-tab { font:inherit; font-size:13px; border:0; border-bottom:2px solid transparent; border-radius:0; padding:12px 0; color:var(--ink-mid); background:none; cursor:pointer; }
+.detail-tab[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--amber); }
+.detail-tab:focus-visible { outline:2px solid var(--amber); outline-offset:3px; }
+.game-profile-main [role="tabpanel"] { min-height:280px; }
+.game-profile-main h3 { font-size:16px; margin:0 0 8px; }
+.metadata-table { display:grid; grid-template-columns:112px minmax(0,1fr); margin:16px 0; font-size:13px; }
+.metadata-table dt,.metadata-table dd { padding:12px 0; margin:0; border-bottom:1px solid var(--edge-soft); }
+.metadata-table dt { color:var(--ink-dim); }
+.metadata-table dd { overflow-wrap:anywhere; }
+.delete-confirmation { border:1px solid var(--edge); padding:16px; margin-top:8px; }
+.delete-confirmation p { margin:0 0 16px; font-size:13px; }
+.delete-confirmation button { margin:0 8px 8px 0; }
+.review-removal { margin-top:8px; }
+.review-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-top:12px; }
+.comment > .review-date { margin-left:8px; }
+.write-review > .button,.review-form > .button { align-self:flex-start; }
 .genre-label {
   font-size:10.5px; font-weight:600; letter-spacing:.04em;
   color:var(--ink-mid); background:var(--raised);
@@ -84,7 +106,7 @@ dialog::backdrop { background:rgba(9,11,14,.78); }
 
 /* ---------------- reviews ---------------- */
 
-.reviews-section { padding:20px 22px 24px; }
+.reviews-section { padding:0; }
 .reviews-list { display:flex; flex-direction:column; }
 
 .review-card { padding:13px 0; border-bottom:1px solid var(--edge-soft); }
@@ -95,7 +117,7 @@ dialog::backdrop { background:rgba(9,11,14,.78); }
 .review-byline strong, .review-byline .account-name { color:var(--ink-mid); font-weight:600; }
 .review-date { font-size:11px; color:var(--ink-dim); font-variant-numeric:tabular-nums; }
 .review-rating { display:inline-flex; gap:1px; flex:none; }
-.review-body { margin:0; font-size:13px; color:var(--ink-mid); line-height:1.55; }
+.review-body { margin:8px 0; font-size:13px; color:var(--ink-mid); line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
 
 /* Verified hours. Green is used nowhere else in the system. */
 .verified-label {
@@ -106,6 +128,8 @@ dialog::backdrop { background:rgba(9,11,14,.78); }
   font-variant-numeric:tabular-nums;
 }
 .verified-label::before { content:""; width:5px; height:5px; border-radius:50%; background:var(--verified); flex:none; }
+.verified-label.unverified { color:var(--ink-dim); background:none; border-color:var(--edge-soft); }
+.verified-label.unverified::before { display:none; }
 
 .reviewed-note { font-size:11.5px; color:var(--ink-dim); }
 .review-empty, .feed-empty, .comment-posted {
@@ -120,6 +144,7 @@ dialog::backdrop { background:rgba(9,11,14,.78); }
   display:flex; flex-direction:column; gap:9px;
   border-top:1px solid var(--edge-soft); padding-top:14px; margin-top:6px;
 }
+.game-profile .write-review,.game-profile .review-form { margin:0; padding:0; border-top:0; }
 /* Direct children of the dialog carry the dialog gutter; nested forms do not,
    or they would double up on the padding their section already has. */
 #detail-content > .write-review,
@@ -149,12 +174,20 @@ textarea:focus, input:focus { outline:none; border-color:var(--amber); }
 .comment strong { color:var(--ink); font-weight:600; font-size:12.5px; }
 
 @media (max-width:860px) {
-  .detail-header { grid-template-columns:96px minmax(0,1fr); gap:14px; padding:16px 16px 0; }
-  .detail-header .cover { width:96px; }
-  .detail-info h2 { font-size:18px; }
-  .reviews-section { padding:16px; }
+  .game-profile { grid-template-columns:144px minmax(0,1fr); gap:24px; padding:24px; }
   #detail-content > .write-review,
   #detail-content > .review-form { padding:14px 16px 18px; }
   .genre-row { grid-template-columns:92px minmax(0,1fr) 48px; }
   .spotlight { grid-template-columns:1fr; }
+}
+@media (max-width:600px) {
+  dialog { width:calc(100vw - 16px); max-height:94dvh; }
+  .game-profile { grid-template-columns:minmax(0,1fr); gap:24px; padding:16px; }
+  .game-profile-aside { position:static; display:grid; grid-template-columns:96px minmax(0,1fr); column-gap:16px; row-gap:8px; align-items:center; }
+  .game-profile-aside .cover { grid-row:1 / 4; }
+  .game-profile-aside .button { white-space:normal; width:auto; }
+  .detail-header { padding-bottom:8px; }
+  .detail-tabs { gap:16px; margin-bottom:16px; }
+  .detail-tab { font-size:12px; min-height:44px; }
+  .metadata-table { grid-template-columns:96px minmax(0,1fr); }
 }
