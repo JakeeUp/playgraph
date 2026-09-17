@@ -2,14 +2,23 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Game
+from app.routers.parameters import ResourceId
 from app.schemas import GameOut
 
 router = APIRouter(tags=["games"])
+
+
+@router.get("/games/{game_id}", response_model=GameOut)
+def game_details(game_id: ResourceId, db: Session = Depends(get_db)):
+    game = db.get(Game, game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return game
 
 
 @router.get("/games")

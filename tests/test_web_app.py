@@ -49,3 +49,14 @@ def test_browser_callback_failure_returns_to_app_without_assertion(web):
     assert response.status_code == 303
     assert response.headers["location"] == "/app?login_error=1"
     assert "secret" not in response.text
+
+
+def test_single_game_link_returns_only_public_metadata(web, db):
+    db.add(Game(id=23, name="Linkable game", steam_appid=100))
+    db.commit()
+    response = web.get("/games/23")
+    assert response.status_code == 200
+    assert response.json() == {"id": 23, "name": "Linkable game", "steam_appid": 100,
+                               "genres": None, "header_image_url": None, "content_kind": "game"}
+    assert web.get("/games/9999").status_code == 404
+    assert web.get("/games/99999999999999999").status_code == 422
