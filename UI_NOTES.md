@@ -128,3 +128,19 @@ and mobile layout. The browser viewport
 override remained at 1280 by 720, so no phone-layout pass is claimed. PHASES.md keeps
 these gates open. Public release requires the privacy and operating gates in
 DEVELOPMENT_PLAN.md; accounts and MFA remain Phase 2 work.
+## September 16 review/profile increment
+
+The detail dialog now uses a poster column and a main column with Community reviews,
+Your review and Details tabs. Only metadata actually present in the catalog is shown.
+Game links resolve through a public metadata endpoint. Review edit/delete controls
+are scoped to the signed-in user's own review; changes refresh a visible review feed.
+Unverified posts use a neutral label rather than the green verified-data treatment.
+
+Observed in an isolated browser fixture using synthetic users: saved review/rating
+prefill, keyboard rating change and save, literal rendering of HTML-like text,
+unchanged verified hours and achievements, edit cancellation, explicit delete warning
+and cancellation, comments retained after edits, tab keyboard controls, clipboard
+game link and direct-link loading, and separate own-review panels for two users.
+At a 390px browser viewport the dialog's scroll width equaled its client width.
+This is not physical-phone or real Steam acceptance. Destructive deletion and rollback
+were checked by isolated API tests; no real review or comment was changed.

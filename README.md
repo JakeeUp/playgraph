@@ -26,6 +26,8 @@ ES modules served by FastAPI, so there's no build step.
 - Reviews carrying playtime and achievements frozen at the moment of writing
 - Comments and review feeds
 - Responsive UI at `/app`: covers, search, filters, drag half-star ratings
+- Game profiles with community/your-review/details tabs and shareable game links
+- Edit or delete your own review; edits retain the original verified stats
 
 ## What isn't built
 
@@ -68,6 +70,17 @@ The app is at http://localhost:8000/app.
 ```bash
 python -m pytest -q
 ```
+
+Review updates use `PATCH /reviews/{id}` with `{rating, body}`. Deletion uses
+`DELETE /reviews/{id}` and permanently removes the associated discussion.
+Only the author can change a review; missing and non-owned IDs return 404.
+Browser writes require the current session's CSRF token and matching Origin.
+`GET /games/{id}` exposes public metadata for `/app#game={id}` links.
+
+After this update, stop the API/worker and run `python -m app.migrations upgrade`
+before restarting. Migration `0002_review_ids` preserves existing review rows and
+prevents SQLite from recycling deleted discussion IDs. The migration wrapper
+creates a verified backup for an existing database.
 
 The suite covers Steam OpenID verification, session and CSRF handling, rate
 limits, the queue codec, migrations, and the review and feed endpoints.
