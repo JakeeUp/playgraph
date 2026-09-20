@@ -192,11 +192,16 @@ def get_genre_breakdown(
 
 
 @router.get("/recommendations")
-def get_recommendations(db: Session = Depends(get_db)):
+def get_recommendations(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """
     TODO (milestone 4): content-based to start. Take the user's top 3-5
     genres by playtime from /genres, find games sharing those genres that
     the user does not already own, and rank by genre overlap plus Steam's
     own review score. Response shape: list[RecommendationOut].
+
+    Gated behind the session before the body exists, so the contract is already
+    right when it is written: every other /me route is private, and this one
+    will read the caller's own library. An unbuilt endpoint answers 501 rather
+    than raising, which would surface to an anonymous caller as a 500.
     """
-    raise NotImplementedError
+    raise HTTPException(status_code=501, detail="Recommendations are not available yet")

@@ -4,8 +4,8 @@ from fastapi.testclient import TestClient
 
 from app.database import get_db
 from app.main import app
-from app.models import Game
-from tests.security_helpers import MemoryRedis
+from app.models import Game, User
+from tests.security_helpers import MemoryRedis, auth_headers
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def test_public_catalog_bounds_search_and_no_private_fields(web, db):
     assert web.get("/games", params={"q": "%"}).json()["total"] == 1
     assert web.get("/games", params={"q": "a game"}).json()["total"] == 1
     assert web.get("/games", params={"offset": 100}).json()["games"] == []
-    for params in [{"limit": 101}, {"limit": 0}, {"offset": -1}, {"q": "x" * 121}]:
+    for params in [{"limit": 101}, {"limit": 0}, {"offset": -1}, {"offset": 10001}, {"q": "x" * 121}]:
         assert web.get("/games", params=params).status_code == 422
 
 
@@ -60,3 +60,19 @@ def test_single_game_link_returns_only_public_metadata(web, db):
                                "genres": None, "header_image_url": None, "content_kind": "game"}
     assert web.get("/games/9999").status_code == 404
     assert web.get("/games/99999999999999999").status_code == 422
+
+
+def test_recommendations_require_a_session_and_report_unbuilt(web, db):
+    """The route has no body yet, but its access contract is already public API.
+
+    An anonymous caller must be refused by the session gate like every other
+    /me route, and an authenticated one must get an honest "not built" rather
+    than the 500 that raising NotImplementedError produced.
+    """
+    assert web.get("/me/recommendations").status_code == 401
+    assert web.get("/me/recommendations", headers={"Authorization": "Bearer invalid"}).status_code == 401
+    db.add(User(id=1, display_name="Player"))
+    db.commit()
+    response = web.get("/me/recommendations", headers=auth_headers(app.state.arq_pool, 1))
+    assert response.status_code == 501
+    assert response.json()["detail"] == "Recommendations are not available yet"

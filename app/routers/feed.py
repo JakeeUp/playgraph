@@ -10,7 +10,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import Comment, Game, PlaytimeSnapshot, Review, User
 from app.routers.library import _latest_snapshots
-from app.routers.parameters import MAX_RESOURCE_ID, ResourceId
+from app.routers.parameters import MAX_OFFSET, MAX_RESOURCE_ID, ResourceId
 from app.schemas import GameOut, ReviewOut
 
 router = APIRouter(tags=["feed"])
@@ -33,7 +33,7 @@ def _items(db: Session, rows, reasons):
 
 
 @router.get("/feed")
-def recent_reviews(limit: int = Query(20, ge=1, le=50), offset: int = Query(0, ge=0, le=10000),
+def recent_reviews(limit: int = Query(20, ge=1, le=50), offset: int = Query(0, ge=0, le=MAX_OFFSET),
                    q: str = Query("", max_length=120),
                    before: int | None = Query(None, ge=0, le=MAX_RESOURCE_ID), db: Session = Depends(get_db)):
     anchor = before if before is not None else (db.query(func.max(Review.id)).scalar() or 0)

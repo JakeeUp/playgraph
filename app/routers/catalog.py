@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Game
-from app.routers.parameters import ResourceId
+from app.routers.parameters import MAX_OFFSET, ResourceId
 from app.schemas import GameOut
 
 router = APIRouter(tags=["games"])
@@ -26,7 +26,7 @@ def catalog(
     q: str = Query("", max_length=120),
     kind: Literal["game", "software", "all"] = "game",
     limit: int = Query(48, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=MAX_OFFSET),
     db: Session = Depends(get_db),
 ):
     query = db.query(Game)

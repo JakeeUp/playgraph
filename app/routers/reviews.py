@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Comment, Game, PlaytimeSnapshot, Review, User, utcnow
-from app.routers.parameters import ResourceId
+from app.routers.parameters import MAX_OFFSET, ResourceId
 from app.schemas import CommentCreate, CommentOut, ReviewCreate, ReviewOut
 
 router = APIRouter(tags=["reviews"])
@@ -107,7 +107,7 @@ def delete_review(
 def list_reviews(
     game_id: ResourceId,
     limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=MAX_OFFSET),
     db: Session = Depends(get_db),
 ):
     if db.get(Game, game_id) is None:
@@ -153,7 +153,7 @@ def create_comment(
 def list_comments(
     review_id: ResourceId,
     limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=MAX_OFFSET),
     db: Session = Depends(get_db),
 ):
     if db.get(Review, review_id) is None:

@@ -219,6 +219,7 @@ def test_reviews_order_pagination_and_game_scope(api, db):
     assert api.get("/games/1/reviews?limit=1&offset=1").json()[0]["user_id"] == 2
     assert api.get("/games/1/reviews?limit=101").status_code == 422
     assert api.get("/games/1/reviews?offset=-1").status_code == 422
+    assert api.get("/games/1/reviews?offset=10001").status_code == 422
 
 
 def test_comments_authorship_listing_and_validation(api):
@@ -233,6 +234,7 @@ def test_comments_authorship_listing_and_validation(api):
     second = api.post(path, json={"body": "Thanks"}, headers=auth()).json()
     assert api.get(path).json() == [first, second]
     assert api.get(path + "?limit=1&offset=1").json() == [second]
+    assert api.get(path + "?offset=10001").status_code == 422
     for body in ("", " \n ", "x" * 5001):
         assert api.post(path, json={"body": body}, headers=auth()).status_code == 422
     other = api.post("/games/2/reviews", json={"rating": 3}, headers=auth()).json()["id"]
