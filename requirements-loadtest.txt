@@ -1,0 +1,3 @@
+# Load testing only. Kept apart from requirements.txt so the app install stays
+# small; see loadtest/locustfile.py for how to run it.
+locust>=2.30

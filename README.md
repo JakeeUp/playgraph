@@ -69,7 +69,10 @@ The app is at http://localhost:8000/app.
 
 ```bash
 python -m pytest -q
+node --test tests/test_library_ui.mjs
 ```
+
+The second line covers the browser modules' pure logic, which pytest can't collect.
 
 Review updates use `PATCH /reviews/{id}` with `{rating, body}`. Deletion uses
 `DELETE /reviews/{id}` and permanently removes the associated discussion.
@@ -83,7 +86,25 @@ prevents SQLite from recycling deleted discussion IDs. The migration wrapper
 creates a verified backup for an existing database.
 
 The suite covers Steam OpenID verification, session and CSRF handling, rate
-limits, the queue codec, migrations, and the review and feed endpoints.
+limits, the queue codec, migrations, the response cache, and the review and
+feed endpoints.
+
+## Load testing
+
+```bash
+pip install -r requirements-loadtest.txt
+locust -f loadtest/locustfile.py --host http://localhost:8000
+```
+
+It simulates anonymous visitors browsing the catalog, reviews and the public
+feed. Each visitor sends its own address from the benchmarking range as
+X-Forwarded-For, so start the API with `FORWARDED_ALLOW_IPS=127.0.0.1` or every
+visitor shares one rate limit bucket and most of the run becomes 429s. Signed in
+traffic isn't covered yet because it needs real Steam sessions.
+
+Public reads are cached in Redis for 30 to 60 seconds and invalidated on every
+review or comment write, so a writer always reads their own change back.
+Private `/me` responses are never cached.
 
 ## Notes
 
