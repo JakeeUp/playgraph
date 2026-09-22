@@ -60,4 +60,9 @@ async def get_current_user(
                     or not secrets.compare_digest(supplied.encode(), csrf_token(session_id).encode())):
                 raise HTTPException(status_code=403, detail="Browser session check failed. Refresh and try again.")
         await rate_limit(request, "user-writes", str(user_id), 30, 60)
+    else:
+        # Private reads build whole per-account views (the full library, the
+        # ranked feed), so each account gets its own budget as well as each
+        # address. Normal use, sync polling included, stays well under it.
+        await rate_limit(request, "user-reads", str(user_id), 90, 60)
     return user

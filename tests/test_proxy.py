@@ -55,7 +55,7 @@ async def test_proxy_https_hosts_and_rate_limit_identity(monkeypatch):
         assert response.json() == {"scheme": "https", "client": "198.51.100.1"}
         for address in ("198.51.100.1", "198.51.100.2"):
             assert (await client.get("/probe", headers={**headers, "X-Forwarded-For": address})).status_code == 200
-            assert app.state.arq_pool.read(state_key("rate:requests", address)) == b"1"
+            assert app.state.arq_pool.spent(state_key("rate:requests", address)) == 1
         # An attacker-prepended address cannot override the last untrusted hop.
         response = await client.get("/probe", headers={**headers, "X-Forwarded-For": "203.0.113.99, 198.51.100.2"})
         assert response.json()["client"] == "198.51.100.2"

@@ -14,7 +14,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import Settings, settings
 from app.database import get_db
-from app.middleware import MAX_BODY_BYTES, SecurityMiddleware
+from app.middleware import LOGINS_PER_MINUTE, MAX_BODY_BYTES, REQUESTS_PER_MINUTE, SecurityMiddleware
 from app.models import Game, LinkedAccount, Platform, User, utcnow
 from app.routers import auth, library, reviews
 from app.security import LOGIN_TTL, state_key
@@ -251,6 +251,39 @@ def test_login_limit_cannot_be_bypassed_with_forwarded_for(client):
     assert int(response.headers["retry-after"]) > 0
     client.app.state.arq_pool.now += 61
     assert client.get("/auth/steam/login", follow_redirects=False).status_code == 307
+
+
+def test_sliding_window_refuses_a_second_burst_across_the_window_edge(client):
+    store = client.app.state.arq_pool
+    store.now = int(store.now) // 60 * 60 + 59  # the last second of a window
+    for _ in range(LOGINS_PER_MINUTE):
+        assert client.get("/auth/steam/login", follow_redirects=False).status_code == 307
+    store.now += 2  # one second into the next window
+    # A fixed window would reset here and allow a full second burst. The previous
+    # window still overlaps 59/60 of this one, so only one more login fits.
+    assert client.get("/auth/steam/login", follow_redirects=False).status_code == 307
+    refused = client.get("/auth/steam/login", follow_redirects=False)
+    assert refused.status_code == 429
+    assert refused.headers["ratelimit-remaining"] == "0"
+    assert refused.headers["ratelimit-limit"] == str(LOGINS_PER_MINUTE)
+    assert int(refused.headers["retry-after"]) == int(refused.headers["ratelimit-reset"]) > 0
+
+
+def test_responses_report_the_per_address_budget(client):
+    first = client.get("/games/1/reviews")
+    second = client.get("/games/1/reviews")
+    assert first.headers["ratelimit-limit"] == str(REQUESTS_PER_MINUTE)
+    assert int(first.headers["ratelimit-remaining"]) - int(second.headers["ratelimit-remaining"]) == 1
+    assert 1 <= int(second.headers["ratelimit-reset"]) <= 60
+
+
+def test_each_account_has_its_own_private_read_budget(client):
+    headers = auth_headers(client.app.state.arq_pool)
+    for _ in range(90):
+        assert client.get("/me/genres", headers=headers).status_code == 200
+    assert client.get("/me/genres", headers=headers).status_code == 429
+    # The budget belongs to the account, not the address: another account is unaffected.
+    assert client.get("/me/genres", headers=auth_headers(client.app.state.arq_pool, 2)).status_code == 200
 
 
 def test_security_service_failure_is_closed(client):

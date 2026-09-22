@@ -32,16 +32,21 @@ async def test_atomic_security_state_and_json_worker():
     request = Request({"type": "http", "app": app, "headers": []})
     login_key = state_key("test-login", identity)
     rate_key = state_key("rate:test", identity)
+    windows = []
     worker = None
     try:
         await redis.set(login_key, "binding", ex=60)
         consumed = await asyncio.gather(redis.getdel(login_key), redis.getdel(login_key))
         assert consumed.count(b"binding") == 1 and consumed.count(None) == 1
-        await rate_limit(request, "test", identity, 1, 60)
+        remaining, reset = await rate_limit(request, "test", identity, 1, 60)
+        assert remaining == 0 and 0 < reset <= 60
         with pytest.raises(HTTPException) as error:
             await rate_limit(request, "test", identity, 1, 60)
         assert error.value.status_code == 429
-        assert 0 < await redis.ttl(rate_key) <= 60
+        assert error.value.headers["RateLimit-Remaining"] == "0"
+        # One window key, kept for two windows so the next one can weigh it.
+        windows = await redis.keys(rate_key + ":*")
+        assert len(windows) == 1 and 60 < await redis.ttl(windows[0]) <= 120
 
         async def echo(ctx, value):
             return {"value": value}
@@ -54,7 +59,7 @@ async def test_atomic_security_state_and_json_worker():
         await worker.async_run()
         assert await job.result(timeout=1) == {"value": 7}
     finally:
-        await redis.delete(login_key, rate_key, queue, queue + ":health-check",
+        await redis.delete(login_key, rate_key, *windows, queue, queue + ":health-check",
                            "arq:job:" + job_id, "arq:result:" + job_id,
                            "arq:retry:" + job_id, "arq:in-progress:" + job_id)
         if worker:

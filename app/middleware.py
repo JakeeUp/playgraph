@@ -8,9 +8,11 @@ from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
 
 from app.config import settings
-from app.security import rate_limit
+from app.security import rate_headers, rate_limit
 
 MAX_BODY_BYTES = 65536
+REQUESTS_PER_MINUTE = 120
+LOGINS_PER_MINUTE = 10
 logger = logging.getLogger("playgraph.security")
 
 
@@ -22,12 +24,17 @@ class SecurityMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         request = Request(scope)
+        # Remaining budget in the per-address bucket, reported on every response
+        # so well-behaved clients can slow down before they are refused.
+        budget = None
 
         async def secure_send(message):
             if message["type"] == "http.response.start":
                 if request.url.path.startswith("/auth/") and message["status"] >= 400:
                     logger.warning("authentication_rejected status=%s", message["status"])
                 headers = MutableHeaders(scope=message)
+                if budget is not None and "ratelimit-limit" not in headers:
+                    headers.update(rate_headers(REQUESTS_PER_MINUTE, *budget))
                 headers["X-Content-Type-Options"] = "nosniff"
                 headers["X-Frame-Options"] = "DENY"
                 headers["Referrer-Policy"] = "no-referrer"
@@ -71,9 +78,9 @@ class SecurityMiddleware:
                 # Proxy headers are only meaningful when the ASGI server trusts the proxy.
                 # Never parse X-Forwarded-For here: a direct client can forge it.
                 address = request.client.host if request.client else "unknown"
-                await rate_limit(request, "requests", address, 120, 60)
+                budget = await rate_limit(request, "requests", address, REQUESTS_PER_MINUTE, 60)
                 if request.url.path.startswith("/auth/steam/"):
-                    await rate_limit(request, "login", address, 10, 60)
+                    await rate_limit(request, "login", address, LOGINS_PER_MINUTE, 60)
             body = bytearray()
             async with asyncio.timeout(10):
                 while True:

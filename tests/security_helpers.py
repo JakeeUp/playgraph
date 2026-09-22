@@ -38,15 +38,32 @@ class MemoryRedis:
         self.data.pop(key, None)
         return value
 
+    async def incr(self, key):
+        value = int(self.read(key) or 0) + 1
+        self.data[key] = str(value).encode()
+        return value
+
     async def delete(self, key):
         return int(self.data.pop(key, None) is not None)
 
-    async def eval(self, script, key_count, key, seconds):
-        count = int(self.read(key) or 0) + 1
-        self.data[key] = str(count).encode()
+    async def eval(self, script, key_count, key, seconds, limit):
+        """Mirrors app.security.RATE_SCRIPT on this double's clock, which tests advance."""
+        window, limit = int(seconds), int(limit)
+        slot, elapsed = divmod(int(self.now), window)
+        current = f"{key}:{slot}"
+        carried = int(self.read(f"{key}:{slot - 1}") or 0) * (window - elapsed) // window
+        count = int(self.read(current) or 0)
+        if carried + count >= limit:
+            return 0, window - elapsed, 1
+        count += 1
+        self.data[current] = str(count).encode()
         if count == 1:
-            self.expires[key] = self.now + seconds
-        return count, int(self.expires[key] - self.now)
+            self.expires[current] = self.now + window * 2
+        return limit - carried - count, window - elapsed, 0
+
+    def spent(self, key):
+        """Units counted against a rate key across its live windows."""
+        return sum(int(self.read(name) or 0) for name in list(self.data) if name.startswith(key + ":"))
 
 
 def auth_headers(store, user_id=1, **overrides):
