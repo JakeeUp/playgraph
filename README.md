@@ -2,128 +2,155 @@
 
 [![Tests and security](https://github.com/JakeeUp/playgraph/actions/workflows/security.yml/badge.svg)](https://github.com/JakeeUp/playgraph/actions/workflows/security.yml)
 
-Letterboxd for games, except the reviews actually mean something.
+Letterboxd for games, with receipts.
 
-You link your Steam account and PlayGraph pulls your real playtime and
-achievement data. When you review a game, the review carries your verified
-hours on it, so a review from someone with 200 hours reads differently than
-one from someone who played it for 20 minutes and bounced.
+Connect Steam and PlayGraph imports your playtime and achievements. When that
+data is available, your review keeps a snapshot of it. Two hundred hours or
+twenty minutes, there's some context behind the take.
 
-That's the whole reason I'm building it. Game logging apps already exist.
-None of them tie a review to proof you played the thing.
+I'm building it around that idea: a place to keep your games and reviews
+together, with your play history alongside them.
+
+![The PlayGraph catalog](docs/screenshots/catalog.webp)
+
+## What it does
+
+- Steam sign-in, plus PlayGraph accounts through Clerk
+- Full library sync in the background, including achievements
+- Playtime by genre, with apps like Wallpaper Engine kept out of your game stats
+- Drag half-star ratings, plus verified hours and achievements when available
+- Comments, a public feed, and a For You feed ranked by your library and genres
+- Game pages with community reviews, your review, and shareable links
+- Edit or delete your own reviews without changing their original playtime snapshot
+
+| Catalog and feed | Reviews and discussions |
+|---|---|
+| ![A game page](docs/screenshots/game-page.png) | ![Writing a review](docs/screenshots/write-review.png) |
+| Game pages pull art from Steam | Drag for half-stars, then publish |
+| ![The review feed](docs/screenshots/feed.png) | ![A review discussion](docs/screenshots/review-discussion.png) |
+| Verified hours, when available | Each review gets its own thread |
+
+PlayGraph sign-in through Clerk. This is the development build; the email
+address is obscured in the screenshot.
+
+![PlayGraph email verification, with the email address obscured](docs/screenshots/sign-in.png)
+
+Steam beta accounts and PlayGraph accounts are still separate. Creating a new
+account doesn't move an existing Steam library or its reviews.
+
+## How it works
+
+- **Verified hours are frozen.** A review saves the latest synced Steam hours
+  and achievement progress available when you publish. Those values come from
+  append-only snapshots; editing a review doesn't refresh them.
+- **Steam login is checked with Steam.** The server verifies OpenID 2.0
+  callbacks with Steam before issuing a session.
+- **Syncs run as jobs.** Achievements are one API call per game, so a big
+  library takes minutes. `POST /me/sync` queues it on arq and the UI polls.
+- **Sessions are checked server-side.** Redis holds revocation and rate-limit
+  state. Protected requests fail closed if it's unavailable. Browser writes
+  also require a session-bound CSRF token and a matching Origin.
+- **Rate limits use a sliding window** in a Lua script, so nobody gets a double
+  budget at a window edge.
+- **Public reads are cached** with generational invalidation, and concurrent
+  misses share one query. Writes invalidate the cache; short TTLs limit stale
+  reads if invalidation fails. Private library responses aren't cached.
+
+## Measured
+
+Recorded local development runs: SQLite, 3,000 games, 8,000 reviews and 200
+simulated visitors browsing public pages. These are successive optimization
+runs, not production capacity estimates. p95 is the response time that 95% of
+requests finished within.
+
+| Setup | p95 | Throughput |
+|---|---|---|
+| Cache off, before the query fix | 49 s | 3.9 req/s |
+| Cache off, after the query fix | 94 ms | 82 req/s |
+| Cache on, with miss coalescing | 41 ms | 84 req/s |
+
+The changes were storing each title's game/software classification in the
+database and having concurrent cache misses share a query. The simulated
+visitors pause between requests, so these runs don't establish maximum
+throughput. Signed-in traffic and hosted performance still need measurement.
 
 ## Stack
 
-FastAPI, SQLAlchemy 2.x, Alembic, and arq on Redis for background jobs.
-SQLite for local development, Postgres for deployment. The frontend is plain
-ES modules served by FastAPI, so there's no build step.
+FastAPI, SQLAlchemy 2, Alembic, and arq on Redis. SQLite locally; Postgres is the
+planned deployment database. The frontend is plain ES modules served by FastAPI,
+with no build step.
 
-## What works
+## Run it locally
 
-- Sign in through Steam (OpenID 2.0, verified server side)
-- Full library sync as a background job, with progress polling
-- Genre breakdown by playtime, with software kept out of gaming stats
-- Reviews carrying playtime and achievements frozen at the moment of writing
-- Comments and review feeds
-- Responsive UI at `/app`: covers, search, filters, drag half-star ratings
-- Game profiles with community/your-review/details tabs and shareable game links
-- Edit or delete your own review; edits retain the original verified stats
+Use Python 3.14, the version used in development and CI, and a local or hosted
+Redis instance. Run these commands from the repository root.
 
-## What isn't built
-
-- Recommendations
-- PlayGraph's own sign-up, passkeys and MFA (provider setup is pending)
-- Any platform beyond Steam
-
-## Running it locally
-
-You need Python 3.11 or newer and a Redis instance.
-
-```bash
+```powershell
 python -m venv .venv
-.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-
-copy .env.example .env          # macOS/Linux: cp .env.example .env
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-Fill in `.env`. You need a free Steam Web API key from
-https://steamcommunity.com/dev/apikey, and a signing secret:
+On macOS/Linux, activate with `source .venv/bin/activate` and copy the config
+with `cp .env.example .env`. If you already have a `.env`, keep it.
+
+In `.env`, add a [Steam Web API key](https://steamcommunity.com/dev/apikey),
+your Redis URL, and a signing secret:
 
 ```bash
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Then apply migrations and start both processes:
+With the API and worker stopped, apply migrations:
 
 ```bash
 python -m app.migrations upgrade
-uvicorn app.main:app --reload      # API on http://localhost:8000
-arq app.worker.WorkerSettings      # sync worker, separate terminal
 ```
 
-On Windows, `dev.bat` starts both and `stop.bat` stops them.
-The app is at http://localhost:8000/app.
+Start the API:
+
+```bash
+python -m uvicorn app.main:app
+```
+
+In a second terminal, activate the same environment and start the sync worker:
+
+```bash
+python -m arq app.worker.WorkerSettings
+```
+
+Open [localhost:8000/app](http://localhost:8000/app). On Windows, `dev.bat`
+starts both processes. Stop each with Ctrl+C in its terminal before migrating.
+
+PlayGraph accounts are optional. To turn them on, put your Clerk development keys
+in `.env.clerk` as `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`, and set
+`CLERK_ENABLED=true` in `.env`. Restart the API, then open `/account`.
+Keep both environment files out of Git.
 
 ## Tests
+
+Node.js is needed for the browser-module checks.
 
 ```bash
 python -m pytest -q
 node --test tests/test_library_ui.mjs
 ```
 
-The second line covers the browser modules' pure logic, which pytest can't collect.
-
-Review updates use `PATCH /reviews/{id}` with `{rating, body}`. Deletion uses
-`DELETE /reviews/{id}` and permanently removes the associated discussion.
-Only the author can change a review; missing and non-owned IDs return 404.
-Browser writes require the current session's CSRF token and matching Origin.
-`GET /games/{id}` exposes public metadata for `/app#game={id}` links.
-
-After this update, stop the API/worker and run `python -m app.migrations upgrade`
-before restarting. Migration `0002_review_ids` preserves existing review rows and
-prevents SQLite from recycling deleted discussion IDs. The migration wrapper
-creates a verified backup for an existing database.
-
-The suite covers Steam OpenID verification, session and CSRF handling, rate
-limits, the queue codec, migrations, the response cache, and the review and
-feed endpoints.
-
-## Load testing
-
-```bash
-pip install -r requirements-loadtest.txt
-locust -f loadtest/locustfile.py --host http://localhost:8000
-```
-
-It simulates anonymous visitors browsing the catalog, reviews and the public
-feed. Each visitor sends its own address from the benchmarking range as
-X-Forwarded-For, so start the API with `FORWARDED_ALLOW_IPS=127.0.0.1` or every
-visitor shares one rate limit bucket and most of the run becomes 429s. Signed in
-traffic isn't covered yet because it needs real Steam sessions.
-
-Public reads are cached in Redis for 30 to 60 seconds and invalidated on every
-review or comment write, so a writer always reads their own change back.
-Private `/me` responses are never cached.
-
-## Notes
-
-A few things worth knowing if you're reading the code:
-
-- Signing in through Steam is OpenID 2.0, not OAuth. There's no client secret
-  and no token exchange. Steam redirects back with signed query params and you
-  POST them back to Steam to ask whether it really signed them. Skip that round
-  trip and anyone can hand the server a made up SteamID.
-- A large library sync takes several minutes, because achievements are one API
-  call per game. That can't sit inside an HTTP request, so `POST /me/sync`
-  queues a job and returns an id you poll.
-- Playtime is stored as append-only snapshots rather than a single mutable
-  number, so a review can freeze the hours it was written with.
-
-More detail lives in [SECURITY.md](SECURITY.md) for the security review,
-[MIGRATIONS.md](MIGRATIONS.md) for database upgrades and recovery, and
-[PLATFORM_PLAN.md](PLATFORM_PLAN.md) for why only Steam is wired up so far.
+CI runs both, plus `pip-audit` and `bandit`, on every push. There's also a
+Locust load test in `loadtest/`, and the file explains how to run it.
 
 ## Status
 
-Personal project, actively being built. Not deployed publicly yet.
+Personal project, actively being built, not deployed yet.
+
+Next up is linking Steam to a PlayGraph account, since right now they're
+separate. After that: a cross-platform catalog through IGDB, want-to-play and
+diary tracking, privacy controls, then public profiles. The full map is in
+[PHASES.md](PHASES.md).
+
+More detail: [SECURITY.md](SECURITY.md) for the security review,
+[MIGRATIONS.md](MIGRATIONS.md) for upgrades and recovery, and
+[PLATFORM_PLAN.md](PLATFORM_PLAN.md) for why Steam comes first.
+
+No license yet, so all rights reserved for now.
