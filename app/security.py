@@ -48,16 +48,20 @@ async def redis_call(request: Request, method: str, *args, **kwargs):
         raise HTTPException(status_code=503, detail="Security service unavailable") from None
 
 
-async def issue_session(request: Request, user_id: int) -> str:
+async def issue_session(request: Request, user_id: int, *, provider: dict | None = None) -> str:
     now = utcnow()
     session_id = secrets.token_urlsafe(32)
     seconds = settings.session_minutes * 60
     token = jwt.encode(
         {"sub": str(user_id), "iat": now, "nbf": now,
          "exp": now + timedelta(seconds=seconds), "jti": session_id,
-         "iss": ISSUER, "aud": AUDIENCE},
+         "iss": ISSUER, "aud": AUDIENCE, **({"provider": "clerk"} if provider else {})},
         settings.jwt_secret.get_secret_value(), algorithm="HS256",
     )
+    if provider:
+        import json
+        await redis_call(request, "set", state_key("provider-session", session_id),
+                         json.dumps(provider), ex=seconds)
     await redis_call(request, "set", state_key("session", session_id), str(user_id), ex=seconds)
     return token
 

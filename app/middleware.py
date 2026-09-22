@@ -59,6 +59,19 @@ class SecurityMiddleware:
                         "https://cdn.cloudflare.steamstatic.com; "
                         "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
                     )
+                elif request.url.path == "/account":
+                    provider = settings.clerk_origin if settings.clerk_enabled else ""
+                    # Clerk's runtime CSS is confined to the account page. No
+                    # unsafe script execution is enabled on this or the app page.
+                    headers["Content-Security-Policy"] = (
+                        "default-src 'none'; script-src 'self' " + provider +
+                        " https://challenges.cloudflare.com https://*.protect.clerk.com; "
+                        "style-src 'self' 'unsafe-inline'; connect-src 'self' " + provider +
+                        " https://*.protect.clerk.com:*; img-src 'self' https://img.clerk.com data:; "
+                        "worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com "
+                        "https://*.protect.clerk.com; font-src 'self'; "
+                        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+                    )
                 elif request.url.path not in {"/docs", "/docs/oauth2-redirect", "/redoc"}:
                     headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
             await send(message)

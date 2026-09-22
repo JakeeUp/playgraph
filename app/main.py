@@ -13,7 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.config import settings
 from app.database import engine
 from app.migrations import require_current_schema
-from app.routers import auth, catalog, feed, library, reviews
+from app.routers import accounts, auth, catalog, feed, library, reviews
 from app.middleware import SecurityMiddleware
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
 from app.security_logging import configure_access_logging
@@ -62,6 +62,7 @@ async def browser_login_error(request: Request, exc: HTTPException):
     return await http_exception_handler(request, exc)
 
 app.include_router(auth.router)
+app.include_router(accounts.router)
 app.include_router(library.router)
 app.include_router(reviews.router)
 app.include_router(catalog.router)
@@ -84,3 +85,8 @@ def web_app():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/account", include_in_schema=False)
+def account_page():
+    return FileResponse(STATIC_DIR / "account.html")

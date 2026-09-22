@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import LinkedAccount, Platform, User, utcnow
+from app.models import AuthIdentity, LinkedAccount, Platform, User, utcnow
+from app import clerk_auth
 from app.security import (LOGIN_TTL, NONCE_TTL, csrf_token, issue_session,
                           redis_call, session_cookie_name, state_key)
 from app.services import steam
@@ -138,6 +139,8 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
             if linked is None:
                 raise
             user = linked.user
+    if db.query(AuthIdentity).filter_by(user_id=user.id).first():
+        raise HTTPException(401, "Use PlayGraph account sign-in for this account")
     token = await issue_session(request, user.id)
     logger.info("login_succeeded user_id=%s", user.id)
     if ui:
@@ -159,6 +162,7 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
 async def browser_session(request: Request, user: User = Depends(get_current_user)):
     linked = next((account for account in user.linked_accounts if account.platform == Platform.steam), None)
     return {"user": {"id": user.id, "display_name": user.display_name},
+            "auth_provider": request.state.auth_provider, "has_steam": linked is not None,
             "csrf_token": csrf_token(request.state.session_id),
             "expires_at": request.state.session_expires,
             "last_synced_at": linked.last_synced_at if linked else None}
@@ -167,12 +171,27 @@ async def browser_session(request: Request, user: User = Depends(get_current_use
 @router.post("/logout", status_code=204)
 async def logout(request: Request, user: User = Depends(get_current_user)):
     await redis_call(request, "delete", state_key("session", request.state.session_id))
+    await redis_call(request, "delete", state_key("provider-session", request.state.session_id))
+    provider_signed_out = True
+    if request.state.auth_provider == "clerk":
+        provider = request.state.provider
+        # Forget the remembered liveness first, so any other PlayGraph session
+        # built on this provider session stops at its next request.
+        await clerk_auth.forget_active(request, provider["sid"])
+        try:
+            await clerk_auth.revoke(provider["sid"], provider["subject"])
+        except HTTPException as exc:
+            if exc.status_code != 401:
+                provider_signed_out = False
     logger.info("logout user_id=%s", user.id)
     # Clear-Site-Data also drops cookies and storage the browser kept for this
     # site. "cache" is left out: API responses are never stored, and that
-    # directive makes sign-out noticeably slow in some browsers.
-    response = Response(status_code=204, headers={"Cache-Control": "no-store",
-                                                  "Clear-Site-Data": '"cookies", "storage"'})
+    # directive makes sign-out noticeably slow in some browsers. The local
+    # session has ended either way, so both answers carry it.
+    response = (Response(status_code=204) if provider_signed_out else
+                JSONResponse({"provider_signed_out": False}))
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Clear-Site-Data"] = '"cookies", "storage"'
     response.delete_cookie(session_cookie_name(), path="/", httponly=True,
                            secure=settings.app_base_url.startswith("https://"), samesite="lax")
     return response

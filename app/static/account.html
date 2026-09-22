@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#14181c">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Sign in to your PlayGraph account to rate games and write reviews.">
+  <title>Your account | PlayGraph</title>
+  <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/account.css">
+  <script type="module" src="/assets/account.js"></script>
+</head>
+<body class="account-page">
+  <a class="skip-link" href="#account-main">Skip to sign in</a>
+  <header class="account-header">
+    <a class="brand" href="/app"><img src="/assets/mark.svg" alt="" width="26" height="26">PlayGraph</a>
+    <a class="account-back" href="/app">Browse games</a>
+  </header>
+  <main id="account-main" class="account-layout" tabindex="-1">
+    <section class="account-intro" aria-labelledby="account-title">
+      <h1 id="account-title">Your games.<br>Your account.</h1>
+      <p>Rate what you play. Write what you think. Keep your reviews together in PlayGraph.</p>
+      <p class="account-note">Your existing Steam library and reviews stay with your Steam beta account. Connecting that account to a PlayGraph sign-in is the next step; creating an account here does not transfer them.</p>
+      <a id="steam-access" class="account-back" href="/auth/steam/login?ui=1">Use your existing Steam beta account</a>
+    </section>
+    <section class="account-form" aria-label="PlayGraph sign-in">
+      <p id="account-status" class="account-status" role="status">Loading sign-in…</p>
+      <div id="legacy-session" hidden>
+        <h2>You’re signed in with Steam</h2>
+        <p>Keep browsing your library, or sign out before using a separate PlayGraph account. Your Steam data will stay where it is.</p>
+        <div class="account-actions">
+          <a class="button primary" href="/app">Back to my library</a>
+          <button id="leave-steam" type="button" class="button secondary">Sign out of Steam beta</button>
+        </div>
+      </div>
+      <div id="clerk-sign-in"></div>
+      <div id="ready-session" hidden>
+        <h2>Ready to play</h2>
+        <p id="signed-in-name"></p>
+        <div class="account-actions">
+          <button id="continue-account" type="button" class="button primary">Continue to PlayGraph</button>
+          <button id="sign-out-account" type="button" class="button secondary">Sign out</button>
+        </div>
+      </div>
+      <button id="retry-account" type="button" class="button secondary" hidden>Try again</button>
+      <noscript><p>Enable JavaScript to sign in. You can still <a href="/app">browse the catalog</a>.</p></noscript>
+    </section>
+  </main>
+</body>
+</html>

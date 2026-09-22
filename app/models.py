@@ -48,6 +48,19 @@ class User(Base):
     reviews = relationship("Review", back_populates="user")
 
 
+class AuthIdentity(Base):
+    """Authentication identity, distinct from permission to import a platform."""
+    __tablename__ = "auth_identities"
+    __table_args__ = (UniqueConstraint("issuer", "subject"), UniqueConstraint("user_id"))
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    provider = Column(String, nullable=False)
+    issuer = Column(String, nullable=False)
+    subject = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    user = relationship("User")
+
+
 class LinkedAccount(Base):
     """A platform identity (currently only Steam) linked to a User.
 

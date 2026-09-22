@@ -10,8 +10,8 @@ export const button = (text, className, action) => {
   const node = el('button', className, text); node.type = 'button';
   node.addEventListener('click', action); return node;
 };
-export const steamLink = (text = 'Connect Steam') => {
-  const link = el('a', 'button primary', text); link.href = '/auth/steam/login?ui=1'; return link;
+export const steamLink = (text = 'Sign in') => {
+  const link = el('a', 'button primary', text); link.href = '/account'; return link;
 };
 export const aborted = (error) => error.name === 'AbortError';
 export function cover(game) {

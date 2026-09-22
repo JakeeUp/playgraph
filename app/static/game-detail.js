@@ -42,7 +42,7 @@ export function createGameDialog(state, api, report = () => {}) {
     const writeSection = el('section', 'write-review');
     if (createdReview && state.user) showOwnReview(createdReview, editRequested);
     else if (state.user) writeSection.append(el('p', 'helper', 'Checking your review...'));
-    else writeSection.append(el('h3', '', 'Your point of view belongs here.'), el('p', 'muted', 'Connect Steam to rate this game and join the conversation.'), steamLink());
+    else writeSection.append(el('h3', '', 'Your point of view belongs here.'), el('p', 'muted', 'Sign in to rate this game and join the conversation.'), steamLink());
     const section = el('section', 'reviews-section');
     section.append(el('h3', '', threadReview ? 'Review discussion' : software ? 'Software reviews' : 'Player reviews'),
       el('p', 'helper', threadReview ? 'A public conversation about this review.' : 'Most verified playtime first. Review stats reflect the moment of posting.'));
@@ -133,7 +133,7 @@ export function createGameDialog(state, api, report = () => {}) {
     const bodyLabel = el('label', '', 'Your review'); const body = el('textarea'); body.name = 'body'; body.rows = 4; body.maxLength = 10000;
     body.placeholder = 'What stayed with you? What would you tell someone about to play?'; bodyLabel.append(body);
     body.value = existing?.body || '';
-    const disclosure = el('p', 'review-disclosure', existing ? 'Your changes are public. The original posting date and verified play stats will stay the same.' : 'Public review: your Steam display name, rating, text, and available verified playtime and achievement percentage will be visible to everyone. Stats are saved as they are now.');
+    const disclosure = el('p', 'review-disclosure', existing ? 'Your changes are public. The original posting date and verified play stats will stay the same.' : 'Public review: your display name, rating, text, and available verified playtime and achievement percentage will be visible to everyone. Stats are saved as they are now.');
     const error = el('p', 'form-error'); error.setAttribute('role', 'alert'); error.hidden = true;
     const submit = el('button', 'button primary', existing ? 'Save changes' : 'Publish review ↗'); submit.type = 'submit';
     form.append(rating.element, bodyLabel, disclosure, error, submit);

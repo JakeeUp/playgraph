@@ -56,6 +56,7 @@ def test_empty_install_matches_application_schema(database, tmp_path):
     require_current_schema(database)
     with database.connect() as connection:
         assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
+        assert connection.exec_driver_sql("SELECT COUNT(*) FROM auth_identities").scalar() == 0
 
 
 def test_review_id_migration_preserves_rows_and_never_reuses_deleted_link(database, tmp_path):

@@ -65,7 +65,7 @@ async function api(path, { anonymous = false, ...options } = {}) {
   if (generation !== state.generation) throw new DOMException('Session changed', 'AbortError');
   if (response.status === 401 && anonymous) return null;
   if (response.status === 401 && state.user) {
-    clearSession(); notify('Your session ended. Connect Steam again to continue.', true);
+    clearSession(); notify('Your session ended. Sign in again to continue.', true);
     void loadCatalog(); throw new DOMException('Session ended', 'AbortError');
   }
   const body = response.status === 204 ? null : await response.json().catch(() => null);
@@ -102,14 +102,14 @@ function renderShell() {
   const account = $('#account'); account.replaceChildren();
   if (state.user) account.append(el('span', 'avatar', state.user.display_name.slice(0, 1).toLocaleUpperCase()),
     el('span', 'account-name', state.user.display_name), button('Sign out', 'signout', signOut));
-  else { const link = steamLink('Connect Steam ↗'); link.classList.add('compact'); account.append(link); }
+  else { const link = steamLink('Sign in / Create account'); link.classList.add('compact'); account.append(link); }
   $('#nav-count').textContent = state.user ? integer(gameLibrary().length) : '';
   $('#welcome').hidden = Boolean(state.user) || software || isFeed;
   $('#summary').hidden = !own || !shelfLibrary().length;
   $('#insights').hidden = !own || software || !gameLibrary().length;
   $('#collection').hidden = isFeed || (state.view === 'stats' && Boolean(state.user) && gameLibrary().length > 0);
   $('#feed').hidden = !isFeed;
-  $('#sync-button').hidden = !state.user; $('#filters').hidden = !own;
+  $('#sync-button').hidden = !state.user || !state.hasSteam; $('#filters').hidden = !own;
   $('#sort').disabled = !own; $('#sort').value = own ? state.sort : 'name';
   const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
   $('#page-title').replaceChildren(document.createTextNode(copy.title), el('span', 'accent', '.'));
@@ -230,9 +230,11 @@ function renderCollection() {
     const filtering = state.query || state.genre || state.filter !== 'all'; const empty = el('div', 'empty-message');
     empty.append(el('strong', '', filtering ? 'Nothing on this shelf yet' : own ? 'Your library starts here' : 'The catalog is waiting'));
     empty.append(el('span', '', filtering ? 'Try another search or clear your filters.'
-      : own ? 'Sync Steam to bring in your games. Your game details must be visible to Steam’s API.' : 'Connect Steam and sync your games to add them to PlayGraph.'));
+      : own ? (state.hasSteam ? 'Sync Steam to bring in your games. Your game details must be visible to Steam’s API.' : 'Your PlayGraph account is ready. Browse the catalog to rate games and write reviews. Steam linking is coming next.') : 'Sign in to rate games and join the conversation.'));
     if (filtering) empty.append(button('Clear filters', 'button secondary', resetFilters));
-    else if (state.user) empty.append(button('Sync my library', 'button primary', syncLibrary)); else empty.append(steamLink('Connect your library'));
+    else if (state.user && state.hasSteam) empty.append(button('Sync my library', 'button primary', syncLibrary));
+    else if (state.user) empty.append(button('Explore games', 'button primary', () => navigate('explore')));
+    else empty.append(steamLink('Create your account'));
     grid.append(empty);
   }
   $('#result-count').textContent = integer(total); $('#load-more').hidden = visible.length >= total;
@@ -271,11 +273,11 @@ function resetFilters() {
 }
 async function signOut() {
   const control = $('.signout'); if (control) control.disabled = true;
-  try { await api('/auth/logout', { method: 'POST' }); clearSession(); sessionChannel?.postMessage('session-changed'); notify('You are signed out. Your library is private to your account.'); await loadCatalog(); }
+  try { const result = await api('/auth/logout', { method: 'POST' }); clearSession(); sessionChannel?.postMessage('session-changed'); notify(result?.provider_signed_out === false ? 'Signed out of PlayGraph. Clerk could not be reached; open Sign in to finish provider sign-out.' : 'You are signed out. Your library is private to your account.'); await loadCatalog(); }
   catch (error) { report(error); if (control?.isConnected) control.disabled = false; }
 }
 async function syncLibrary() {
-  if (!state.user || state.syncing) return;
+  if (!state.user || !state.hasSteam || state.syncing) return;
   state.syncing = true; $('#sync-button').disabled = true; $('#sync-button').textContent = '↻ Syncing...';
   try {
     const job = await api('/me/sync', { method: 'POST' }); notify('Steam sync queued. You can keep browsing while your games update.'); void pollSync(job.job_id);
@@ -323,8 +325,9 @@ window.addEventListener('pagehide', () => { stopPolling(); state.controller.abor
 window.addEventListener('pageshow', (event) => { if (event.persisted) location.reload(); });
 function acceptSession(session) {
   state.user = session.user; state.csrf = session.csrf_token;
+  state.hasSteam = session.has_steam; state.authProvider = session.auth_provider;
   clearTimeout(state.expiryTimer);
-  state.expiryTimer = setTimeout(() => { clearSession(); notify('Your session ended. Connect Steam to continue.', true); void loadCatalog(); }, Math.max(0, session.expires_at * 1000 - Date.now()));
+  state.expiryTimer = setTimeout(() => { clearSession(); notify('Your session ended. Sign in to continue.', true); void loadCatalog(); }, Math.max(0, session.expires_at * 1000 - Date.now()));
 }
 async function checkSession() {
   if (!sessionReady || checkingSession || document.hidden) return;
@@ -334,7 +337,7 @@ async function checkSession() {
     if (!session && state.user) { clearSession(); notify('You are signed out.'); await loadCatalog(); }
     else if (session && (session.user.id !== state.user?.id || session.csrf_token !== state.csrf)) {
       clearSession(); acceptSession(session); renderShell(); await loadLibrary();
-      if (state.user) void pollSync(`sync-json-user-${state.user.id}`, true);
+      if (state.user && state.hasSteam) void pollSync(`sync-json-user-${state.user.id}`, true);
     }
   } catch (error) { report(error); } finally { checkingSession = false; }
 }
@@ -349,7 +352,7 @@ async function start() {
     const session = await api('/auth/session', { anonymous: true });
     if (session) {
       acceptSession(session); sessionChannel?.postMessage('session-changed');
-      renderShell(); await loadLibrary(); if (state.user) void pollSync(`sync-json-user-${state.user.id}`, true);
+      renderShell(); await loadLibrary(); if (state.user && state.hasSteam) void pollSync(`sync-json-user-${state.user.id}`, true);
     } else { renderShell(); await loadCatalog(); }
   } catch (error) { report(error); if (!state.user) { renderShell(); await loadCatalog(); } }
 }

@@ -1,3 +1,5 @@
+import base64
+import re
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -13,7 +15,7 @@ class Settings(BaseSettings):
     (like STEAM_API_KEY) is missing, instead of failing later mid-request.
     """
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
+    model_config = SettingsConfigDict(env_file=(".env.clerk", ".env"), extra="ignore", hide_input_in_errors=True)
 
     steam_api_key: SecretStr
     app_base_url: str = "http://localhost:8000"
@@ -24,6 +26,34 @@ class Settings(BaseSettings):
     redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
     environment: Literal["development", "production"] = "development"
     session_minutes: int = Field(default=30, ge=5, le=60)
+    clerk_enabled: bool = False
+    clerk_publishable_key: str = Field(default="", repr=False)
+    clerk_secret_key: SecretStr = SecretStr("")
+
+    @property
+    def clerk_origin(self) -> str:
+        """Only a validated configuration key determines the trusted issuer."""
+        key = self.clerk_publishable_key
+        if not re.fullmatch(r"pk_(test|live)_[A-Za-z0-9+/=_-]+", key):
+            raise ValueError("Invalid Clerk publishable key")
+        try:
+            encoded = key.split("_", 2)[2]
+            host = base64.b64decode(encoded + "=" * (-len(encoded) % 4), validate=True).decode()
+        except (ValueError, UnicodeError):
+            raise ValueError("Invalid Clerk publishable key") from None
+        if not host.endswith("$") or not re.fullmatch(r"[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}\$", host):
+            raise ValueError("Invalid Clerk frontend domain")
+        return "https://" + host[:-1]
+
+    @model_validator(mode="after")
+    def clerk_configuration(self):
+        if self.clerk_enabled:
+            _ = self.clerk_origin
+            mode = "live" if self.environment == "production" else "test"
+            if (not self.clerk_publishable_key.startswith(f"pk_{mode}_")
+                    or not self.clerk_secret_key.get_secret_value().startswith(f"sk_{mode}_")):
+                raise ValueError("Clerk keys must match the application environment")
+        return self
 
     @field_validator("jwt_secret")
     @classmethod
