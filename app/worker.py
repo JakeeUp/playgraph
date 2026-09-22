@@ -164,7 +164,7 @@ class WorkerSettings:
     queue_name = QUEUE_NAME
     job_serializer = staticmethod(serialize)
     job_deserializer = staticmethod(deserialize)
-    redis_settings = RedisSettings.from_dsn(settings.redis_url)
+    redis_settings = RedisSettings.from_dsn(settings.redis_url.get_secret_value())
 
     # Run one job at a time. arq defaults to 10 concurrent jobs, which for
     # this workload is actively wrong: every sync writes the same tables, so

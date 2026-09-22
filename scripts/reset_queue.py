@@ -15,7 +15,7 @@ from app.queue_codec import QUEUE_NAME, deserialize, serialize
 
 
 async def main():
-    redis = await create_pool(RedisSettings.from_dsn(settings.redis_url),
+    redis = await create_pool(RedisSettings.from_dsn(settings.redis_url.get_secret_value()),
                               job_serializer=serialize, job_deserializer=deserialize,
                               default_queue_name=QUEUE_NAME)
     try:

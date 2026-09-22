@@ -31,10 +31,19 @@ class SecurityMiddleware:
                 headers["X-Content-Type-Options"] = "nosniff"
                 headers["X-Frame-Options"] = "DENY"
                 headers["Referrer-Policy"] = "no-referrer"
-                headers["Cache-Control"] = "no-store"
+                # Public static files are stored but revalidated against their ETag,
+                # so repeat visits get 304s. Everything else, every API response
+                # included, is never stored.
+                static = request.url.path.startswith("/assets/")
+                headers["Cache-Control"] = "no-cache" if static else "no-store"
                 headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+                # Isolate this origin's windows from other sites' windows, and refuse
+                # to let another site's page embed these responses, JSON included.
+                headers["Cross-Origin-Opener-Policy"] = "same-origin"
+                headers["Cross-Origin-Resource-Policy"] = "same-origin"
+                headers["X-Permitted-Cross-Domain-Policies"] = "none"
                 if settings.environment == "production":
-                    headers["Strict-Transport-Security"] = "max-age=31536000"
+                    headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
                 if request.url.path == "/app":
                     headers["Content-Security-Policy"] = (
                         "default-src 'none'; script-src 'self'; style-src 'self'; "

@@ -168,7 +168,11 @@ async def browser_session(request: Request, user: User = Depends(get_current_use
 async def logout(request: Request, user: User = Depends(get_current_user)):
     await redis_call(request, "delete", state_key("session", request.state.session_id))
     logger.info("logout user_id=%s", user.id)
-    response = Response(status_code=204, headers={"Cache-Control": "no-store"})
+    # Clear-Site-Data also drops cookies and storage the browser kept for this
+    # site. "cache" is left out: API responses are never stored, and that
+    # directive makes sign-out noticeably slow in some browsers.
+    response = Response(status_code=204, headers={"Cache-Control": "no-store",
+                                                  "Clear-Site-Data": '"cookies", "storage"'})
     response.delete_cookie(session_cookie_name(), path="/", httponly=True,
                            secure=settings.app_base_url.startswith("https://"), samesite="lax")
     return response

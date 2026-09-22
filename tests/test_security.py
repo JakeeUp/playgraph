@@ -96,7 +96,9 @@ def test_login_issues_revocable_short_session(client, verification, db):
     assert claims["exp"] - claims["iat"] == 1800
     headers = {"Authorization": "Bearer " + token}
     assert client.get("/me/genres", headers=headers).status_code == 200
-    assert client.post("/auth/logout", headers=headers).status_code == 204
+    logout = client.post("/auth/logout", headers=headers)
+    assert logout.status_code == 204
+    assert logout.headers["clear-site-data"] == '"cookies", "storage"'
     assert client.get("/me/genres", headers=headers).status_code == 401
     assert db.query(User).count() == 2
     assert verification.calls[0]["openid.mode"] == "check_authentication"
@@ -264,6 +266,9 @@ def test_security_headers_host_and_body_limit(client):
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["cross-origin-opener-policy"] == "same-origin"
+    assert response.headers["cross-origin-resource-policy"] == "same-origin"
+    assert response.headers["x-permitted-cross-domain-policies"] == "none"
     assert client.get("/games/1/reviews", headers={"Host": "evil.example"}).status_code == 400
     assert client.post("/games/1/reviews", content=b"x" * (MAX_BODY_BYTES + 1)).status_code == 413
     assert client.post("/games/1/reviews", content=iter([b"x" * 40000, b"x" * 40000])).status_code == 413
@@ -280,7 +285,7 @@ def test_production_transport_and_cookie(client, monkeypatch):
     assert "__Host-playgraph-login=" in cookie
     assert "Secure" in cookie and "HttpOnly" in cookie and "SameSite=lax" in cookie
     assert "Domain=" not in cookie
-    assert "max-age" in response.headers["strict-transport-security"]
+    assert response.headers["strict-transport-security"] == "max-age=31536000; includeSubDomains"
 
 
 @pytest.mark.parametrize("values", [{"jwt_secret": "short"}, {"redis_url": "https://redis.example"},
@@ -293,9 +298,13 @@ def test_rejects_insecure_config(values):
 
 
 def test_secrets_are_masked_in_config():
-    config = Settings(_env_file=None)
-    assert config.jwt_secret.get_secret_value() not in repr(config)
-    assert config.steam_api_key.get_secret_value() not in repr(config)
+    config = Settings(_env_file=None, database_url="postgresql://app:db-password-value@db/app",
+                      redis_url="rediss://:redis-password-value@cache:6380/0")
+    # model_dump() is what structured logging and error reporters serialize.
+    exposed = repr(config) + str(config) + str(config.model_dump())
+    for secret in ("db-password-value", "redis-password-value",
+                   config.jwt_secret.get_secret_value(), config.steam_api_key.get_secret_value()):
+        assert secret not in exposed
 
 
 def browser_login(client):

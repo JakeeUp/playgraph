@@ -3,7 +3,8 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import settings
 
-_is_sqlite = settings.database_url.startswith("sqlite")
+_database_url = settings.database_url.get_secret_value()
+_is_sqlite = _database_url.startswith("sqlite")
 
 # SQLite needs check_same_thread disabled because FastAPI serves requests
 # from a thread pool, and SQLite otherwise refuses to reuse a connection
@@ -13,7 +14,7 @@ _is_sqlite = settings.database_url.startswith("sqlite")
 # change either way.
 connect_args = {"check_same_thread": False} if _is_sqlite else {}
 
-engine = create_engine(settings.database_url, connect_args=connect_args, hide_parameters=True)
+engine = create_engine(_database_url, connect_args=connect_args, hide_parameters=True)
 
 
 if _is_sqlite:

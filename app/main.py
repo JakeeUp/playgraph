@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     # instead of per-request so we're not opening a new Redis connection on
     # every single API call.
     app.state.arq_pool = await create_pool(
-        RedisSettings.from_dsn(settings.redis_url), job_serializer=serialize,
+        RedisSettings.from_dsn(settings.redis_url.get_secret_value()), job_serializer=serialize,
         job_deserializer=deserialize, default_queue_name=QUEUE_NAME,
     )
     try:

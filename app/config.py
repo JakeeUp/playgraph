@@ -18,8 +18,10 @@ class Settings(BaseSettings):
     steam_api_key: SecretStr
     app_base_url: str = "http://localhost:8000"
     jwt_secret: SecretStr
-    database_url: str = Field(repr=False)
-    redis_url: str = Field(default="redis://localhost:6379/0", repr=False)
+    # Deployed connection URLs carry passwords, so they get the same masking as
+    # the keys: hidden from repr, str and model_dump(), unwrapped only at use.
+    database_url: SecretStr
+    redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
     environment: Literal["development", "production"] = "development"
     session_minutes: int = Field(default=30, ge=5, le=60)
 
@@ -44,8 +46,8 @@ class Settings(BaseSettings):
 
     @field_validator("redis_url")
     @classmethod
-    def valid_redis(cls, value: str) -> str:
-        if urlsplit(value).scheme not in {"redis", "rediss"}:
+    def valid_redis(cls, value: SecretStr) -> SecretStr:
+        if urlsplit(value.get_secret_value()).scheme not in {"redis", "rediss"}:
             raise ValueError("REDIS_URL must use redis:// or rediss://")
         return value
 
@@ -54,7 +56,7 @@ class Settings(BaseSettings):
         if self.environment == "production":
             if not self.app_base_url.startswith("https://"):
                 raise ValueError("Production APP_BASE_URL requires HTTPS")
-            redis = urlsplit(self.redis_url)
+            redis = urlsplit(self.redis_url.get_secret_value())
             if redis.scheme != "rediss" or not redis.password:
                 raise ValueError("Production Redis requires TLS and authentication")
         return self
