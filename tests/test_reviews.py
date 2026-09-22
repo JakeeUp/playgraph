@@ -205,6 +205,17 @@ def test_invalid_rating(api, rating):
     assert post_review(api, rating=rating).status_code == 422
 
 
+def test_blank_review_text_is_stored_as_no_text(api):
+    created = post_review(api, body="  \n\t ")
+    assert created.status_code == 201
+    assert created.json()["body"] is None
+    review_id = created.json()["id"]
+    assert api.patch(f"/reviews/{review_id}", json={"rating": 4, "body": "  Solid  "},
+                     headers=auth()).json()["body"] == "Solid"
+    assert api.patch(f"/reviews/{review_id}", json={"rating": 4, "body": " "},
+                     headers=auth()).json()["body"] is None
+
+
 def test_reviews_order_pagination_and_game_scope(api, db):
     db.add(User(id=3, display_name="Third"))
     db.flush()

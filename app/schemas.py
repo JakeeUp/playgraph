@@ -49,6 +49,13 @@ class ReviewCreate(BaseModel):
     rating: float = Field(ge=0.5, le=5.0, multiple_of=0.5)
     body: str | None = Field(default=None, max_length=10000)
 
+    @field_validator("body")
+    @classmethod
+    def blank_body_is_none(cls, value: str | None) -> str | None:
+        # A rating can stand on its own, so whitespace-only text is stored as
+        # no text instead of rendering as an empty block under the stars.
+        return (value or "").strip() or None
+
 
 class ReviewOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
