@@ -4,6 +4,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.content import content_kind
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Comment, Game, PlaytimeSnapshot, Review, User, utcnow
@@ -49,7 +50,17 @@ def test_software_classification_agrees_in_python_and_sql(fixture, db):
     assert client.get("/games?kind=software&q=Adventure").json()["total"] == 0
     assert client.get("/games?kind=invalid").status_code == 422
     # A game's name alone is not a software classifier.
-    assert Game(steam_appid=123, name="Software Simulator", genres="Indie,Simulation,Casual").content_kind == "game"
+    assert content_kind(123, "Indie,Simulation,Casual") == "game"
+
+
+def test_classification_follows_genre_updates(db):
+    # The worker fills genres in after first creating a game, so the stored
+    # kind has to follow an update, not just the insert.
+    game = Game(steam_appid=777, name="Changes shelf", genres=None)
+    db.add(game); db.commit()
+    assert game.content_kind == "game"
+    game.genres = "Utilities,Photo Editing"; db.commit()
+    assert db.query(Game).filter(Game.content_kind == "software").one().id == game.id
 
 
 def test_game_stats_exclude_software_without_deleting_its_records(fixture):

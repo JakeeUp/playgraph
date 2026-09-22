@@ -19,26 +19,36 @@ def database(tmp_path):
     engine.dispose()
 
 
-def seed_legacy(engine):
+def baseline():
     from app.migrations import BASELINE, migration_config
     from alembic.script import ScriptDirectory
-    # A legacy fixture must use the frozen schema, not today's evolving model.
-    ScriptDirectory.from_config(migration_config()).get_revision(BASELINE).module.schema().create_all(engine)
-    with Session(engine) as db:
-        db.add(User(id=17, display_name="Synthetic player")); db.flush()
-        db.add(Game(id=29, steam_appid=123, name="Synthetic game")); db.flush()
-        db.add(LinkedAccount(id=31, user_id=17, platform=Platform.steam, platform_user_id="synthetic"))
-        db.add(PlaytimeSnapshot(id=41, user_id=17, game_id=29, playtime_minutes=120))
-        db.add(Review(id=53, user_id=17, game_id=29, rating=4.5, body="Keep this review", verified_playtime_minutes=120))
-        db.flush()
-        db.add(Comment(id=67, review_id=53, user_id=17, body="Keep this comment"))
-        db.commit()
+    return ScriptDirectory.from_config(migration_config()).get_revision(BASELINE).module.schema()
+
+
+def seed_legacy(engine):
+    # A legacy fixture must use the frozen schema, not today's evolving model,
+    # for both the tables and the rows: the models gain columns over time.
+    frozen = baseline()
+    frozen.create_all(engine)
+    tables = frozen.tables
+    with engine.begin() as connection:
+        for name, row in [
+            ("users", {"id": 17, "display_name": "Synthetic player"}),
+            ("games", {"id": 29, "steam_appid": 123, "name": "Synthetic game"}),
+            ("linked_accounts", {"id": 31, "user_id": 17, "platform": "steam", "platform_user_id": "synthetic"}),
+            ("playtime_snapshots", {"id": 41, "user_id": 17, "game_id": 29, "playtime_minutes": 120}),
+            ("reviews", {"id": 53, "user_id": 17, "game_id": 29, "rating": 4.5, "body": "Keep this review",
+                         "verified_playtime_minutes": 120}),
+            ("comments", {"id": 67, "review_id": 53, "user_id": 17, "body": "Keep this comment"}),
+        ]:
+            connection.execute(tables[name].insert(), [row])
 
 
 def records(engine):
+    """Every baseline column of every row: what any migration must preserve."""
     with engine.connect() as connection:
         return {table.name: connection.execute(select(table).order_by(table.c.id)).all()
-                for table in Base.metadata.sorted_tables}
+                for table in baseline().sorted_tables}
 
 
 def test_empty_install_matches_application_schema(database, tmp_path):
@@ -68,6 +78,24 @@ def test_review_id_migration_preserves_rows_and_never_reuses_deleted_link(databa
         db.add(row)
         db.commit()
         assert row.id > 53
+
+
+def test_content_kind_is_backfilled_from_the_frozen_classifier(database, tmp_path):
+    seed_legacy(database)
+    with database.begin() as connection:
+        connection.execute(baseline().tables["games"].insert(), [
+            {"id": 30, "steam_appid": 431960, "name": "Wallpaper Engine", "genres": "Casual,Indie"},
+            {"id": 31, "steam_appid": 555, "name": "A tool", "genres": "Utilities, Design & Illustration"},
+            {"id": 32, "steam_appid": 556, "name": "A game", "genres": "Action,Indie"},
+        ])
+    before = records(database)
+    upgrade_database(database, tmp_path / "backups")
+    assert records(database) == before
+    with database.connect() as connection:
+        kinds = dict(connection.exec_driver_sql("SELECT id, content_kind FROM games ORDER BY id").all())
+        indexes = {index["name"] for index in inspect(connection).get_indexes("games")}
+    assert kinds == {29: "game", 30: "software", 31: "software", 32: "game"}
+    assert "ix_games_content_kind" in indexes
 
 
 def test_legacy_adoption_preserves_all_records_and_restorable_backup(database, tmp_path):

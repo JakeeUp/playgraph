@@ -12,10 +12,11 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
 )
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.hybrid import hybrid_property
 
+from app.content import content_kind as classify_content
 from app.database import Base
 
 
@@ -84,19 +85,19 @@ class Game(Base):
     name = Column(String, nullable=False)
     genres = Column(String, nullable=True)  # e.g. "Action,Indie,RPG"
     header_image_url = Column(String, nullable=True)
+    # "game" or "software". Stored rather than derived in SQL, because the
+    # catalog and feed filter on it for every row. The listener below keeps it
+    # in step with steam_appid and genres on every insert and update.
+    content_kind = Column(String, nullable=False, default="game", server_default="game", index=True)
 
     playtime_snapshots = relationship("PlaytimeSnapshot", back_populates="game")
     reviews = relationship("Review", back_populates="game")
 
-    @hybrid_property
-    def content_kind(self):
-        from app.content import content_kind
-        return content_kind(self.steam_appid, self.genres)
 
-    @content_kind.expression
-    def content_kind(cls):
-        from app.content import content_kind_sql
-        return content_kind_sql(cls)
+@event.listens_for(Game, "before_insert")
+@event.listens_for(Game, "before_update")
+def _classify_game(_mapper, _connection, game):
+    game.content_kind = classify_content(game.steam_appid, game.genres)
 
 
 class PlaytimeSnapshot(Base):
