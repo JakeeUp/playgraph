@@ -21,13 +21,13 @@ export function summarize(library) {
     achievementGames: sum.achievementGames + Number(entry.achievements_unlocked != null && entry.achievements_total > 0),
   }), { games: 0, minutes: 0, played: 0, unlocked: 0, achievementGames: 0 });
 }
-const imageHosts = new Set(['shared.fastly.steamstatic.com', 'shared.akamai.steamstatic.com',
-  'cdn.akamai.steamstatic.com', 'cdn.cloudflare.steamstatic.com']);
-export function steamImage(url) {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' && !parsed.username && !parsed.password && !parsed.port
-      && imageHosts.has(parsed.hostname) ? parsed.href : null;
-  } catch { return null; }
-}
+const STEAM_APPS = 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps';
+/**
+ * Steam store artwork for one app. The URL is built from the numeric app id
+ * alone, so no server or user supplied URL ever reaches an img src, and the
+ * one host it names is the one the page's CSP allows.
+ * @param {number|string} appid
+ * @param {'library_600x900.jpg'|'header.jpg'|'library_hero.jpg'} file
+ * @returns {string}
+ */
+export const steamArt = (appid, file) => `${STEAM_APPS}/${Number(appid)}/${file}`;

@@ -24,9 +24,18 @@ def test_shell_assets_and_strict_csp(web):
     assert "script-src 'self'" in csp and "unsafe-inline" not in csp
     assert "frame-ancestors 'none'" in csp and "form-action 'self'" in csp
     assert "https://shared.fastly.steamstatic.com" in csp
-    for name in ["styles.css", "details.css", "social.css", "app.js", "game-detail.js", "rating.js", "feed.js", "library.js", "dom.js", "mark.svg"]:
+    for name in ["styles.css", "details.css", "social.css", "app.js", "game-detail.js", "rating.js", "feed.js", "library.js", "dom.js", "chart.js", "mark.svg"]:
         assert web.get("/assets/" + name).status_code == 200
     assert web.get("/auth/session").status_code == 401
+
+
+def test_static_assets_revalidate_while_api_responses_are_never_stored(web):
+    first = web.get("/assets/app.js")
+    assert first.status_code == 200
+    assert first.headers["cache-control"] == "no-cache"
+    assert web.get("/assets/app.js", headers={"If-None-Match": first.headers["etag"]}).status_code == 304
+    for path in ("/app", "/games", "/auth/session"):
+        assert web.get(path).headers["cache-control"] == "no-store"
 
 
 def test_public_catalog_bounds_search_and_no_private_fields(web, db):

@@ -1,4 +1,4 @@
-import { steamImage } from './library.js';
+import { steamArt } from './library.js';
 export const $ = (selector) => document.querySelector(selector);
 export const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -17,13 +17,14 @@ export const aborted = (error) => error.name === 'AbortError';
 export function cover(game) {
   const frame = el('span', 'cover'); frame.append(el('span', 'cover-placeholder', game.name));
   const img = el('img');
-  img.src = `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${Number(game.steam_appid)}/library_600x900.jpg`;
+  img.src = steamArt(game.steam_appid, 'library_600x900.jpg');
   img.alt = ''; img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+  // Not every app has portrait library art. The landscape store header exists
+  // for nearly all of them, so it is the one fallback before the text placeholder.
   let fallbackUsed = false;
   img.addEventListener('error', () => {
-    const fallback = steamImage(game.header_image_url);
-    if (!fallbackUsed && fallback) { fallbackUsed = true; img.classList.add('header-fallback'); img.src = fallback; }
-    else img.remove();
+    if (fallbackUsed) { img.remove(); return; }
+    fallbackUsed = true; img.classList.add('header-fallback'); img.src = steamArt(game.steam_appid, 'header.jpg');
   });
   frame.append(img); return frame;
 }

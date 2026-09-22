@@ -1,11 +1,12 @@
-@import url('/assets/details.css?v=4');
-@import url('/assets/social.css?v=3');
-
 /* ==========================================================================
    PlayGraph design system
    Dark, high density, media forward. One saturated colour (amber) for ratings
-   and active state; one semantic colour (green) for verified hours. Separation
-   is carried by 1px borders, never by shadows.
+   and active state; one semantic colour (green) for verified hours; one data
+   colour (blue) for chart marks only. Separation is carried by 1px borders,
+   never by shadows.
+
+   Text tokens meet WCAG AA (4.5:1) on canvas, surface and sidebar. --ink-dim
+   is never set as text on --raised, where it would fall below that.
    ========================================================================== */
 
 :root {
@@ -16,20 +17,31 @@
   --edge-soft:#26313a;
   --ink:#e6ecf0;
   --ink-mid:#9fb0bd;
-  --ink-dim:#6c7d8a;
+  --ink-dim:#8193a0;
   --amber:#f0a23c;
   --amber-hi:#f5b25b;
   --amber-dim:#8a5c20;
   --verified:#4fb98a;
   --verified-bg:#16241e;
   --verified-edge:#2d5f4a;
-  --danger:#c2605a;
+  --danger:#e07a73;
 
-  --display:"Archivo","Archivo Black",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
-  --ui:"Barlow",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  /* Chart marks. Validated against --surface for lightness band, chroma and
+     3:1 non-text contrast; -hi is the hover step of the same hue. */
+  --series:#3987e5;
+  --series-hi:#5d9dea;
+  --raised-soft:#232e37;
+
+  /* The system stack. The page's CSP allows no third-party fonts and none are
+     self-hosted, so named web fonts here would only ever fall back anyway. */
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --display:var(--ui);
 
   --side-w:206px;
   --r:3px;
+  --r-lg:8px;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --dur:.16s;
 
   /* renders scrollbars, select dropdowns and form controls dark */
   color-scheme:dark;
@@ -61,7 +73,9 @@ body {
 
 h1,h2,h3,h4 { font-family:var(--display); margin:0; letter-spacing:-.02em; text-wrap:balance; }
 img { max-width:100%; }
-button { font-family:var(--ui); }
+/* Form controls take the page's type and colour instead of the UA's, so a
+   bare <button> never renders as a grey system box. */
+button, input, select, textarea { font:inherit; color:inherit; }
 
 /* Any rule that sets a display value beats the UA stylesheet's [hidden] rule,
    so every element the app hides with .hidden = true would keep showing. The
@@ -205,7 +219,7 @@ main { padding:20px 22px 64px; display:flex; flex-direction:column; gap:26px; mi
   border:1px solid var(--edge); background:var(--surface);
   border-radius:var(--r); padding:9px 12px; font-size:12.5px; color:var(--ink-mid);
 }
-.notice.error { border-color:var(--danger); color:#e79a95; }
+.notice.error { border-color:var(--danger); color:var(--danger); }
 
 /* ---- page heading ---- */
 .page-heading { display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; }
@@ -214,24 +228,28 @@ main { padding:20px 22px 64px; display:flex; flex-direction:column; gap:26px; mi
   font-size:10px; font-weight:700; letter-spacing:.14em;
   color:var(--ink-dim); margin:0 0 5px;
 }
-.page-heading h1 { font-size:24px; font-weight:800; line-height:1.05; }
+.page-heading h1 { font-size:clamp(22px,2.4vw,30px); font-weight:800; line-height:1.05; }
 .accent { color:var(--amber); }
 .subtitle { margin:5px 0 0; font-size:12.5px; color:var(--ink-dim); max-width:60ch; text-wrap:pretty; }
 .page-heading > button { margin-left:auto; }
 
-/* ---- summary stat strip ---- */
+/* ---- summary stat tiles ----
+   A KPI row. The dividers are the 1px gap showing the container colour, and
+   the tile count always divides the column count, so no row is left ragged. */
 .summary {
-  display:flex; flex-wrap:wrap; gap:8px 28px; align-items:flex-end;
-  padding-bottom:16px; border-bottom:1px solid var(--edge-soft);
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px;
+  background:var(--edge-soft); border:1px solid var(--edge-soft);
+  border-radius:var(--r-lg); overflow:hidden;
 }
-.stat { display:flex; flex-direction:column; }
+.stat { display:flex; flex-direction:column; gap:3px; padding:14px 18px; background:var(--surface); min-width:0; }
+.stat-label { font-size:12px; font-weight:600; color:var(--ink-mid); }
+/* Proportional figures: equal-width digits make a large standalone number look loose. */
 .stat-value {
-  font-family:var(--display); font-weight:800; font-size:19px; line-height:1;
-  letter-spacing:-.02em; font-variant-numeric:tabular-nums;
+  font-family:var(--display); font-weight:700; font-size:24px; line-height:1.1;
+  letter-spacing:-.02em; color:var(--ink);
 }
-.stat-unit { font-size:12px; color:var(--ink-dim); font-weight:600; margin-left:1px; }
-.stat-label { font-size:10px; font-weight:600; letter-spacing:.1em; color:var(--ink-dim); margin-top:4px; }
-.stat-note { font-size:11px; color:var(--ink-dim); }
+.stat-unit { font-size:13px; color:var(--ink-dim); font-weight:600; margin-left:3px; }
+.stat-note { font-size:11.5px; color:var(--ink-dim); }
 
 /* ---- section heads ---- */
 .section-heading { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:11px; }
@@ -294,9 +312,10 @@ select, .sort-label select {
   position:relative; display:block; aspect-ratio:2/3;
   border-radius:var(--r); overflow:hidden;
   border:1px solid var(--edge-soft); background:var(--surface);
-  transition:border-color .12s ease, transform .12s ease;
+  transition:border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
-.game-card > button:hover .cover { border-color:var(--amber); transform:translateY(-2px); }
+.game-card > button:hover .cover,
+.game-card > button:focus-visible .cover { border-color:var(--amber); transform:translateY(-2px); }
 .cover img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
 .cover img.header-fallback { object-position:center; }
 .cover-placeholder {
@@ -397,7 +416,7 @@ main > footer {
 
 .noscript {
   border:1px solid var(--danger); border-radius:var(--r);
-  padding:12px; margin:20px; color:#e79a95; font-size:13px;
+  padding:12px; margin:20px; color:var(--danger); font-size:13px;
 }
 
 /* ============================ MOBILE TAB BAR ============================ */
@@ -423,8 +442,9 @@ main > footer {
   .genre-text { display:none; }
   .game-meta > span + span { margin-left:0; }
   .page-heading h1 { font-size:20px; }
-  .summary { gap:8px 18px; }
-  .stat-value { font-size:16px; }
+  .summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .stat { padding:12px 14px; }
+  .stat-value { font-size:20px; }
   .welcome { grid-template-columns:1fr; padding:22px 18px; }
   .welcome-art { display:none; }
   .display-controls { width:100%; margin-left:0; }

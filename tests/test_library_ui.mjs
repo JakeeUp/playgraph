@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectLibrary, summarize, achievementPercent, steamImage } from '../app/static/library.js';
+import { selectLibrary, summarize, achievementPercent, steamArt } from '../app/static/library.js';
+import { barFraction } from '../app/static/chart.js';
 import { ratingAtPosition } from '../app/static/rating.js';
 
 const library = [
@@ -41,7 +42,22 @@ test('search covers a library larger than the previous 200 game cutoff', () => {
   const entries = Array.from({ length: 326 }, (_, i) => ({ ...library[0], game: { id: i, name: `Game ${i}`, genres: 'Action' } }));
   assert.equal(selectLibrary(entries, { query: 'Game 325' })[0].game.id, 325);
 });
-test('artwork only accepts exact HTTPS Steam CDN origins', () => {
-  assert.equal(steamImage('https://shared.fastly.steamstatic.com/store_item_assets/header.jpg'), 'https://shared.fastly.steamstatic.com/store_item_assets/header.jpg');
-  for (const url of ['javascript:alert(1)', 'https://shared.fastly.steamstatic.com.attacker.test/x', 'http://shared.fastly.steamstatic.com/x', 'https://user:password@shared.fastly.steamstatic.com/x', 'https://attacker.test/x', 'https://shared.fastly.steamstatic.com:9000/x']) assert.equal(steamImage(url), null);
+test('artwork URLs are built from the numeric app id alone on the one CSP-allowed host', () => {
+  const base = 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/';
+  assert.equal(steamArt(1145360, 'library_600x900.jpg'), `${base}1145360/library_600x900.jpg`);
+  assert.equal(steamArt('620', 'header.jpg'), `${base}620/header.jpg`);
+  // Anything that is not a plain number collapses to NaN instead of steering the path or host.
+  for (const hostile of ['1/../../x', '//attacker.test/x', 'javascript:alert(1)', '1?x=y', { id: 1 }]) {
+    const url = new URL(steamArt(hostile, 'header.jpg'));
+    assert.equal(url.origin, 'https://shared.fastly.steamstatic.com');
+    assert.equal(url.pathname, '/store_item_assets/steam/apps/NaN/header.jpg');
+  }
+});
+test('bars share one baseline and one maximum, clamped to the unit range', () => {
+  assert.equal(barFraction(50, 200), 0.25);
+  assert.equal(barFraction(200, 200), 1);
+  assert.equal(barFraction(0, 200), 0);
+  assert.equal(barFraction(300, 200), 1);
+  assert.equal(barFraction(-5, 200), 0);
+  for (const [value, max] of [[5, 0], [5, -1], [NaN, 10], [Infinity, 10]]) assert.equal(barFraction(value, max), 0);
 });

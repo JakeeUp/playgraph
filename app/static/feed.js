@@ -30,17 +30,19 @@ export function createFeed(state, api, gameDialog, browse, report) {
       anchor = data.before; libraryAnchor = data.library_before ?? null; total = data.total; rows = rows.concat(data.items);
       if (!append) list.replaceChildren();
       for (const item of data.items) {
-        const card = el('article', 'feed-card'); const heading = el('div', 'feed-game');
+        // Two columns: the cover, then everything about it. The heading, review
+        // and comment count all live in the body so the grid never has to guess.
+        const card = el('article', 'feed-card');
         const artwork = button('', 'feed-cover', () => gameDialog.open(item.game));
         artwork.setAttribute('aria-label', `Open ${item.game.name}`); artwork.append(cover(item.game));
-        const copy = el('div', 'feed-game-copy');
-        copy.append(button(item.game.name, 'feed-title', () => gameDialog.open(item.game)), el('p', 'feed-reason', item.reason));
+        const body = el('div', 'feed-body'); const heading = el('header', 'feed-game');
+        heading.append(button(item.game.name, 'feed-title', () => gameDialog.open(item.game)), el('p', 'feed-reason', item.reason));
         const count = el('p', 'feed-count', `${item.comment_count} ${item.comment_count === 1 ? 'comment' : 'comments'}`);
         card.addEventListener('comment-published', () => {
           item.comment_count += 1;
           count.textContent = `${item.comment_count} ${item.comment_count === 1 ? 'comment' : 'comments'}`;
         });
-        heading.append(artwork, copy); card.append(heading, gameDialog.reviewCard(item.review), count);
+        body.append(heading, gameDialog.reviewCard(item.review), count); card.append(artwork, body);
         list.append(card);
       }
       if (!rows.length) {

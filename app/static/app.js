@@ -1,8 +1,40 @@
-import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize } from './library.js';
+import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, steamArt } from './library.js';
 import { $, el, button, steamLink, cover, aborted } from './dom.js';
 import { createGameDialog } from './game-detail.js';
 import { createFeed } from './feed.js';
+import { barList } from './chart.js';
 
+// Page copy per view. pageKey() folds the signed-out library and stats views
+// into the welcome copy, which is what they have always shown.
+const PAGE_COPY = {
+  welcome: { eyebrow: 'A LITTLE MORE THAN A BACKLOG', title: 'Your life in games',
+    subtitle: 'The ones you love. The ones you finish. The ones you keep coming back to.',
+    search: 'Search the catalog...', searchLabel: 'Search games' },
+  library: { eyebrow: 'WELCOME BACK, PLAYER', title: 'Your library',
+    subtitle: 'Your collection, playtime, and reviews. All in one place.',
+    search: 'Search your library...', searchLabel: 'Search games' },
+  stats: { eyebrow: 'THE BIGGER PICTURE', title: 'Time well played',
+    subtitle: 'A closer look at the games and genres you spend time with.',
+    search: 'Search your library...', searchLabel: 'Search games' },
+  explore: { eyebrow: 'GOOD GAMES, WAITING TO HAPPEN', title: 'Explore games',
+    subtitle: 'Browse games imported into PlayGraph and see what players have to say.',
+    search: 'Search the catalog...', searchLabel: 'Search games' },
+  software: { eyebrow: 'A SPACE FOR YOUR TOOLS', title: 'Your software',
+    subtitle: 'Utilities and creative apps, kept separate from your game collection.',
+    search: 'Search software...', searchLabel: 'Search software' },
+  feed: { eyebrow: 'GAMES WORTH TALKING ABOUT', title: 'For you',
+    subtitle: 'Real reviews, different perspectives, and conversations about your games.',
+    search: 'Search reviews by game...', searchLabel: 'Search reviews by game' },
+};
+// The shelf holds either games or software, and every label follows suit.
+const SHELF = {
+  game: { own: 'On your shelf', catalog: 'Explore the catalog', all: 'All games', used: 'Played',
+    unused: 'Yet to play', mostUsed: 'Most played', plural: 'games', verb: 'played', more: 'Show more games',
+    note: 'Games in the PlayGraph catalog. This is the imported collection, not the full Steam store.' },
+  software: { own: 'Your applications', catalog: 'Software catalog', all: 'All apps', used: 'Used',
+    unused: 'Not used', mostUsed: 'Most used', plural: 'apps', verb: 'used', more: 'Show more apps',
+    note: 'Software usage and achievements do not count toward your game stats or For You preferences.' },
+};
 const state = { user: null, csrf: '', library: [], genres: [], catalog: [], total: 0,
   view: 'library', query: '', filter: 'all', genre: '', sort: 'playtime', shown: 48,
   controller: new AbortController(), generation: 0, catalogRequest: 0,
@@ -11,6 +43,9 @@ const privateView = () => Boolean(state.user) && ['library', 'software', 'stats'
 const gameLibrary = () => state.library.filter((entry) => entry.game.content_kind !== 'software');
 const shelfLibrary = () => state.view === 'software'
   ? state.library.filter((entry) => entry.game.content_kind === 'software') : gameLibrary();
+const shelfCopy = () => SHELF[state.view === 'software' ? 'software' : 'game'];
+const pageKey = () => ['feed', 'software', 'explore'].includes(state.view) ? state.view
+  : state.user ? (state.view === 'stats' ? 'stats' : 'library') : 'welcome';
 const gameDialog = createGameDialog(state, api, report);
 const feed = createFeed(state, api, gameDialog, () => navigate(state.user ? 'library' : 'explore'), report);
 document.addEventListener('review-changed', () => { if (state.view === 'feed') void feed.load(); else feed.invalidate(); });
@@ -76,25 +111,20 @@ function renderShell() {
   $('#feed').hidden = !isFeed;
   $('#sync-button').hidden = !state.user; $('#filters').hidden = !own;
   $('#sort').disabled = !own; $('#sort').value = own ? state.sort : 'name';
-  $('#page-title').replaceChildren(document.createTextNode(isFeed ? 'For you' : software ? 'Your software' : state.view === 'stats' && state.user ? 'Time well played'
-    : state.view === 'explore' ? 'Explore games' : state.user ? 'Your library' : 'Your life in games'), el('span', 'accent', '.'));
-  $('#eyebrow').textContent = isFeed ? 'GAMES WORTH TALKING ABOUT' : software ? 'A SPACE FOR YOUR TOOLS' : state.view === 'stats' && state.user ? 'THE BIGGER PICTURE'
-    : state.view === 'explore' ? 'GOOD GAMES, WAITING TO HAPPEN' : state.user ? 'WELCOME BACK, PLAYER' : 'A LITTLE MORE THAN A BACKLOG';
-  $('#page-subtitle').textContent = isFeed ? 'Real reviews, different perspectives, and conversations about your games.'
-    : software ? 'Utilities and creative apps, kept separate from your game collection.'
-    : state.view === 'stats' && state.user ? 'A closer look at the games and genres you spend time with.'
-    : state.view === 'explore' ? 'Browse games imported into PlayGraph and see what players have to say.'
-    : state.user ? 'Your collection, playtime, and reviews. All in one place.' : 'The ones you love. The ones you finish. The ones you keep coming back to.';
-  $('#collection-title').textContent = software ? (own ? 'Your applications' : 'Software catalog') : own ? 'On your shelf' : 'Explore the catalog';
+  const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
+  $('#page-title').replaceChildren(document.createTextNode(copy.title), el('span', 'accent', '.'));
+  $('#eyebrow').textContent = copy.eyebrow;
+  $('#page-subtitle').textContent = copy.subtitle;
+  $('#collection-title').textContent = own ? shelf.own : shelf.catalog;
   $('#collection-note').hidden = own && !software;
-  $('#collection-note').textContent = software ? 'Software usage and achievements do not count toward your game stats or For You preferences.' : 'Games in the PlayGraph catalog. This is the imported collection, not the full Steam store.';
-  $('#search').placeholder = isFeed ? 'Search reviews by game...' : software ? 'Search software...' : own ? 'Search your library...' : 'Search the catalog...';
-  $('#search').setAttribute('aria-label', isFeed ? 'Search reviews by game' : software ? 'Search software' : 'Search games');
-  $('#load-more').textContent = software ? 'Show more apps' : 'Show more games';
-  document.querySelector('[data-filter="all"]').textContent = software ? 'All apps' : 'All games';
-  document.querySelector('[data-filter="played"]').textContent = software ? 'Used' : 'Played';
-  document.querySelector('[data-filter="unplayed"]').textContent = software ? 'Not used' : 'Yet to play';
-  $('#sort').querySelector('[value="playtime"]').textContent = software ? 'Most used' : 'Most played';
+  $('#collection-note').textContent = shelf.note;
+  $('#search').placeholder = copy.search;
+  $('#search').setAttribute('aria-label', copy.searchLabel);
+  $('#load-more').textContent = shelf.more;
+  document.querySelector('[data-filter="all"]').textContent = shelf.all;
+  document.querySelector('[data-filter="played"]').textContent = shelf.used;
+  document.querySelector('[data-filter="unplayed"]').textContent = shelf.unused;
+  $('#sort').querySelector('[value="playtime"]').textContent = shelf.mostUsed;
   updateGenres();
   if (own) renderInsights();
 }
@@ -122,49 +152,76 @@ function renderInsights() {
     stat('Total playtime', hours(summary.minutes), 'hrs', 'Lifetime playtime'),
     stat('Games you have played', integer(summary.played), '', `${integer(summary.games - summary.played)} still to discover`),
     stat('Achievements unlocked', integer(summary.unlocked), '', `Available data from ${integer(summary.achievementGames)} games`));
-  const insights = $('#insights'); insights.replaceChildren(); insights.classList.toggle('expanded', state.view === 'stats');
+  const insights = $('#insights'); insights.classList.toggle('expanded', state.view === 'stats');
   const top = selectLibrary(gameLibrary()).find((entry) => entry.playtime_minutes > 0);
-  if (top) {
-    const spotlight = el('article', 'spotlight');
-    const open = button('', 'spotlight-cover', () => gameDialog.open(top.game)); open.setAttribute('aria-label', `Open ${top.game.name}`); open.append(cover(top.game));
-    const copy = el('div', 'spotlight-copy');
-    copy.append(el('p', 'eyebrow', 'THE ONE YOU KEEP COMING BACK TO'), el('h2', '', top.game.name),
-      el('p', 'spotlight-hours', `${hours(top.playtime_minutes)} hours. And counting.`), button('See game & reviews ↗', 'text-button', () => gameDialog.open(top.game)));
-    spotlight.append(open, copy); insights.append(spotlight);
+  insights.replaceChildren(...(top ? [spotlight(top)] : []), genreCard(),
+    ...(state.view === 'stats' ? [mostPlayedCard()] : []));
+}
+function spotlight(entry) {
+  const card = el('article', 'spotlight');
+  // Store hero art, blurred behind the card. Decorative, so a missing image
+  // simply leaves the plain surface.
+  const backdrop = el('img', 'spotlight-backdrop');
+  backdrop.alt = ''; backdrop.decoding = 'async'; backdrop.referrerPolicy = 'no-referrer';
+  backdrop.addEventListener('error', () => backdrop.remove());
+  backdrop.src = steamArt(entry.game.steam_appid, 'library_hero.jpg');
+  const open = button('', 'spotlight-cover', () => gameDialog.open(entry.game));
+  open.setAttribute('aria-label', `Open ${entry.game.name}`); open.append(cover(entry.game));
+  const copy = el('div', 'spotlight-copy');
+  copy.append(el('p', 'eyebrow', 'THE ONE YOU KEEP COMING BACK TO'), el('h2', '', entry.game.name),
+    el('p', 'spotlight-hours', `${hours(entry.playtime_minutes)} hours. And counting.`));
+  if (achievementPercent(entry) != null) {
+    copy.append(el('p', 'spotlight-meta', `${integer(entry.achievements_unlocked)} of ${integer(entry.achievements_total)} achievements unlocked`));
   }
-  const genreCard = el('article', 'genre-card'); const heading = el('div', 'section-heading'); heading.append(el('h2', '', 'Your kind of games'));
-  if (state.view !== 'stats') heading.append(button('All stats ↗', 'text-button', () => navigate('stats')));
-  genreCard.append(heading);
-  const genres = state.view === 'stats' ? state.genres : state.genres.slice(0, 3);
-  const maximum = Math.max(...genres.map((genre) => genre.total_minutes), 1);
-  for (const genre of genres) {
-    const row = el('div', 'genre-row'); const label = el('div', 'genre-label');
-    label.append(el('span', '', genre.genre), el('span', '', `${hours(genre.total_minutes)} h`));
-    const progress = el('progress'); progress.max = maximum; progress.value = genre.total_minutes;
-    progress.setAttribute('aria-label', `${genre.genre}: ${hours(genre.total_minutes)} hours`); row.append(label, progress); genreCard.append(row);
-  }
-  if (!genres.length) genreCard.append(el('p', 'helper', 'Genre data will appear after your library sync.'));
-  genreCard.append(el('p', 'genre-disclosure', 'Games can have several genres. Hours count toward each, so these totals overlap.')); insights.append(genreCard);
-  if (state.view === 'stats') {
-    const mostPlayed = el('article', 'most-played'); mostPlayed.append(el('h2', '', 'Your most played'));
-    const list = el('ol', 'ranked-list');
-    for (const entry of selectLibrary(gameLibrary()).filter((row) => row.playtime_minutes > 0).slice(0, 10)) {
-      const item = el('li'); const open = button('', 'ranked-game', () => gameDialog.open(entry.game));
-      open.append(el('span', '', entry.game.name), el('span', 'rank-hours', `${hours(entry.playtime_minutes)} h`)); item.append(open); list.append(item);
-    }
-    mostPlayed.append(list); insights.append(mostPlayed);
-  }
+  copy.append(button('See game & reviews ↗', 'text-button', () => gameDialog.open(entry.game)));
+  card.append(backdrop, open, copy); return card;
+}
+function genreCard() {
+  const full = state.view === 'stats';
+  const card = el('article', 'insight-card genre-card'); const heading = el('div', 'section-heading');
+  heading.append(el('h2', '', 'Your kind of games'));
+  if (!full) heading.append(button('All stats ↗', 'text-button', () => navigate('stats')));
+  card.append(heading);
+  const genres = full ? state.genres : state.genres.slice(0, 5);
+  if (!genres.length) card.append(el('p', 'helper', 'Genre data will appear after your library sync.'));
+  else card.append(barList(genres.map((genre) => {
+    const games = `${integer(genre.game_count)} ${genre.game_count === 1 ? 'game' : 'games'}`;
+    return { label: genre.genre, value: genre.total_minutes, text: `${hours(genre.total_minutes)} h`, detail: games,
+      name: `${genre.genre}: ${hours(genre.total_minutes)} hours across ${games}. Show these games.`,
+      onSelect: () => showGenre(genre.genre) };
+  })));
+  card.append(el('p', 'card-footnote', 'Select a genre to see its games. A game can carry several genres and its hours count toward each, so these totals overlap.'));
+  return card;
+}
+function mostPlayedCard() {
+  const card = el('article', 'insight-card most-played'); card.append(el('h2', '', 'Your most played'));
+  const top = selectLibrary(gameLibrary()).filter((entry) => entry.playtime_minutes > 0).slice(0, 10);
+  card.append(barList(top.map((entry, index) => {
+    const lead = el('span', 'bar-lead'); lead.append(el('span', 'bar-rank', String(index + 1)), cover(entry.game));
+    const percent = achievementPercent(entry);
+    return { label: entry.game.name, value: entry.playtime_minutes, text: `${hours(entry.playtime_minutes)} h`, lead,
+      detail: percent == null ? 'No achievement data' : `${Math.round(percent)}% of achievements`,
+      name: `Open ${entry.game.name}, ${hours(entry.playtime_minutes)} hours played`,
+      onSelect: () => gameDialog.open(entry.game) };
+  })));
+  return card;
+}
+function showGenre(genre) {
+  navigate('library');
+  state.genre = genre; $('#genre').value = genre; renderCollection();
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  $('#collection').scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
 }
 function renderCollection() {
   const own = privateView(); const filtered = own ? selectLibrary(shelfLibrary(), state) : state.catalog.map((game) => ({ game }));
   const total = own ? filtered.length : state.total; const visible = own ? filtered.slice(0, state.shown) : filtered;
-  const grid = $('#games'); grid.replaceChildren();
+  const grid = $('#games'); grid.replaceChildren(); const shelf = shelfCopy();
   for (const entry of visible) {
     const game = entry.game; const card = el('article', 'game-card'); const open = button('', '', () => gameDialog.open(game));
-    open.setAttribute('aria-label', `Open ${game.name}${own ? `, ${hours(entry.playtime_minutes)} hours ${state.view === 'software' ? 'used' : 'played'}` : ''}`);
+    open.setAttribute('aria-label', `Open ${game.name}${own ? `, ${hours(entry.playtime_minutes)} hours ${shelf.verb}` : ''}`);
     const art = cover(game); const pct = achievementPercent(entry);
     if (own && pct === 100) art.append(el('span', 'cover-badge', '✓ 100%'));
-    else if (own && entry.playtime_minutes === 0) art.append(el('span', 'cover-badge', state.view === 'software' ? 'Not used' : 'Yet to play'));
+    else if (own && entry.playtime_minutes === 0) art.append(el('span', 'cover-badge', shelf.unused));
     const meta = el('span', 'game-meta'); meta.append(el('span', 'genre-text', genresFor(game)[0] || 'Steam'));
     if (own) meta.append(el('span', entry.playtime_minutes > 0 ? 'played' : '', `${hours(entry.playtime_minutes)} h`));
     open.append(art, el('h3', 'game-name', game.name), meta); card.append(open); grid.append(card);
@@ -179,7 +236,7 @@ function renderCollection() {
     grid.append(empty);
   }
   $('#result-count').textContent = integer(total); $('#load-more').hidden = visible.length >= total;
-  $('#shown-count').textContent = total ? `${integer(visible.length)} of ${integer(total)} ${state.view === 'software' ? 'apps' : 'games'}` : '';
+  $('#shown-count').textContent = total ? `${integer(visible.length)} of ${integer(total)} ${shelf.plural}` : '';
   document.querySelectorAll('[data-filter]').forEach((chip) => { chip.classList.toggle('selected', chip.dataset.filter === state.filter); chip.setAttribute('aria-pressed', String(chip.dataset.filter === state.filter)); });
 }
 async function loadCatalog(append = false) {

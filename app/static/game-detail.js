@@ -1,6 +1,16 @@
-import { genresFor, hours, integer, achievementPercent } from './library.js';
+import { genresFor, hours, integer, achievementPercent, steamArt } from './library.js';
 import { $, el, button, cover, steamLink, timeLabel, formError } from './dom.js';
 import { createRatingPicker, starDisplay } from './rating.js';
+
+// Store hero art, blurred behind the profile header. Decorative only, so a
+// game without hero art just keeps the plain dialog surface.
+function backdrop(game) {
+  const img = el('img', 'detail-backdrop');
+  img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+  img.addEventListener('error', () => img.remove());
+  img.src = steamArt(game.steam_appid, 'library_hero.jpg');
+  return img;
+}
 
 export function createGameDialog(state, api, report = () => {}) {
   let requestId = 0;
@@ -28,7 +38,7 @@ export function createGameDialog(state, api, report = () => {}) {
     const share = button('Copy game link', 'text-button', async () => {
       try { await navigator.clipboard.writeText(`${location.origin}/app#game=${game.id}`); share.textContent = 'Game link copied'; }
       catch { report(new Error('Could not copy the link. Try again with clipboard access enabled.')); }
-    }); aside.append(share); header.append(info); main.append(header); profile.append(aside, main); content.append(profile);
+    }); aside.append(share); header.append(info); main.append(header); profile.append(aside, main); content.append(backdrop(game), profile);
     const writeSection = el('section', 'write-review');
     if (createdReview && state.user) showOwnReview(createdReview, editRequested);
     else if (state.user) writeSection.append(el('p', 'helper', 'Checking your review...'));
