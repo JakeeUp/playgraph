@@ -17,7 +17,7 @@ redis>=5.0
 arq>=0.26
 PyJWT[crypto]>=2.13
 
-pytest>=8.3
+pytest>=9.1.1
 pytest-asyncio>=1.4.0
 
 # Dev only, optional. Runs the API and the worker together from the Procfile.
