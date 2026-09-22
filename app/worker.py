@@ -23,6 +23,7 @@ import logging
 
 from arq.connections import RedisSettings
 
+from app.cache import CATALOG, REVIEWS, invalidate
 from app.config import settings
 from app.database import SessionLocal, engine
 from app.migrations import require_current_schema
@@ -139,6 +140,10 @@ async def sync_steam_library(ctx, user_id: int) -> dict:
 
         linked.last_synced_at = utcnow()
         db.commit()
+        # New games and freshly looked-up genres change the public catalog, and
+        # the feed shows game data too. Retire both caches once the rows are in.
+        await invalidate(ctx.get("redis"), CATALOG)
+        await invalidate(ctx.get("redis"), REVIEWS)
 
         logger.info(
             "sync user=%s complete: %d games, %d genre lookups",

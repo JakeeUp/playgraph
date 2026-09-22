@@ -2,10 +2,11 @@
 from collections import Counter
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from app.cache import REVIEWS, cached
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Comment, Game, PlaytimeSnapshot, Review, User
@@ -33,15 +34,17 @@ def _items(db: Session, rows, reasons):
 
 
 @router.get("/feed")
-def recent_reviews(limit: int = Query(20, ge=1, le=50), offset: int = Query(0, ge=0, le=MAX_OFFSET),
-                   q: str = Query("", max_length=120),
-                   before: int | None = Query(None, ge=0, le=MAX_RESOURCE_ID), db: Session = Depends(get_db)):
-    anchor = before if before is not None else (db.query(func.max(Review.id)).scalar() or 0)
-    query = _query(db, q).filter(Review.id <= anchor)
-    total = query.count()
-    rows = query.order_by(Review.created_at.desc(), Review.id.desc()).offset(offset).limit(limit).all()
-    return {"items": _items(db, rows, {row.id: "New in the community" for row in rows}),
-            "total": total, "before": anchor, "mode": "latest"}
+async def recent_reviews(request: Request, limit: int = Query(20, ge=1, le=50),
+                         offset: int = Query(0, ge=0, le=MAX_OFFSET), q: str = Query("", max_length=120),
+                         before: int | None = Query(None, ge=0, le=MAX_RESOURCE_ID), db: Session = Depends(get_db)):
+    def load():
+        anchor = before if before is not None else (db.query(func.max(Review.id)).scalar() or 0)
+        query = _query(db, q).filter(Review.id <= anchor)
+        total = query.count()
+        rows = query.order_by(Review.created_at.desc(), Review.id.desc()).offset(offset).limit(limit).all()
+        return {"items": _items(db, rows, {row.id: "New in the community" for row in rows}),
+                "total": total, "before": anchor, "mode": "latest"}
+    return await cached(request, REVIEWS, ("feed", limit, offset, q.strip(), before), 30, load)
 
 
 @router.get("/me/feed")
@@ -83,9 +86,11 @@ def for_you(limit: int = Query(20, ge=1, le=50), offset: int = Query(0, ge=0, le
 
 
 @router.get("/reviews/{review_id}")
-def review_thread(review_id: ResourceId, db: Session = Depends(get_db)):
-    row = (db.query(Review).options(joinedload(Review.user), joinedload(Review.game))
-           .filter(Review.id == review_id).first())
-    if row is None:
-        raise HTTPException(status_code=404, detail="Review not found")
-    return _items(db, [row], {row.id: "Review discussion"})[0]
+async def review_thread(review_id: ResourceId, request: Request, db: Session = Depends(get_db)):
+    def load():
+        row = (db.query(Review).options(joinedload(Review.user), joinedload(Review.game))
+               .filter(Review.id == review_id).first())
+        if row is None:
+            raise HTTPException(status_code=404, detail="Review not found")
+        return _items(db, [row], {row.id: "Review discussion"})[0]
+    return await cached(request, REVIEWS, ("thread", review_id), 30, load)

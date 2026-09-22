@@ -1,10 +1,11 @@
 """Reviews retain the verified play data available when they were written."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import insert, literal, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.cache import REVIEWS, cached, invalidate_from_route
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Comment, Game, PlaytimeSnapshot, Review, User, utcnow
@@ -32,6 +33,7 @@ def own_review(
 def create_review(
     game_id: ResourceId,
     review: ReviewCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -62,6 +64,7 @@ def create_review(
         if db.query(Review).filter_by(user_id=user.id, game_id=game_id).first():
             raise HTTPException(status_code=409, detail="You've already reviewed this game")
         raise
+    invalidate_from_route(request, REVIEWS)
     db.refresh(row)
     return row
 
@@ -70,6 +73,7 @@ def create_review(
 def edit_review(
     review_id: ResourceId,
     review: ReviewCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -80,6 +84,7 @@ def edit_review(
     row.rating = review.rating
     row.body = review.body
     db.commit()
+    invalidate_from_route(request, REVIEWS)
     db.refresh(row)
     return row
 
@@ -87,6 +92,7 @@ def edit_review(
 @router.delete("/reviews/{review_id}", status_code=204)
 def delete_review(
     review_id: ResourceId,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -100,35 +106,41 @@ def delete_review(
     except Exception:
         db.rollback()
         raise
+    invalidate_from_route(request, REVIEWS)
     return Response(status_code=204)
 
 
 @router.get("/games/{game_id}/reviews", response_model=list[ReviewOut])
-def list_reviews(
+async def list_reviews(
     game_id: ResourceId,
+    request: Request,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0, le=MAX_OFFSET),
     db: Session = Depends(get_db),
 ):
-    if db.get(Game, game_id) is None:
-        raise HTTPException(status_code=404, detail="Game not found")
-    return (
-        db.query(Review).options(joinedload(Review.user))
-        .filter_by(game_id=game_id)
-        .order_by(
-            Review.verified_playtime_minutes.is_(None),
-            Review.verified_playtime_minutes.desc(),
-            Review.created_at.desc(),
-            Review.id.desc(),
+    def load():
+        if db.get(Game, game_id) is None:
+            raise HTTPException(status_code=404, detail="Game not found")
+        rows = (
+            db.query(Review).options(joinedload(Review.user))
+            .filter_by(game_id=game_id)
+            .order_by(
+                Review.verified_playtime_minutes.is_(None),
+                Review.verified_playtime_minutes.desc(),
+                Review.created_at.desc(),
+                Review.id.desc(),
+            )
+            .offset(offset).limit(limit).all()
         )
-        .offset(offset).limit(limit).all()
-    )
+        return [ReviewOut.model_validate(row) for row in rows]
+    return await cached(request, REVIEWS, ("reviews", game_id, limit, offset), 30, load)
 
 
 @router.post("/reviews/{review_id}/comments", response_model=CommentOut, status_code=201)
 def create_comment(
     review_id: ResourceId,
     comment: CommentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -146,20 +158,25 @@ def create_comment(
         db.rollback()
         raise HTTPException(status_code=404, detail="Review not found")
     db.commit()
+    invalidate_from_route(request, REVIEWS)
     return db.get(Comment, comment_id)
 
 
 @router.get("/reviews/{review_id}/comments", response_model=list[CommentOut])
-def list_comments(
+async def list_comments(
     review_id: ResourceId,
+    request: Request,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0, le=MAX_OFFSET),
     db: Session = Depends(get_db),
 ):
-    if db.get(Review, review_id) is None:
-        raise HTTPException(status_code=404, detail="Review not found")
-    return (
-        db.query(Comment).options(joinedload(Comment.user)).filter_by(review_id=review_id)
-        .order_by(Comment.created_at, Comment.id)
-        .offset(offset).limit(limit).all()
-    )
+    def load():
+        if db.get(Review, review_id) is None:
+            raise HTTPException(status_code=404, detail="Review not found")
+        rows = (
+            db.query(Comment).options(joinedload(Comment.user)).filter_by(review_id=review_id)
+            .order_by(Comment.created_at, Comment.id)
+            .offset(offset).limit(limit).all()
+        )
+        return [CommentOut.model_validate(row) for row in rows]
+    return await cached(request, REVIEWS, ("comments", review_id, limit, offset), 30, load)
