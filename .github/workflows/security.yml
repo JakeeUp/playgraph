@@ -35,6 +35,9 @@ jobs:
       - run: python -m pip install -r requirements.lock
       - run: python -m pip check
       - run: python -m pytest -q
+      # The browser modules' pure logic. pytest cannot collect .mjs files, so
+      # these ran nowhere until this step. Node ships on the runner image.
+      - run: node --test tests/test_library_ui.mjs
       - run: python -m pip install pip-audit==2.10.1 bandit==1.9.4
       - run: python -m pip_audit -r requirements.lock --strict
       - run: python -m bandit -r app

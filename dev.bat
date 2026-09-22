@@ -11,5 +11,5 @@ if errorlevel 1 (
 )
 popd
 
-start "PlayGraph API" /D "%~dp0" cmd /k "python -m uvicorn app.main:app --reload"
+start "PlayGraph API" /D "%~dp0" cmd /k "python -m uvicorn app.main:app"
 start "PlayGraph WORKER" /D "%~dp0" cmd /k "python -m arq app.worker.WorkerSettings"
