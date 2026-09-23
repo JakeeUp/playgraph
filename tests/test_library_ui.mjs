@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectLibrary, summarize, achievementPercent, steamArt } from '../app/static/library.js';
+import { selectLibrary, summarize, achievementPercent, steamArt, genreBreakdown, hours, integer } from '../app/static/library.js';
 import { barFraction } from '../app/static/chart.js';
 import { ratingAtPosition } from '../app/static/rating.js';
 
@@ -9,6 +9,27 @@ const library = [
   { game: { id: 2, name: 'Beta', genres: null }, playtime_minutes: 0, achievements_unlocked: null, achievements_total: null },
   { game: { id: 3, name: 'Gamma', genres: 'Action' }, playtime_minutes: 120, achievements_unlocked: 5, achievements_total: 10 },
 ];
+
+test('genre totals retain full overlapping playtime, ignore software and retain zero-hour games', () => {
+  const before = structuredClone(library);
+  assert.deepEqual(genreBreakdown([...library,
+    { game: { genres: 'Action', content_kind: 'software' }, playtime_minutes: 90000 },
+    { game: { genres: ' RPG, ,Strategy ' }, playtime_minutes: 0 },
+  ]), [
+    { genre: 'Action', total_minutes: 180, game_count: 2 },
+    { genre: 'RPG', total_minutes: 60, game_count: 2 },
+    { genre: 'Strategy', total_minutes: 0, game_count: 1 },
+  ]);
+  assert.deepEqual(library, before);
+  assert.deepEqual(genreBreakdown([]), []);
+});
+
+test('reused formatters preserve local number formatting and empty values', () => {
+  for (const value of [null, undefined, 0, -1, 31, 1234567]) {
+    assert.equal(hours(value), new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(Math.max(0, value || 0) / 60));
+    assert.equal(integer(value), new Intl.NumberFormat().format(value || 0));
+  }
+});
 test('ratings map pointer positions to half-stars and clamp drag boundaries', () => {
   assert.equal(ratingAtPosition(-10, 200), 0.5);
   assert.equal(ratingAtPosition(10, 200), 0.5);

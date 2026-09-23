@@ -1,4 +1,4 @@
-import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, steamArt } from './library.js';
+import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown, steamArt } from './library.js';
 import { $, el, button, steamLink, cover, aborted } from './dom.js';
 import { createGameDialog } from './game-detail.js';
 import { createFeed } from './feed.js';
@@ -100,8 +100,14 @@ function renderShell() {
     if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
   });
   const account = $('#account'); account.replaceChildren();
-  if (state.user) account.append(el('span', 'avatar', state.user.display_name.slice(0, 1).toLocaleUpperCase()),
-    el('span', 'account-name', state.user.display_name), button('Sign out', 'signout', signOut));
+  if (state.user) {
+    const manage = el('a', 'account-manage');
+    manage.href = '/account'; manage.title = 'Manage account and sign-in';
+    manage.setAttribute('aria-label', `Manage account for ${state.user.display_name}`);
+    manage.append(el('span', 'avatar', state.user.display_name.slice(0, 1).toLocaleUpperCase()),
+      el('span', 'account-name', state.user.display_name));
+    account.append(manage, button('Sign out', 'signout', signOut));
+  }
   else { const link = steamLink('Sign in / Create account'); link.classList.add('compact'); account.append(link); }
   $('#nav-count').textContent = state.user ? integer(gameLibrary().length) : '';
   $('#welcome').hidden = Boolean(state.user) || software || isFeed;
@@ -256,9 +262,9 @@ async function loadCatalog(append = false) {
 }
 async function loadLibrary() {
   const generation = state.generation;
-  const [library, genres] = await Promise.all([api('/me/library'), api('/me/genres')]);
+  const library = await api('/me/library');
   if (!state.user || generation !== state.generation) return;
-  state.library = library; state.genres = genres;
+  state.library = library; state.genres = genreBreakdown(library);
   renderShell(); if (privateView()) renderCollection();
 }
 function navigate(view) {

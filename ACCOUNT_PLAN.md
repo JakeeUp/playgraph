@@ -1,16 +1,17 @@
 # PlayGraph accounts and connected platforms
 
-Status: Phase 2 in progress. **App account sign-in is not enabled yet.** The owner wants
-password, passkey and email-link choices, plus MFA. A Clerk development application
-has been created and linked through the authenticated CLI. Development keys are
-stored separately in ignored `.env.clerk`; the current app does not load them yet.
-The CLI initializer did not recognize FastAPI/plain JavaScript, so integration
-must follow the official JavaScript and backend verification guidance.
-Existing Steam sign-in remains the functioning local beta path.
+Status, 2026-09-22: **Phase 2C in progress.** Clerk sign-in is implemented behind
+`CLERK_ENABLED`, with development keys in ignored `.env.clerk`. The application
+loads that configuration and serves the provider-maintained UI at `/account`.
+Available sign-in methods depend on the owner's provider settings; password,
+email-link, passkey, MFA and recovery acceptance must be recorded individually.
+Steam sign-in remains available for accounts that have not been converted.
 
 Phase 2A adds explicit Alembic migration/adoption with backup and preservation
 tests. MIGRATIONS.md documents the required upgrade and recovery process. No
-AuthIdentity rows, native account sessions or MFA enforcement exist yet.
+automatic data moves are performed. AuthIdentity mappings and provider-backed
+sessions now exist. Sensitive conversion requires fresh signed factor proof;
+this does not establish acceptance of every provider factor/recovery policy.
 
 ## Provider decision
 
@@ -46,8 +47,8 @@ Sources: [Auth0 email links](https://auth0.com/docs/authenticate/passwordless/au
    below before offering sign-up in the app. Provider configuration alone does
    not enable these features in the current build.
 
-No placeholder keys or fake email delivery are used. The pending integration
-should use provider-maintained components and backend verification libraries,
+No placeholder keys or fake email delivery are used in the application. The integration
+uses provider-maintained components and backend verification libraries,
 with exact allowed issuer, audience/authorized party, algorithm and application
 origin checks. Backend identity must come from a verified session, never a
 browser-supplied user ID, email or display name.
@@ -71,6 +72,32 @@ links, snapshots and reviews. Back up coherently and stop writers for upgrades.
 Preserve every existing ID. create_all is not a migration system.
 
 ## Existing Steam account conversion
+
+Implemented entry point: sign in with Steam, open your account through the
+avatar/name in the app, and choose **Connect PlayGraph sign-in**. Verify Steam
+again if its session is older than ten minutes. Authenticate through Clerk,
+check the explicit ownership confirmation, then connect. The provider identity
+must not already belong to another PlayGraph account, even an empty one.
+
+`POST /auth/clerk/link` records a ten-minute Redis intent scoped to the current
+HttpOnly browser session. GET resumes it after redirects; DELETE cancels it.
+Completion requires CSRF, exact Origin, current Steam ownership, a verified
+provider token, and an uncached active-session/user check. Signed `fva` ages must
+show a recent first factor and, if enrolled, a recent second factor. Token issue
+time alone is not evidence of reauthentication. Missing factor evidence fails
+closed. See [Clerk's reverification guidance](https://clerk.com/docs/guides/secure/reverification).
+
+Completion rechecks the initiating session, consumes the intent with GETDEL,
+and inserts the identity under database uniqueness constraints. Only that mapping
+is added; existing user IDs and owned records remain unchanged. If a response or
+session issuance fails after commit, normal Clerk sign-in recovers access.
+Steam-only sessions and callbacks are rejected once the mapping exists.
+
+Remaining 2C acceptance: real redirects, MFA/passkey factor-age behavior, Redis
+concurrency/outages, and Steam linking initiated from a new native account.
+Two existing accounts cannot be merged here. Account-wide security versions and
+recovery controls remain Phase 2D work. Normal provider checks may be cached for
+30 seconds; sensitive conversion always bypasses that cache.
 
 An existing user signs in through Steam and explicitly adds PlayGraph sign-in
 after fresh proof. Bind the operation to the current user, session, browser,

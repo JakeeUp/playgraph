@@ -1,17 +1,26 @@
 # PlayGraph phases
 
-Updated 2026-09-16. **Current phase: 2, account and data foundations.**
-The 2A migration foundation is implemented; 2B managed accounts is next.
+Updated 2026-09-22. **Current phase: 2C, secure account conversion/linking.**
+The 2A migration foundation and 2B Clerk account integration are implemented.
+The first 2C increment connects a Steam beta account to an unassigned Clerk
+identity while preserving its existing user ID and data. Real-provider acceptance
+and connecting Steam from a newly created PlayGraph account remain open.
 The review contribution controls from 2D were pulled forward into this increment.
 The game profile now separates community reviews, your own review and catalog details.
 Keep development local until the privacy and release gates are complete.
+
+2026-09-21 security increment: container/Fly startup validates explicit proxy
+trust; health-check Host/HTTPS headers are configured. Local regression suite:
+135 passed, one optional Redis integration check skipped. Verified proxy peers
+and hosted acceptance remain Phase 7 gates. This entry predates the committed
+Phase 2B Clerk integration; account status above reflects the current code.
 
 | Phase | Outcome | Current state | Exit gate |
 |---|---|---|---|
 | 0. Backend foundation | Steam login, queued sync, library, genres, verified reviews and comments | Implemented; live queue and login acceptance still open | Repeatable startup and a successful real sync, review and logout |
 | 1A. Usable local app | Responsive UI, covers, library, stats, Steam login, reviews and comments | Implemented; owner screenshot shows signed-in imported data | Finish baseline acceptance checks |
 | 1B. Better ratings and discovery | Drag half-stars, Software shelf, For You/latest feeds, shareable review discussions | Desktop checks passed; device and real Steam checks carried forward | Finish real-phone touch/layout and fresh Steam login/sync acceptance |
-| 2. Account and data foundations | Alembic, PlayGraph identity, password/email-link/passkey choices, MFA, secure Steam linking, contribution editing | **In progress: migration foundation and owner review controls implemented; managed accounts/linking remain** | Existing IDs/data survive; account linking and MFA cannot be bypassed |
+| 2. Account and data foundations | Alembic, PlayGraph identity, password/email-link/passkey choices, MFA, secure Steam linking, contribution editing | **2C in progress: Clerk accounts and Steam beta conversion implemented; provider acceptance and new-account platform linking remain** | Existing IDs/data survive; account linking and MFA cannot be bypassed |
 | 3. Cross-console catalog and connections | Canonical titles, IGDB metadata, platform/source mappings; supported provider adapters | Research recorded; credentials/access not configured | Cross-console games browse without account linking; imports preserve source and distinguish verified/manual data |
 | 4. Personal tracking | Want to play, playing, completed, paused, dropped; diary, favorites and lists | Planned | Manual organization survives resyncs |
 | 5. Privacy and account control | Visibility defaults, export, deletion and retention policy | Planned | Verify boundaries with two accounts and test deletion |
@@ -66,6 +75,34 @@ after they are observed. Real Steam and hosted Redis are not used by unit tests.
 
 ## Sprint cadence
 
+### September 22 increment: library efficiency and Steam beta conversion
+
+- [x] Library refresh derives genre totals from its existing response, eliminating
+  one HTTP request and a duplicate latest-snapshot query. Software exclusion and
+  full playtime per genre are preserved; `/me/genres` remains available to API clients.
+- [x] Reuse two locale number formatters instead of constructing one per label.
+  Node 24 local microbenchmark, seven measured runs after warm-up, 10,000 labels:
+  median 123.9 ms before and 2.9 ms after. This is formatting work, not whole-page
+  latency or a measurement of total browser memory.
+- [x] Explicit, cancelable conversion intent bound to the Steam browser session;
+  ten-minute expiry, fresh Steam authentication and signed Clerk factor ages.
+- [x] Live provider status check at conversion, including recent second-factor
+  proof when enrolled. No matching or merging by email/display name.
+- [x] Preserve user, Steam connection, snapshots, reviews and comments; reject
+  already-owned identities. Old Steam sessions and new Steam callbacks cannot
+  bypass the connected identity. Stale cookies can be replaced by provider login.
+- [x] Automated checks: 191 Python tests passed, one optional Redis integration
+  skipped; 10 JavaScript tests passed. Bandit 1.9.4 found no issues in `app/`.
+- [x] Isolated browser check: cancel, resume after refresh, confirmation checkbox,
+  successful conversion and retained library; one library request and zero genre
+  requests. The browser used a provider UI double and signed synthetic identities,
+  not real Clerk authentication. Account entry remains accessible at narrow widths.
+- [ ] Real Clerk redirect, fresh-factor and enrolled-MFA/passkey acceptance.
+- [ ] Real Redis concurrent completion and outage/retry acceptance.
+- [ ] Connect a previously unclaimed Steam account from a new PlayGraph account.
+  Merging two existing accounts and unlink/replacement remain unsupported.
+- [ ] Phase 2D account-wide controls, recovery and multi-device acceptance.
+
 ### September 16 increment: review ownership and game profiles
 
 - [x] Owner-only review edit/delete routes with origin, CSRF and session checks.
@@ -99,8 +136,9 @@ Track tickets as Backlog, Ready, In progress, Review, Verify and Done.
 Keep one feature ticket in progress. End each sprint with a demo and a short
 record of passed checks, defects and carried-forward work.
 
-Next sprint: close carried-forward Phase 1B acceptance, then implement managed account
-integration on the migration foundation. ACCOUNT_PLAN.md specifies provider setup and security gates.
+Next sprint: finish 2C provider acceptance and new-account Steam linking, then 2D
+account controls. Carry forward Phase 1B device/sync acceptance. ACCOUNT_PLAN.md
+specifies provider setup and security gates.
 PLATFORM_PLAN.md separates catalog coverage from platform account/data access.
 Sync speed remains explicit backlog work.
 Resolve blocking defects before expanding the existing social feed.

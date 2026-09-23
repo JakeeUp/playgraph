@@ -15,7 +15,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.config import Settings, settings
 from app.database import get_db
 from app.middleware import LOGINS_PER_MINUTE, MAX_BODY_BYTES, REQUESTS_PER_MINUTE, SecurityMiddleware
-from app.models import Game, LinkedAccount, Platform, User, utcnow
+from app.models import AuthIdentity, Game, LinkedAccount, Platform, User, utcnow
 from app.routers import auth, library, reviews
 from app.security import LOGIN_TTL, state_key
 from tests.security_helpers import MemoryRedis, auth_headers
@@ -81,6 +81,15 @@ def begin(client, nonce=None, ui=False):
 
 def callback(client, params):
     return client.get("/auth/steam/callback", params=params)
+
+
+def test_converted_account_cannot_sign_in_through_steam(client, verification, db):
+    db.add(AuthIdentity(user_id=1, provider="clerk", issuer="https://synthetic.clerk.accounts.dev", subject="user_one"))
+    db.commit()
+    response = callback(client, begin(client))
+    assert response.status_code == 401
+    assert "Use PlayGraph account sign-in" in response.json()["detail"]
+    assert "access_token" not in response.json()
 
 
 def test_login_issues_revocable_short_session(client, verification, db):

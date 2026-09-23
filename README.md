@@ -35,8 +35,10 @@ address is obscured in the screenshot.
 
 ![PlayGraph email verification, with the email address obscured](docs/screenshots/sign-in.png)
 
-Steam beta accounts and PlayGraph accounts are still separate. Creating a new
-account doesn't move an existing Steam library or its reviews.
+Existing Steam beta users can connect a PlayGraph sign-in from the account page
+and keep their library and reviews. Creating a separate account doesn't transfer
+them, and merging two existing accounts isn't supported. The connection flow is
+still in local testing.
 
 ## How it works
 
@@ -144,8 +146,8 @@ Locust load test in `loadtest/`, and the file explains how to run it.
 
 Personal project, actively being built, not deployed yet.
 
-Next up is linking Steam to a PlayGraph account, since right now they're
-separate. After that: a cross-platform catalog through IGDB, want-to-play and
+Next up is finishing account-linking acceptance, Steam connections for new
+PlayGraph accounts, and recovery controls. After that: a cross-platform catalog through IGDB, want-to-play and
 diary tracking, privacy controls, then public profiles. The full map is in
 [PHASES.md](PHASES.md).
 

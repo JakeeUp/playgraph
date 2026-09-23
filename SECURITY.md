@@ -152,7 +152,7 @@ security state and unrelated arq applications alone.
   for errors and suspicious rates, and a way to disable syncs during an incident.
   IP limits can affect people behind shared networks and need observed tuning.
 - Configure proxy/application error reporting to redact Authorization, Cookie,
-  x-webapi-key, callback query strings, request bodies and connection URLs.
+  x-webapi-key, X-Clerk-Token, callback query strings, request bodies and connection URLs.
   The app logs login/logout IDs and rejection/rate-limit events without tokens;
   collection, alerting, access controls and retention are hosting work.
 - Review the CI result before merge and require it in branch protection.
@@ -189,7 +189,12 @@ through textContent. Existing comment/review writes retain CSRF and ownership ch
 Current results are 98 passing Python tests, one skipped Redis test, and seven
 passing JavaScript tests. Live browser interaction checks remain open.
 
-PlayGraph-native account creation and MFA are not implemented or enabled yet.
+Clerk account creation and Steam beta conversion are implemented for local
+testing. Conversion checks recent signed factor ages, including a second factor
+when enrolled, and performs an uncached provider-status check. Missing proof is
+rejected. Existing identities are never merged, and a converted account cannot
+authenticate through Steam alone. Provider factor/recovery acceptance remains
+open; implementation and synthetic tests are not a security certification.
 ACCOUNT_PLAN.md defines the managed identity boundary and linking threats. A
 platform data link must never bypass the PlayGraph account's second factor.
 No PSN/Nintendo/Epic browser-session cookies or platform passwords are collected.

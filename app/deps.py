@@ -54,6 +54,7 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="Session expired or revoked")
     request.state.session_id = session_id
     request.state.session_expires = payload["exp"]
+    request.state.session_issued = payload["iat"]
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")

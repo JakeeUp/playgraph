@@ -46,7 +46,8 @@ def accounts(db, monkeypatch):
             return {"id": sid, "user_id": "user_" + sid.removeprefix("sess_"),
                     "status": status["state"], "expire_at": (time.time() + 3600) * 1000}
         if path.startswith("/users/"):
-            return {"id": path.rsplit("/", 1)[1], "first_name": "Synthetic", "banned": status["banned"]}
+            return {"id": path.rsplit("/", 1)[1], "first_name": "Synthetic", "banned": status["banned"],
+                    "two_factor_enabled": status.get("mfa", False)}
         raise AssertionError(path)
     monkeypatch.setattr(clerk_auth, "backend", backend)
     def token(subject="one", **claims):

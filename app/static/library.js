@@ -1,6 +1,8 @@
 export const genresFor = (game) => (game.genres || '').split(',').map((g) => g.trim()).filter(Boolean);
-export const hours = (minutes) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(Math.max(0, minutes || 0) / 60);
-export const integer = (value) => new Intl.NumberFormat().format(value || 0);
+const hourFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+const integerFormat = new Intl.NumberFormat();
+export const hours = (minutes) => hourFormat.format(Math.max(0, minutes || 0) / 60);
+export const integer = (value) => integerFormat.format(value || 0);
 export const achievementPercent = (entry) => entry?.achievements_total > 0 && entry.achievements_unlocked != null
   ? Math.min(100, 100 * entry.achievements_unlocked / entry.achievements_total) : null;
 export function selectLibrary(library, { query = '', filter = 'all', genre = '', sort = 'playtime', kind = 'all' } = {}) {
@@ -20,6 +22,21 @@ export function summarize(library) {
     played: sum.played + Number(entry.playtime_minutes > 0), unlocked: sum.unlocked + (entry.achievements_unlocked || 0),
     achievementGames: sum.achievementGames + Number(entry.achievements_unlocked != null && entry.achievements_total > 0),
   }), { games: 0, minutes: 0, played: 0, unlocked: 0, achievementGames: 0 });
+}
+// Match /me/genres using the library already in memory. Full playtime counts
+// toward every tag; software stays out of the game statistics.
+export function genreBreakdown(library) {
+  const totals = new Map();
+  for (const entry of library) {
+    if ((entry.game.content_kind || 'game') !== 'game') continue;
+    for (const genre of genresFor(entry.game)) {
+      if (!totals.has(genre)) totals.set(genre, { genre, total_minutes: 0, game_count: 0 });
+      const bucket = totals.get(genre);
+      bucket.total_minutes += entry.playtime_minutes || 0;
+      bucket.game_count += 1;
+    }
+  }
+  return [...totals.values()].sort((a, b) => b.total_minutes - a.total_minutes);
 }
 const STEAM_APPS = 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps';
 /**
