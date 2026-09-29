@@ -1,236 +1,197 @@
 /* ==========================================================================
-   Game detail dialog, insights, genre breakdown, reviews and comments.
-   Inherits every token from styles.css.
+   Game page dialog, playtime cards, reviews and comments.
+   Uses only the tokens defined in styles.css.
    ========================================================================== */
 
 /* ---------------- dialog shell ---------------- */
 
 dialog {
-  border:1px solid var(--edge); border-radius:6px; padding:0;
-  background:var(--surface); color:var(--ink);
-  width:min(1040px,calc(100vw - 32px)); max-height:90vh; overflow:auto;
+  border:1px solid var(--line); border-radius:var(--radius-lg); padding:0;
+  background:var(--surface); color:var(--text);
+  width:min(1040px,calc(100vw - var(--space-6))); max-height:90vh; overflow:auto;
 }
-dialog::backdrop { background:rgba(9,11,14,.78); }
-/* The hero backdrop is scaled past its box to hide blur edges. clip trims
-   that sideways overflow without creating a scroll container, so the sticky
-   cover column keeps working. */
-#detail-content { position:relative; isolation:isolate; overflow-x:clip; }
-.detail-backdrop {
-  position:absolute; top:0; left:0; z-index:-1; width:100%; height:340px; object-fit:cover;
-  filter:blur(24px) saturate(1.2) brightness(.5); transform:scale(1.1); opacity:.75;
-  -webkit-mask-image:linear-gradient(#000 25%,transparent); mask-image:linear-gradient(#000 25%,transparent);
-  pointer-events:none;
-}
+dialog::backdrop { background:var(--scrim); }
 .close-button {
   position:sticky; top:0; float:right; z-index:5;
-  background:var(--raised); border:1px solid var(--edge); border-radius:2px;
-  color:var(--ink-mid); font-size:15px; line-height:1;
-  width:26px; height:26px; margin:12px 12px 0; cursor:pointer;
+  width:var(--control-h); height:var(--control-h); margin:var(--space-3) var(--space-3) 0;
+  display:grid; place-items:center;
+  background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius);
+  color:var(--text); font-size:var(--text-lg); line-height:1; cursor:pointer;
+  transition:border-color var(--dur) var(--ease);
 }
-.close-button:hover { color:var(--ink); border-color:var(--ink-dim); }
+.close-button:hover { border-color:var(--line-strong); }
 
-/* ---------------- detail header ---------------- */
+/* ---------------- game page ---------------- */
 
-.game-profile { display:grid; grid-template-columns:192px minmax(0,1fr); gap:32px; padding:32px; clear:both; }
-.game-profile-aside { display:flex; flex-direction:column; align-items:flex-start; gap:16px; position:sticky; top:24px; align-self:start; }
-.game-profile-aside .cover { width:100%; border-radius:4px; }
-.game-profile-aside .button { width:100%; justify-content:center; }
+.game-profile { display:grid; grid-template-columns:200px minmax(0,1fr); gap:var(--space-6); padding:var(--space-6); clear:both; }
+.game-profile-aside { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-3); position:sticky; top:var(--space-5); align-self:start; }
+.game-profile-aside .cover { width:100%; }
+.game-profile-aside .button { width:100%; margin-top:var(--space-2); }
 .game-profile-main { min-width:0; }
-.detail-header { padding:0 0 24px; }
-.detail-info h2 { font-size:clamp(24px,3vw,36px); font-weight:800; line-height:1.08; margin:0 0 12px; overflow-wrap:anywhere; }
-.detail-info .detail-kind { font-size:12px; color:var(--ink-dim); margin-bottom:8px; }
-.detail-info p { margin:0 0 10px; font-size:13px; color:var(--ink-mid); line-height:1.55; }
+.detail-header { padding-bottom:var(--space-5); }
+.detail-info h2 { font-size:var(--text-2xl); margin-bottom:var(--space-2); overflow-wrap:anywhere; }
+.detail-genres { font-size:var(--text-ui); color:var(--text-muted); }
+.detail-stats { display:grid; grid-template-columns:max-content 1fr; align-items:baseline; gap:var(--space-2) var(--space-4); margin:var(--space-4) 0 var(--space-3); font-size:var(--text-ui); }
+.detail-stats strong { font-family:var(--font-mono); font-weight:500; font-size:var(--text-md); }
+.detail-stats span { color:var(--text-muted); }
 
-.detail-stats { display:grid; grid-template-columns:max-content 1fr; gap:8px 16px; margin:16px 0; font-size:13px; }
-.detail-stats span { color:var(--ink-mid); }
-.detail-genres { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
-.detail-tabs { display:flex; flex-wrap:wrap; gap:16px; border-bottom:1px solid var(--edge); margin-bottom:24px; }
-.detail-tab { font:inherit; font-size:13px; border:0; border-bottom:2px solid transparent; border-radius:0; padding:12px 0; color:var(--ink-mid); background:none; cursor:pointer; }
-.detail-tab[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--amber); }
-.detail-tab:focus-visible { outline:2px solid var(--amber); outline-offset:3px; }
+.detail-tabs { display:flex; flex-wrap:wrap; gap:var(--space-5); border-bottom:1px solid var(--line); margin-bottom:var(--space-5); }
+.detail-tab {
+  height:calc(var(--control-h) + var(--space-2)); padding:0; margin-bottom:-1px;
+  font-size:var(--text-ui); font-weight:500; color:var(--text-muted);
+  background:none; border:0; border-bottom:2px solid transparent; border-radius:0; cursor:pointer;
+  transition:color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.detail-tab:hover { color:var(--text); }
+.detail-tab[aria-selected="true"] { color:var(--text); border-bottom-color:var(--accent); }
 .game-profile-main [role="tabpanel"] { min-height:280px; }
-.game-profile-main h3 { font-size:16px; margin:0 0 8px; }
-.metadata-table { display:grid; grid-template-columns:112px minmax(0,1fr); margin:16px 0; font-size:13px; }
-.metadata-table dt,.metadata-table dd { padding:12px 0; margin:0; border-bottom:1px solid var(--edge-soft); }
-.metadata-table dt { color:var(--ink-dim); }
+.game-profile-main h3 { font-size:var(--text-lg); margin-bottom:var(--space-2); }
+.metadata-table { display:grid; grid-template-columns:120px minmax(0,1fr); margin:0 0 var(--space-4); font-size:var(--text-ui); }
+.metadata-table dt, .metadata-table dd { padding:var(--space-3) 0; margin:0; border-bottom:1px solid var(--line); }
+.metadata-table dt { color:var(--text-muted); }
 .metadata-table dd { overflow-wrap:anywhere; }
-.delete-confirmation { border:1px solid var(--edge); padding:16px; margin-top:8px; }
-.delete-confirmation p { margin:0 0 16px; font-size:13px; }
-.delete-confirmation button { margin:0 8px 8px 0; }
-.review-removal { margin-top:8px; }
-.review-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-top:12px; }
-.comment > .review-date { margin-left:8px; }
-.write-review > .button,.review-form > .button { align-self:flex-start; }
-/* ---------------- insights ---------------- */
+.delete-confirmation { border:1px solid var(--line); border-radius:var(--radius-lg); padding:var(--space-4); margin-top:var(--space-2); }
+.delete-confirmation p { margin-bottom:var(--space-4); font-size:var(--text-ui); }
+.delete-confirmation button { margin:0 var(--space-2) var(--space-2) 0; }
+.review-removal { margin-top:var(--space-3); }
+.review-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-4); margin-top:var(--space-3); }
+.write-review > .button, .review-form > .button { align-self:flex-start; }
 
-/* Library view: the spotlight beside the genre card. Stats view: the
-   spotlight spans the top and the two charts share the row beneath it. */
-.insights { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+/* ---------------- playtime cards ---------------- */
+
+/* Library view: most played beside top genres. Playtime view: most played
+   spans the top and the two charts share the row beneath it. */
+.insights { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-4); }
 .insights > :only-child, .insights.expanded .spotlight { grid-column:1 / -1; }
 
-.insight-card {
-  display:flex; flex-direction:column; gap:12px; min-width:0;
-  border:1px solid var(--edge-soft); border-radius:var(--r-lg);
-  background:var(--surface); padding:16px 18px;
+.insight-card, .spotlight {
+  display:flex; flex-direction:column; gap:var(--space-3); min-width:0;
+  border:1px solid var(--line); border-radius:var(--radius-lg);
+  background:var(--surface); padding:var(--space-5);
 }
-.insight-card h2 { font-size:15px; font-weight:700; }
+.insight-card h2, .spotlight h2 { font-size:var(--text-lg); }
 .insight-card .section-heading { margin:0; }
-.card-footnote { margin:auto 0 0; font-size:11.5px; color:var(--ink-dim); line-height:1.45; }
+.card-footnote { margin-top:auto; font-size:var(--text-sm); color:var(--text-muted); }
 
 /* ---------------- bar list ----------------
-   One series in one colour (--series). Bars grow from a shared baseline,
-   stay 8px thick with a 4px rounded data end, and carry the value at the
-   tip in text colours. The whole row is the hit target. */
+   One series in one color. Bars grow from a shared baseline, stay 8px thick,
+   and carry the value at the tip. The whole row is the hit target. */
 .bar-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
 .bar-hit {
-  display:grid; grid-template-columns:minmax(84px,32%) minmax(0,1fr); align-items:center; gap:12px;
-  width:calc(100% + 12px); min-height:30px; margin:0 -6px; padding:3px 6px;
-  background:none; border:0; border-radius:var(--r); text-align:left; cursor:default;
+  display:grid; grid-template-columns:minmax(84px,32%) minmax(0,1fr); align-items:center; gap:var(--space-3);
+  width:calc(100% + var(--space-4)); min-height:var(--control-h); margin:0 calc(var(--space-2) * -1); padding:var(--space-1) var(--space-2);
+  background:none; border:0; border-radius:var(--radius); text-align:left; cursor:default;
+  transition:background-color var(--dur) var(--ease);
 }
 button.bar-hit { cursor:pointer; }
-.bar-hit:hover, .bar-hit:focus-visible { background:var(--raised-soft); }
-.bar-label { font-size:12.5px; font-weight:600; color:var(--ink-mid); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.bar-track { display:flex; align-items:center; gap:8px; min-width:0; }
+.bar-hit:hover, .bar-hit:focus-visible { background:var(--surface-2); }
+.bar-label { font-size:var(--text-ui); color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bar-track { display:flex; align-items:center; gap:var(--space-2); min-width:0; }
 /* The fraction scales only the room left after the value label, so every
    bar stays proportional and the longest one never pushes its label out. */
 .bar {
-  flex:none; height:8px; width:calc(var(--fraction, 0) * (100% - 4.5rem));
-  background:var(--series); border-radius:0 4px 4px 0;
+  flex:none; height:8px; width:calc(var(--fraction, 0) * (100% - 5.5rem));
+  background:var(--series); border-radius:0 var(--radius-sm) var(--radius-sm) 0;
   transition:background-color var(--dur) var(--ease);
 }
-.bar-hit:hover .bar, .bar-hit:focus-visible .bar { background:var(--series-hi); }
-.bar-value { flex:none; font-size:12px; font-weight:600; color:var(--ink); white-space:nowrap; }
+.bar-hit:hover .bar, .bar-hit:focus-visible .bar { background:var(--series-hover); }
+.bar-value { flex:none; font-family:var(--font-mono); font-size:var(--text-sm); color:var(--text); white-space:nowrap; }
 
-.most-played .bar-hit { grid-template-columns:auto minmax(0,36%) minmax(0,1fr); min-height:48px; }
-.bar-lead { display:flex; align-items:center; gap:10px; }
-.bar-rank {
-  width:1.4em; text-align:right; font-size:12px; font-weight:700;
-  color:var(--ink-dim); font-variant-numeric:tabular-nums;
-}
-.bar-lead .cover { width:28px; flex:none; border-radius:2px; }
+.most-played .bar-hit { grid-template-columns:auto minmax(0,36%) minmax(0,1fr); min-height:var(--space-7); }
+.bar-lead { display:flex; align-items:center; gap:var(--space-3); }
+.bar-rank { width:2ch; text-align:right; font-family:var(--font-mono); font-size:var(--text-sm); color:var(--text-muted); }
+.bar-lead .cover { width:28px; flex:none; border-radius:var(--radius-sm); }
 
 /* Values lead, labels follow: the reader already has the row and wants the number. */
 .chart-tip {
   position:fixed; z-index:60; pointer-events:none;
-  display:flex; flex-direction:column; gap:1px;
-  background:var(--raised); border:1px solid var(--edge); border-radius:var(--r);
-  padding:6px 9px; font-size:11.5px; color:var(--ink-mid); white-space:nowrap;
+  display:flex; flex-direction:column; gap:var(--space-1);
+  background:var(--surface-2); border:1px solid var(--line-strong); border-radius:var(--radius);
+  padding:var(--space-2) var(--space-3); font-size:var(--text-sm); color:var(--text-muted); white-space:nowrap;
 }
-.chart-tip strong { font-size:13px; color:var(--ink); }
+.chart-tip strong { font-family:var(--font-mono); font-weight:500; font-size:var(--text-ui); color:var(--text); }
 
-/* ---------------- spotlight ---------------- */
+/* ---------------- most played ---------------- */
 
-.spotlight {
-  position:relative; isolation:isolate; overflow:hidden;
-  display:grid; grid-template-columns:112px minmax(0,1fr); gap:20px; align-items:center;
-  border:1px solid var(--edge-soft); border-radius:var(--r-lg);
-  background:var(--surface); padding:20px;
-}
-/* Hero art as atmosphere: blurred and darkened, then faded toward the copy
-   so the text always sits on a known dark surface. */
-.spotlight-backdrop {
-  position:absolute; inset:0; z-index:-1; width:100%; height:100%; object-fit:cover;
-  filter:blur(14px) saturate(1.3) brightness(.7); transform:scale(1.15);
-}
-.spotlight::after {
-  content:""; position:absolute; inset:0; z-index:-1;
-  background:linear-gradient(90deg,rgba(28,37,45,.1) 0%,rgba(28,37,45,.55) 35%,rgba(28,37,45,.9) 70%);
-}
-.spotlight-cover { width:112px; padding:0; border:0; background:none; cursor:pointer; }
-.spotlight-cover .cover { border-color:rgba(255,255,255,.12); }
-.spotlight-copy { min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
-.spotlight-copy .eyebrow { margin:0; }
-.spotlight-copy h2 { font-size:clamp(20px,2.2vw,26px); font-weight:800; line-height:1.1; overflow-wrap:anywhere; }
-.spotlight-hours { margin:0; font-size:15px; font-weight:700; color:var(--amber); }
-.spotlight-meta { margin:0; font-size:12.5px; color:var(--ink-mid); }
+.spotlight-body { display:grid; grid-template-columns:96px minmax(0,1fr); gap:var(--space-5); align-items:center; }
+.spotlight-cover { width:96px; padding:0; border:0; background:none; cursor:pointer; border-radius:var(--radius); }
+.spotlight-cover:hover .cover { border-color:var(--text-muted); }
+.spotlight-copy { min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2); }
+.spotlight-copy h3 { font-size:var(--text-xl); overflow-wrap:anywhere; }
+.spotlight-hours { font-size:var(--text-md); }
+.spotlight-meta { font-size:var(--text-ui); color:var(--text-muted); }
 
 /* ---------------- reviews ---------------- */
 
-.reviews-section { padding:0; }
 .reviews-list { display:flex; flex-direction:column; }
 
-.review-card { padding:13px 0; border-bottom:1px solid var(--edge-soft); }
+.review-card { padding:var(--space-4) 0; border-bottom:1px solid var(--line); }
 .review-byline {
-  display:flex; align-items:center; gap:7px; flex-wrap:wrap;
-  font-size:11.5px; color:var(--ink-dim); margin-bottom:5px;
+  display:flex; align-items:center; gap:var(--space-2); flex-wrap:wrap;
+  font-size:var(--text-ui); margin-bottom:var(--space-2);
 }
-.review-byline strong, .review-byline .account-name { color:var(--ink-mid); font-weight:600; }
-.review-date { font-size:11px; color:var(--ink-dim); font-variant-numeric:tabular-nums; }
-.review-rating { display:inline-flex; gap:1px; flex:none; }
-.review-body { margin:8px 0; font-size:13px; color:var(--ink-mid); line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
+.review-byline strong { font-weight:500; }
+.review-date { font-family:var(--font-mono); font-size:var(--text-xs); color:var(--text-muted); }
+.review-rating { display:inline-flex; flex:none; }
+.review-body { margin:var(--space-3) 0 0; font-size:var(--text-md); max-width:72ch; white-space:pre-wrap; overflow-wrap:anywhere; }
 
-/* Verified hours. Green is used nowhere else in the system. */
+/* Verified hours. Green is used nowhere else. */
 .verified-label {
-  display:inline-flex; align-items:center; gap:4px;
-  font-size:10px; font-weight:700; letter-spacing:.05em;
-  color:var(--verified); background:var(--verified-bg);
-  border:1px solid var(--verified-edge); border-radius:2px; padding:1.5px 5px;
-  font-variant-numeric:tabular-nums;
+  display:inline-flex; align-items:center; gap:var(--space-1);
+  font-size:var(--text-xs); line-height:var(--leading);
+  color:var(--verified); border:1px solid var(--verified-line); border-radius:var(--radius);
+  padding:0 var(--space-2);
 }
-.verified-label::before { content:""; width:5px; height:5px; border-radius:50%; background:var(--verified); flex:none; }
-.verified-label.unverified { color:var(--ink-dim); background:none; border-color:var(--edge-soft); }
-.verified-label.unverified::before { display:none; }
+.verified-label.unverified { color:var(--text-muted); border-color:var(--line); }
 
-.reviewed-note { font-size:11.5px; color:var(--ink-dim); }
 .review-empty, .feed-empty, .comment-posted {
-  font-size:12.5px; color:var(--ink-dim);
-  border:1px dashed var(--edge-soft); border-radius:var(--r); padding:16px;
+  font-size:var(--text-ui); color:var(--text-muted);
+  border:1px solid var(--line); border-radius:var(--radius-lg); padding:var(--space-4);
 }
-.review-disclosure { font-size:11px; color:var(--ink-dim); margin-top:6px; }
+.review-disclosure { font-size:var(--text-sm); color:var(--text-muted); }
 
 /* ---------------- forms ---------------- */
 
-.write-review, .review-form, .comment-form {
-  display:flex; flex-direction:column; gap:9px;
-  border-top:1px solid var(--edge-soft); padding-top:14px; margin-top:6px;
+.write-review, .review-form, .comment-form { display:flex; flex-direction:column; gap:var(--space-3); }
+.comment-form { border-top:1px solid var(--line); padding-top:var(--space-4); margin-top:var(--space-2); }
+.review-form label, .comment-form label { display:flex; flex-direction:column; gap:var(--space-2); font-size:var(--text-ui); font-weight:500; }
+textarea, input[type="text"] {
+  width:100%; font-size:var(--text-md); line-height:var(--leading);
+  color:var(--text); background:var(--bg);
+  border:1px solid var(--line); border-radius:var(--radius); padding:var(--space-2) var(--space-3);
+  resize:vertical; font-weight:400;
+  transition:border-color var(--dur) var(--ease);
 }
-.game-profile .write-review,.game-profile .review-form { margin:0; padding:0; border-top:0; }
-/* Direct children of the dialog carry the dialog gutter; nested forms do not,
-   or they would double up on the padding their section already has. */
-#detail-content > .write-review,
-#detail-content > .review-form { padding:16px 22px 20px; margin-top:0; }
-#detail-content > .write-review h2,
-#detail-content > .write-review h3 { font-size:16px; font-weight:800; }
-#detail-content > .write-review p { margin:0; font-size:12.5px; color:var(--ink-mid); }
-#detail-content > .write-review .button { align-self:flex-start; }
-textarea, input[type="text"], input[type="search"] {
-  width:100%; font-family:var(--ui); font-size:13px; line-height:1.5;
-  color:var(--ink); background:var(--canvas);
-  border:1px solid var(--edge-soft); border-radius:var(--r); padding:9px 10px;
-  resize:vertical;
-}
-textarea::placeholder { color:var(--ink-dim); }
-textarea:focus, input:focus { outline:none; border-color:var(--amber); }
-.form-error { font-size:12px; color:var(--danger); }
+textarea:hover { border-color:var(--line-strong); }
+textarea::placeholder { color:var(--text-muted); }
+textarea:focus-visible { border-color:var(--accent); }
+.form-error { font-size:var(--text-ui); color:var(--danger); }
 
 /* ---------------- comments ---------------- */
 
-.comments { margin-top:16px; }
+.comments { margin-top:var(--space-4); }
 .comment-list { display:flex; flex-direction:column; }
-.comment {
-  padding:10px 0; border-bottom:1px solid var(--edge-soft);
-  font-size:12.5px; color:var(--ink-mid); line-height:1.5;
-}
-.comment strong { color:var(--ink); font-weight:600; font-size:12.5px; }
+.comment { padding:var(--space-3) 0; border-bottom:1px solid var(--line); font-size:var(--text-ui); }
+.comment strong { font-weight:500; }
+.comment > .review-date { margin-left:var(--space-2); }
+.comment p { margin-top:var(--space-1); }
 
 @media (max-width:860px) {
-  .game-profile { grid-template-columns:144px minmax(0,1fr); gap:24px; padding:24px; }
-  #detail-content > .write-review,
-  #detail-content > .review-form { padding:14px 16px 18px; }
+  .game-profile { grid-template-columns:152px minmax(0,1fr); gap:var(--space-5); padding:var(--space-5); }
   .insights { grid-template-columns:minmax(0,1fr); }
-  .spotlight { grid-template-columns:84px minmax(0,1fr); gap:14px; padding:16px; }
-  .spotlight-cover { width:84px; }
+  .spotlight-body { grid-template-columns:80px minmax(0,1fr); gap:var(--space-4); }
+  .spotlight-cover { width:80px; }
   .most-played .bar-hit { grid-template-columns:auto minmax(0,1fr); }
   .most-played .bar-track { grid-column:2; }
 }
 @media (max-width:600px) {
-  dialog { width:calc(100vw - 16px); max-height:94dvh; }
-  .game-profile { grid-template-columns:minmax(0,1fr); gap:24px; padding:16px; }
-  .game-profile-aside { position:static; display:grid; grid-template-columns:96px minmax(0,1fr); column-gap:16px; row-gap:8px; align-items:center; }
+  dialog { width:calc(100vw - var(--space-4)); max-height:94dvh; }
+  .game-profile { grid-template-columns:minmax(0,1fr); gap:var(--space-5); padding:var(--space-4); }
+  .game-profile-aside { position:static; display:grid; grid-template-columns:104px minmax(0,1fr); column-gap:var(--space-4); row-gap:var(--space-2); align-items:center; }
   .game-profile-aside .cover { grid-row:1 / 4; }
-  .game-profile-aside .button { white-space:normal; width:auto; }
-  .detail-header { padding-bottom:8px; }
-  .detail-tabs { gap:16px; margin-bottom:16px; }
-  .detail-tab { font-size:12px; min-height:44px; }
-  .metadata-table { grid-template-columns:96px minmax(0,1fr); }
+  .game-profile-aside .button { margin-top:0; }
+  .detail-header { padding-bottom:var(--space-2); }
+  .detail-info h2 { font-size:var(--text-xl); }
+  .detail-tabs { gap:var(--space-4); margin-bottom:var(--space-4); }
+  .metadata-table { grid-template-columns:104px minmax(0,1fr); }
 }
