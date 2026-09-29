@@ -11,7 +11,7 @@ twenty minutes, there's some context behind the take.
 I'm building it around that idea: a place to keep your games and reviews
 together, with your play history alongside them.
 
-![The PlayGraph catalog](docs/screenshots/catalog.webp)
+![A PlayGraph library with playtime stats, most played and top genres](docs/screenshots/library.webp)
 
 ## What it does
 
@@ -23,17 +23,20 @@ together, with your play history alongside them.
 - Game pages with community reviews, your review, and shareable links
 - Edit or delete your own reviews without changing their original playtime snapshot
 
-| Catalog and feed | Reviews and discussions |
+| Library and playtime | Reviews and game pages |
 |---|---|
-| ![A game page](docs/screenshots/game-page.png) | ![Writing a review](docs/screenshots/write-review.png) |
-| Game pages pull art from Steam | Drag for half-stars, then publish |
-| ![The review feed](docs/screenshots/feed.png) | ![A review discussion](docs/screenshots/review-discussion.png) |
-| Verified hours, when available | Each review gets its own thread |
+| ![The library grid, sorted by most played](docs/screenshots/library-grid.webp) | ![A game page with playtime, achievements and a review](docs/screenshots/game-page.webp) |
+| The whole Steam library, hours on every game | Your hours and achievements next to the reviews |
+| ![Playtime by genre and a top 10 by hours](docs/screenshots/playtime.webp) | ![The review feed](docs/screenshots/feed.webp) |
+| Where the hours went, by genre and by game | Verified hours on reviews, when available |
+| ![More of the library grid](docs/screenshots/library-scroll.webp) | ![A game page opened from the feed](docs/screenshots/game-page-from-feed.webp) |
+| Cover art straight from Steam | Open any game right from the feed |
 
-PlayGraph sign-in through Clerk. This is the development build; the email
-address is obscured in the screenshot.
+Sign-in runs through Clerk. Once you're in, the account page lets you connect
+Steam. This is the development build; the email address is obscured in the
+screenshot.
 
-![PlayGraph email verification, with the email address obscured](docs/screenshots/sign-in.png)
+![The PlayGraph account page, with the email address obscured](docs/screenshots/account.webp)
 
 Existing Steam beta users can connect a PlayGraph sign-in from the account page
 and keep their library and reviews. Creating a separate account doesn't transfer
