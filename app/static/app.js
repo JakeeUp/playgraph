@@ -1,37 +1,41 @@
-import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown, steamArt } from './library.js';
-import { $, el, button, steamLink, cover, aborted } from './dom.js';
+import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown } from './library.js';
+import { $, el, button, steamLink, cover, aborted, numbered, setNumbers } from './dom.js';
 import { createGameDialog } from './game-detail.js';
 import { createFeed } from './feed.js';
 import { barList } from './chart.js';
 
-// Page copy per view. pageKey() folds the signed-out library and stats views
-// into the welcome copy, which is what they have always shown.
+// Page copy per view. pageKey() folds the signed-out library and playtime
+// views into the welcome copy, which is what they have always shown. `tab`
+// names the page in the browser tab.
 const PAGE_COPY = {
-  welcome: { eyebrow: 'A LITTLE MORE THAN A BACKLOG', title: 'Your life in games',
-    subtitle: 'The ones you love. The ones you finish. The ones you keep coming back to.',
-    search: 'Search the catalog...', searchLabel: 'Search games' },
-  library: { eyebrow: 'WELCOME BACK, PLAYER', title: 'Your library',
-    subtitle: 'Your collection, playtime, and reviews. All in one place.',
-    search: 'Search your library...', searchLabel: 'Search games' },
-  stats: { eyebrow: 'THE BIGGER PICTURE', title: 'Time well played',
-    subtitle: 'A closer look at the games and genres you spend time with.',
-    search: 'Search your library...', searchLabel: 'Search games' },
-  explore: { eyebrow: 'GOOD GAMES, WAITING TO HAPPEN', title: 'Explore games',
-    subtitle: 'Browse games imported into PlayGraph and see what players have to say.',
-    search: 'Search the catalog...', searchLabel: 'Search games' },
-  software: { eyebrow: 'A SPACE FOR YOUR TOOLS', title: 'Your software',
-    subtitle: 'Utilities and creative apps, kept separate from your game collection.',
-    search: 'Search software...', searchLabel: 'Search software' },
-  feed: { eyebrow: 'GAMES WORTH TALKING ABOUT', title: 'For you',
-    subtitle: 'Real reviews, different perspectives, and conversations about your games.',
-    search: 'Search reviews by game...', searchLabel: 'Search reviews by game' },
+  welcome: { title: 'Games on PlayGraph', tab: 'Games',
+    subtitle: 'Everything imported so far. Open a game to read its reviews.',
+    search: 'Search games', searchLabel: 'Search games' },
+  library: { title: 'Your library', tab: 'Your library',
+    subtitle: 'Your Steam games, with the hours and achievements from your last sync.',
+    search: 'Search your library', searchLabel: 'Search your library' },
+  stats: { title: 'Your playtime', tab: 'Playtime',
+    subtitle: 'Where your hours went, by genre and by game.',
+    search: 'Search your library', searchLabel: 'Search your library' },
+  explore: { title: 'Explore', tab: 'Explore',
+    subtitle: 'Every game imported into PlayGraph so far. Open one to read its reviews.',
+    search: 'Search games', searchLabel: 'Search games' },
+  software: { title: 'Software', tab: 'Software',
+    subtitle: 'Apps on Steam, like Wallpaper Engine or Blender. Their hours stay out of your game stats.',
+    search: 'Search software', searchLabel: 'Search software' },
+  feed: { title: 'For you', tab: 'For you',
+    subtitle: 'Reviews from other players on games you own or genres you play.',
+    search: 'Search reviews by game', searchLabel: 'Search reviews by game' },
+  feedGuest: { title: 'Reviews', tab: 'Reviews',
+    subtitle: 'The latest reviews on PlayGraph. Sign in and connect Steam to get ones picked for your library.',
+    search: 'Search reviews by game', searchLabel: 'Search reviews by game' },
 };
 // The shelf holds either games or software, and every label follows suit.
 const SHELF = {
-  game: { own: 'On your shelf', catalog: 'Explore the catalog', all: 'All games', used: 'Played',
+  game: { own: 'Your games', catalog: 'Games in the catalog', all: 'All games', used: 'Played',
     unused: 'Yet to play', mostUsed: 'Most played', plural: 'games', verb: 'played', more: 'Show more games',
     note: 'Games in the PlayGraph catalog. This is the imported collection, not the full Steam store.' },
-  software: { own: 'Your applications', catalog: 'Software catalog', all: 'All apps', used: 'Used',
+  software: { own: 'Your software', catalog: 'Software in the catalog', all: 'All apps', used: 'Used',
     unused: 'Not used', mostUsed: 'Most used', plural: 'apps', verb: 'used', more: 'Show more apps',
     note: 'Software usage and achievements do not count toward your game stats or For You preferences.' },
 };
@@ -44,7 +48,8 @@ const gameLibrary = () => state.library.filter((entry) => entry.game.content_kin
 const shelfLibrary = () => state.view === 'software'
   ? state.library.filter((entry) => entry.game.content_kind === 'software') : gameLibrary();
 const shelfCopy = () => SHELF[state.view === 'software' ? 'software' : 'game'];
-const pageKey = () => ['feed', 'software', 'explore'].includes(state.view) ? state.view
+const pageKey = () => state.view === 'feed' && !state.user ? 'feedGuest'
+  : ['feed', 'software', 'explore'].includes(state.view) ? state.view
   : state.user ? (state.view === 'stats' ? 'stats' : 'library') : 'welcome';
 const gameDialog = createGameDialog(state, api, report);
 const feed = createFeed(state, api, gameDialog, () => navigate(state.user ? 'library' : 'explore'), report);
@@ -80,7 +85,7 @@ async function api(path, { anonymous = false, ...options } = {}) {
 }
 function stopPolling() {
   clearTimeout(state.pollTimer); state.pollTimer = null; state.syncing = false;
-  $('#sync-button').disabled = false; $('#sync-button').textContent = '↻ Sync Steam';
+  $('#sync-button').disabled = false; $('#sync-button').textContent = 'Sync Steam';
 }
 function clearSession() {
   stopPolling(); clearTimeout(state.expiryTimer); clearTimeout(state.searchTimer);
@@ -108,7 +113,7 @@ function renderShell() {
       el('span', 'account-name', state.user.display_name));
     account.append(manage, button('Sign out', 'signout', signOut));
   }
-  else { const link = steamLink('Sign in / Create account'); link.classList.add('compact'); account.append(link); }
+  else account.append(steamLink('Sign in'));
   $('#nav-count').textContent = state.user ? integer(gameLibrary().length) : '';
   $('#welcome').hidden = Boolean(state.user) || software || isFeed;
   $('#summary').hidden = !own || !shelfLibrary().length;
@@ -118,9 +123,10 @@ function renderShell() {
   $('#sync-button').hidden = !state.user || !state.hasSteam; $('#filters').hidden = !own;
   $('#sort').disabled = !own; $('#sort').value = own ? state.sort : 'name';
   const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
-  $('#page-title').replaceChildren(document.createTextNode(copy.title), el('span', 'accent', '.'));
-  $('#eyebrow').textContent = copy.eyebrow;
+  $('#page-title').textContent = copy.title;
   $('#page-subtitle').textContent = copy.subtitle;
+  // An open game page owns the tab title until it closes.
+  if (!$('#game-dialog').open) document.title = `${copy.tab} | PlayGraph`;
   $('#collection-title').textContent = own ? shelf.own : shelf.catalog;
   $('#collection-note').hidden = own && !software;
   $('#collection-note').textContent = shelf.note;
@@ -143,21 +149,21 @@ function updateGenres() {
 function stat(label, value, unit, note) {
   const node = el('div', 'stat'); const number = el('span', 'stat-value', value);
   if (unit) number.append(el('span', 'stat-unit', unit));
-  node.append(el('span', 'stat-label', label), number, el('span', 'stat-note', note)); return node;
+  node.append(el('span', 'stat-label', label), number, numbered('span', 'stat-note', note)); return node;
 }
 function renderInsights() {
   const summary = summarize(shelfLibrary());
   if (state.view === 'software') {
-    $('#summary').replaceChildren(stat('Software applications', integer(summary.games), '', 'Synced from Steam'),
-      stat('Recorded usage', hours(summary.minutes), 'hrs', 'Separate from gaming time'),
-      stat('Apps you have used', integer(summary.played), '', `${integer(summary.games - summary.played)} not used`),
-      stat('Software achievements', integer(summary.unlocked), '', 'Separate from game achievements'));
+    $('#summary').replaceChildren(stat('Apps in your library', integer(summary.games), '', 'Synced from Steam'),
+      stat('Time in apps', hours(summary.minutes), 'hrs', 'Not counted as playtime'),
+      stat('Apps used', integer(summary.played), '', `${integer(summary.games - summary.played)} not used`),
+      stat('App achievements', integer(summary.unlocked), '', 'Not counted with games'));
     return;
   }
   $('#summary').replaceChildren(stat('Games in your library', integer(summary.games), '', 'Synced from Steam'),
-    stat('Total playtime', hours(summary.minutes), 'hrs', 'Lifetime playtime'),
-    stat('Games you have played', integer(summary.played), '', `${integer(summary.games - summary.played)} still to discover`),
-    stat('Achievements unlocked', integer(summary.unlocked), '', `Available data from ${integer(summary.achievementGames)} games`));
+    stat('Total playtime', hours(summary.minutes), 'hrs', 'All time, from Steam'),
+    stat('Games played', integer(summary.played), '', `${integer(summary.games - summary.played)} not played yet`),
+    stat('Achievements unlocked', integer(summary.unlocked), '', `Across ${integer(summary.achievementGames)} games with achievements`));
   const insights = $('#insights'); insights.classList.toggle('expanded', state.view === 'stats');
   const top = selectLibrary(gameLibrary()).find((entry) => entry.playtime_minutes > 0);
   insights.replaceChildren(...(top ? [spotlight(top)] : []), genreCard(),
@@ -165,31 +171,25 @@ function renderInsights() {
 }
 function spotlight(entry) {
   const card = el('article', 'spotlight');
-  // Store hero art, blurred behind the card. Decorative, so a missing image
-  // simply leaves the plain surface.
-  const backdrop = el('img', 'spotlight-backdrop');
-  backdrop.alt = ''; backdrop.decoding = 'async'; backdrop.referrerPolicy = 'no-referrer';
-  backdrop.addEventListener('error', () => backdrop.remove());
-  backdrop.src = steamArt(entry.game.steam_appid, 'library_hero.jpg');
   const open = button('', 'spotlight-cover', () => gameDialog.open(entry.game));
   open.setAttribute('aria-label', `Open ${entry.game.name}`); open.append(cover(entry.game));
   const copy = el('div', 'spotlight-copy');
-  copy.append(el('p', 'eyebrow', 'THE ONE YOU KEEP COMING BACK TO'), el('h2', '', entry.game.name),
-    el('p', 'spotlight-hours', `${hours(entry.playtime_minutes)} hours. And counting.`));
+  copy.append(el('h3', '', entry.game.name), numbered('p', 'spotlight-hours', `${hours(entry.playtime_minutes)} h played`));
   if (achievementPercent(entry) != null) {
-    copy.append(el('p', 'spotlight-meta', `${integer(entry.achievements_unlocked)} of ${integer(entry.achievements_total)} achievements unlocked`));
+    copy.append(numbered('p', 'spotlight-meta', `${integer(entry.achievements_unlocked)} of ${integer(entry.achievements_total)} achievements unlocked`));
   }
-  copy.append(button('See game & reviews ↗', 'text-button', () => gameDialog.open(entry.game)));
-  card.append(backdrop, open, copy); return card;
+  copy.append(button('Open game page', 'text-button', () => gameDialog.open(entry.game)));
+  const body = el('div', 'spotlight-body'); body.append(open, copy);
+  card.append(el('h2', '', 'Most played'), body); return card;
 }
 function genreCard() {
   const full = state.view === 'stats';
   const card = el('article', 'insight-card genre-card'); const heading = el('div', 'section-heading');
-  heading.append(el('h2', '', 'Your kind of games'));
-  if (!full) heading.append(button('All stats ↗', 'text-button', () => navigate('stats')));
+  heading.append(el('h2', '', 'Top genres'));
+  if (!full) heading.append(button('See all playtime', 'text-button', () => navigate('stats')));
   card.append(heading);
   const genres = full ? state.genres : state.genres.slice(0, 5);
-  if (!genres.length) card.append(el('p', 'helper', 'Genre data will appear after your library sync.'));
+  if (!genres.length) card.append(el('p', 'helper', 'Genres show up after your first sync.'));
   else card.append(barList(genres.map((genre) => {
     const games = `${integer(genre.game_count)} ${genre.game_count === 1 ? 'game' : 'games'}`;
     return { label: genre.genre, value: genre.total_minutes, text: `${hours(genre.total_minutes)} h`, detail: games,
@@ -200,7 +200,7 @@ function genreCard() {
   return card;
 }
 function mostPlayedCard() {
-  const card = el('article', 'insight-card most-played'); card.append(el('h2', '', 'Your most played'));
+  const card = el('article', 'insight-card most-played'); card.append(el('h2', '', 'Top 10 by playtime'));
   const top = selectLibrary(gameLibrary()).filter((entry) => entry.playtime_minutes > 0).slice(0, 10);
   card.append(barList(top.map((entry, index) => {
     const lead = el('span', 'bar-lead'); lead.append(el('span', 'bar-rank', String(index + 1)), cover(entry.game));
@@ -226,38 +226,38 @@ function renderCollection() {
     const game = entry.game; const card = el('article', 'game-card'); const open = button('', '', () => gameDialog.open(game));
     open.setAttribute('aria-label', `Open ${game.name}${own ? `, ${hours(entry.playtime_minutes)} hours ${shelf.verb}` : ''}`);
     const art = cover(game); const pct = achievementPercent(entry);
-    if (own && pct === 100) art.append(el('span', 'cover-badge', '✓ 100%'));
+    if (own && pct === 100) art.append(numbered('span', 'cover-badge', '100%'));
     else if (own && entry.playtime_minutes === 0) art.append(el('span', 'cover-badge', shelf.unused));
     const meta = el('span', 'game-meta'); meta.append(el('span', 'genre-text', genresFor(game)[0] || 'Steam'));
-    if (own) meta.append(el('span', entry.playtime_minutes > 0 ? 'played' : '', `${hours(entry.playtime_minutes)} h`));
+    if (own) meta.append(el('span', entry.playtime_minutes > 0 ? 'num played' : 'num', `${hours(entry.playtime_minutes)} h`));
     open.append(art, el('h3', 'game-name', game.name), meta); card.append(open); grid.append(card);
   }
   if (!visible.length) {
     const filtering = state.query || state.genre || state.filter !== 'all'; const empty = el('div', 'empty-message');
-    empty.append(el('strong', '', filtering ? 'Nothing on this shelf yet' : own ? 'Your library starts here' : 'The catalog is waiting'));
+    empty.append(el('strong', '', filtering ? 'No matches' : own ? 'No games yet' : 'No games in the catalog yet'));
     empty.append(el('span', '', filtering ? 'Try another search or clear your filters.'
-      : own ? (state.hasSteam ? 'Sync Steam to bring in your games. Your game details must be visible to Steam’s API.' : 'Connect Steam to bring in your library and put verified hours on your reviews.') : 'Sign in to rate games and join the conversation.'));
+      : own ? (state.hasSteam ? 'Sync Steam to bring in your games. Your Steam game details need to be public.' : 'Connect Steam to bring in your library and put verified hours on your reviews.') : 'Games show up here once someone syncs a Steam library.'));
     if (filtering) empty.append(button('Clear filters', 'button secondary', resetFilters));
-    else if (state.user && state.hasSteam) empty.append(button('Sync my library', 'button primary', syncLibrary));
+    else if (state.user && state.hasSteam) empty.append(button('Sync Steam', 'button primary', syncLibrary));
     else if (state.user) { const connect = el('a', 'button primary', 'Connect Steam'); connect.href = '/account'; empty.append(connect); }
-    else empty.append(steamLink('Create your account'));
+    else empty.append(steamLink('Create an account'));
     grid.append(empty);
   }
   $('#result-count').textContent = integer(total); $('#load-more').hidden = visible.length >= total;
-  $('#shown-count').textContent = total ? `${integer(visible.length)} of ${integer(total)} ${shelf.plural}` : '';
+  setNumbers($('#shown-count'), total ? `${integer(visible.length)} of ${integer(total)} ${shelf.plural}` : '');
   document.querySelectorAll('[data-filter]').forEach((chip) => { chip.classList.toggle('selected', chip.dataset.filter === state.filter); chip.setAttribute('aria-pressed', String(chip.dataset.filter === state.filter)); });
 }
 async function loadCatalog(append = false) {
   const request = ++state.catalogRequest; const generation = state.generation; const offset = append ? state.catalog.length : 0;
   $('#load-more').disabled = true;
-  if (!append) { state.catalog = []; state.total = 0; $('#games').replaceChildren(el('p', 'empty-message', 'Finding games...')); }
+  if (!append) { state.catalog = []; state.total = 0; $('#games').replaceChildren(el('p', 'empty-message', 'Loading games…')); }
   try {
     const data = await api(`/games?kind=${state.view === 'software' ? 'software' : 'game'}&limit=48&offset=${offset}&q=${encodeURIComponent(state.query)}`);
     if (request !== state.catalogRequest || generation !== state.generation || privateView()) return;
     state.catalog = append ? state.catalog.concat(data.games) : data.games; state.total = data.total; renderCollection();
   } catch (error) {
     if (request !== state.catalogRequest || aborted(error)) return;
-    if (!append) $('#games').replaceChildren(el('p', 'empty-message', 'The catalog is unavailable. Refresh to try again.')); report(error);
+    if (!append) $('#games').replaceChildren(el('p', 'empty-message', 'Couldn’t load the catalog. Refresh to try again.')); report(error);
   } finally { if (request === state.catalogRequest) $('#load-more').disabled = false; }
 }
 async function loadLibrary() {
@@ -284,7 +284,7 @@ async function signOut() {
 }
 async function syncLibrary() {
   if (!state.user || !state.hasSteam || state.syncing) return;
-  state.syncing = true; $('#sync-button').disabled = true; $('#sync-button').textContent = '↻ Syncing...';
+  state.syncing = true; $('#sync-button').disabled = true; $('#sync-button').textContent = 'Syncing…';
   try {
     const job = await api('/me/sync', { method: 'POST' }); notify('Steam sync queued. You can keep browsing while your games update.'); void pollSync(job.job_id);
   } catch (error) {
@@ -297,7 +297,7 @@ async function pollSync(jobId, restore = false) {
   try {
     const job = await api(`/me/sync/status/${encodeURIComponent(jobId)}`); if (!state.user || generation !== state.generation) return;
     if (['queued', 'in_progress', 'deferred'].includes(job.status)) {
-      state.syncing = true; $('#sync-button').disabled = true; $('#sync-button').textContent = '↻ Syncing...';
+      state.syncing = true; $('#sync-button').disabled = true; $('#sync-button').textContent = 'Syncing…';
       notify(job.status === 'in_progress' ? 'Syncing with Steam. Large libraries can take several minutes; achievement checks run one game at a time.' : 'Steam sync is queued. Keep the worker running and we will update your library when it finishes.');
       state.pollTimer = setTimeout(() => void pollSync(jobId), 5000);
     } else {
@@ -308,7 +308,6 @@ async function pollSync(jobId, restore = false) {
   } catch (error) { if (generation === state.generation) { stopPolling(); if (!restore) report(error); } }
 }
 document.querySelectorAll('[data-view]').forEach((node) => node.addEventListener('click', () => navigate(node.dataset.view)));
-document.getElementById('tab-log')?.addEventListener('click', () => { navigate('library'); $('#search').focus(); });
 document.querySelectorAll('[data-filter]').forEach((node) => node.addEventListener('click', () => { state.filter = node.dataset.filter; state.shown = 48; renderCollection(); }));
 $('#genre').addEventListener('change', (event) => { state.genre = event.target.value; state.shown = 48; renderCollection(); });
 $('#sort').addEventListener('change', (event) => { state.sort = event.target.value; renderCollection(); });
