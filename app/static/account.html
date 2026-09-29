@@ -3,11 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#14181c">
+  <meta name="theme-color" content="#121212">
   <meta name="color-scheme" content="dark">
-  <meta name="description" content="Sign in to your PlayGraph account to rate games and write reviews.">
-  <title>Your account | PlayGraph</title>
+  <meta name="description" content="Sign in to PlayGraph to rate games and write reviews.">
+  <title>Sign in | PlayGraph</title>
   <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
   <link rel="stylesheet" href="/assets/styles.css">
   <link rel="stylesheet" href="/assets/account.css">
   <script type="module" src="/assets/account.js"></script>
@@ -15,15 +17,17 @@
 <body class="account-page">
   <a class="skip-link" href="#account-main">Skip to sign in</a>
   <header class="account-header">
-    <a class="brand" href="/app"><img src="/assets/mark.svg" alt="" width="26" height="26">PlayGraph</a>
-    <a class="account-back" href="/app">Browse games</a>
+    <div class="frame">
+      <a class="brand" href="/app"><img src="/assets/mark.svg" alt="" width="24" height="24">PlayGraph</a>
+      <a href="/app">Browse games</a>
+    </div>
   </header>
-  <main id="account-main" class="account-layout" tabindex="-1">
+  <main id="account-main" class="account-layout frame" tabindex="-1">
     <section class="account-intro" aria-labelledby="account-title">
-      <h1 id="account-title">Your games.<br>Your account.</h1>
-      <p>Rate what you play. Write what you think. Keep your reviews together in PlayGraph.</p>
+      <h1 id="account-title">Sign in to PlayGraph</h1>
+      <p>An account lets you rate games and write reviews. Connect Steam after and your reviews show your hours.</p>
       <p class="account-note">Already have a Steam beta library? Sign in with Steam first, then connect a PlayGraph sign-in to keep your games and reviews together. Creating a separate account does not transfer them.</p>
-      <a id="steam-access" class="account-back" href="/auth/steam/login?ui=1">Use your existing Steam beta account</a>
+      <a id="steam-access" class="account-steam-link" href="/auth/steam/login?ui=1">Use your existing Steam beta account</a>
     </section>
     <section class="account-form" aria-label="PlayGraph sign-in">
       <p id="account-status" class="account-status" role="status">Loading sign-in…</p>
@@ -33,8 +37,8 @@
         <div class="account-actions">
           <a class="button primary" href="/app">Back to my library</a>
           <button id="start-link" type="button" class="button secondary">Connect PlayGraph sign-in</button>
-          <a class="account-back" href="/auth/steam/login?ui=1">Verify Steam again</a>
           <button id="leave-steam" type="button" class="button secondary">Sign out of Steam beta</button>
+          <a href="/auth/steam/login?ui=1">Verify Steam again</a>
         </div>
       </div>
       <div id="link-context" hidden>
@@ -45,10 +49,10 @@
       </div>
       <div id="clerk-sign-in"></div>
       <div id="ready-session" hidden>
-        <h2>Ready to play</h2>
+        <h2>You’re signed in</h2>
         <p id="signed-in-name"></p>
         <div id="steam-connect" class="account-steam" hidden>
-          <h3>Bring in your Steam library</h3>
+          <h3>Connect Steam</h3>
           <p>Connect Steam so your reviews can show verified hours. You confirm on Steam and come straight back.</p>
           <button id="connect-steam" type="button" class="button secondary">Connect Steam</button>
         </div>
@@ -59,7 +63,7 @@
         </div>
       </div>
       <button id="retry-account" type="button" class="button secondary" hidden>Try again</button>
-      <noscript><p>Enable JavaScript to sign in. You can still <a href="/app">browse the catalog</a>.</p></noscript>
+      <noscript><p>Sign-in needs JavaScript. You can still <a href="/app">browse the catalog</a>.</p></noscript>
     </section>
   </main>
 </body>

@@ -13,6 +13,8 @@ const STEAM_OUTCOMES = {
   failed: 'The Steam connection didn’t finish. Please try again.',
 };
 const steamOutcome = STEAM_OUTCOMES[new URLSearchParams(location.search).get('steam')] || '';
+// Clerk draws its own form, so it gets the page's colors and type from the CSS tokens.
+const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 if (steamOutcome) history.replaceState(null, '', '/account');
 
 function report(message, retry = false) {
@@ -39,6 +41,7 @@ function showSteam() {
   $('#steam-access').hidden = true;
   if (signInMounted) clerk.unmountSignIn(signIn);
   signInMounted = false;
+  document.title = 'Your account | PlayGraph';
   report('Your Steam beta account is still signed in.');
 }
 
@@ -74,6 +77,7 @@ function loadScript(src, publishableKey) {
 
 function renderProviderSession() {
   const signedIn = Boolean(clerk.isSignedIn && clerk.session);
+  document.title = signedIn ? 'Your account | PlayGraph' : 'Sign in | PlayGraph';
   $('#ready-session').hidden = !signedIn;
   // Prevent an existing app session being replaced by a Steam login from this page.
   $('#steam-access').hidden = signedIn || linking;
@@ -127,7 +131,12 @@ async function start() {
     ui: { ClerkUI: window.__internal_ClerkUICtor }, telemetry: false,
     signInUrl: '/account', signUpUrl: '/account',
     signInForceRedirectUrl: '/account', signUpForceRedirectUrl: '/account',
-    appearance: { variables: { colorPrimary: '#f0a23c', colorBackground: '#1c252d', borderRadius: '4px' } },
+    appearance: { variables: {
+      colorPrimary: token('--accent'), colorPrimaryForeground: token('--on-accent'), colorBackground: token('--surface'),
+      colorForeground: token('--text'), colorMutedForeground: token('--text-muted'), colorInput: token('--bg'),
+      colorInputForeground: token('--text'), colorBorder: token('--line'), colorDanger: token('--danger'),
+      colorShadow: 'transparent', fontFamily: token('--font-sans'), borderRadius: token('--radius'),
+    } },
   });
   clerk.addListener(renderProviderSession);
 }
