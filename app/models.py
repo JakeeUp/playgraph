@@ -70,7 +70,10 @@ class LinkedAccount(Base):
     """
 
     __tablename__ = "linked_accounts"
-    __table_args__ = (UniqueConstraint("platform", "platform_user_id"),)
+    # One user per platform account, and one account per platform per user. The
+    # second rule is what stops two browser tabs connecting two Steam accounts.
+    __table_args__ = (UniqueConstraint("platform", "platform_user_id"),
+                      UniqueConstraint("user_id", "platform", name="uq_linked_accounts_user_platform"))
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)

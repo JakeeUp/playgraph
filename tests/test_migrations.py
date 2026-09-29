@@ -159,3 +159,17 @@ def test_backup_failure_prevents_adoption(database, tmp_path, monkeypatch):
     with pytest.raises(OSError, match="backup failure"):
         upgrade_database(database, tmp_path / "backups")
     assert "alembic_version" not in inspect(database).get_table_names()
+
+
+def test_two_steam_links_for_one_user_stop_the_upgrade_and_change_nothing(database, tmp_path):
+    from sqlalchemy.exc import IntegrityError
+
+    seed_legacy(database)
+    with database.begin() as connection:
+        connection.execute(baseline().tables["linked_accounts"].insert(),
+                           [{"id": 32, "user_id": 17, "platform": "steam", "platform_user_id": "second"}])
+    before = records(database)
+    with pytest.raises(IntegrityError):
+        upgrade_database(database, tmp_path / "backups")
+    assert records(database) == before
+    assert "alembic_version" not in inspect(database).get_table_names()
