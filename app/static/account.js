@@ -5,6 +5,15 @@ const signIn = $('#clerk-sign-in');
 let clerk;
 let signInMounted = false;
 let linking = false;
+let playgraph = null;
+// Where a Steam connection ended, when it did not end in the app.
+const STEAM_OUTCOMES = {
+  'in-use': 'That Steam account already belongs to a PlayGraph account. If it’s yours, sign in with Steam, then connect your sign-in from this page.',
+  already: 'Steam is already connected to this account.',
+  failed: 'The Steam connection didn’t finish. Please try again.',
+};
+const steamOutcome = STEAM_OUTCOMES[new URLSearchParams(location.search).get('steam')] || '';
+if (steamOutcome) history.replaceState(null, '', '/account');
 
 function report(message, retry = false) {
   status.textContent = message;
@@ -72,6 +81,8 @@ function renderProviderSession() {
   $('#continue-account').textContent = linking ? 'Connect and keep my library' : 'Continue to PlayGraph';
   $('#sign-out-account').textContent = linking ? 'Use a different sign-in / verify again' : 'Sign out';
   $('#confirm-link').checked = false;
+  // Only an account that signed up without Steam, already in PlayGraph, can connect it here.
+  $('#steam-connect').hidden = !(signedIn && !linking && playgraph?.auth_provider === 'clerk' && !playgraph.has_steam);
   if (signedIn) {
     if (signInMounted) clerk.unmountSignIn(signIn);
     signInMounted = false;
@@ -81,7 +92,7 @@ function renderProviderSession() {
       forceRedirectUrl: '/account', signUpForceRedirectUrl: '/account' });
     signInMounted = true;
   }
-  report('');
+  report(steamOutcome);
 }
 
 async function start() {
@@ -93,6 +104,7 @@ async function start() {
     return;
   }
   const session = await currentSession();
+  playgraph = session;
   if (isSteam(session)) {
     const pending = await fetch('/auth/clerk/link', { credentials: 'same-origin', cache: 'no-store' });
     if (!pending.ok) throw new Error('Unable to check your account connection.');
@@ -172,6 +184,24 @@ $('#continue-account').addEventListener('click', async (event) => {
     location.assign('/app');
   } catch (error) { report(error.message); }
   finally { $('#continue-account').disabled = false; }
+});
+$('#connect-steam').addEventListener('click', async (event) => {
+  event.currentTarget.disabled = true;
+  try {
+    const session = await currentSession();
+    if (session?.auth_provider !== 'clerk') throw new Error('Continue to PlayGraph first, then connect Steam.');
+    const token = await clerk.session?.getToken({ skipCache: true });
+    if (!token) throw new Error('Your sign-in expired. Please sign in again.');
+    const response = await fetch('/auth/steam/connect', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'X-CSRF-Token': session.csrf_token, 'X-Clerk-Token': token },
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(typeof body?.detail === 'string' ? body.detail : 'Steam connection could not start. Please try again.');
+    const target = new URL(body.redirect);
+    if (target.origin !== 'https://steamcommunity.com') throw new Error('Steam connection could not start. Please try again.');
+    location.assign(target.href);
+  } catch (error) { report(error.message); $('#connect-steam').disabled = false; }
 });
 $('#sign-out-account').addEventListener('click', async (event) => {
   event.currentTarget.disabled = true;

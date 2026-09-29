@@ -28,3 +28,6 @@
   .account-intro > p { max-width:none; margin:16px 0; }
   .account-intro .account-note { padding-top:16px; }
 }
+.account-steam { margin:14px 0; padding:14px; border:1px solid var(--edge-soft); border-radius:var(--r-lg); }
+.account-steam h3 { margin:0 0 6px; font-size:14px; }
+.account-steam p { margin:0 0 12px; }

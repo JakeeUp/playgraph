@@ -236,10 +236,10 @@ function renderCollection() {
     const filtering = state.query || state.genre || state.filter !== 'all'; const empty = el('div', 'empty-message');
     empty.append(el('strong', '', filtering ? 'Nothing on this shelf yet' : own ? 'Your library starts here' : 'The catalog is waiting'));
     empty.append(el('span', '', filtering ? 'Try another search or clear your filters.'
-      : own ? (state.hasSteam ? 'Sync Steam to bring in your games. Your game details must be visible to Steam’s API.' : 'Your PlayGraph account is ready. Browse the catalog to rate games and write reviews. Steam linking is coming next.') : 'Sign in to rate games and join the conversation.'));
+      : own ? (state.hasSteam ? 'Sync Steam to bring in your games. Your game details must be visible to Steam’s API.' : 'Connect Steam to bring in your library and put verified hours on your reviews.') : 'Sign in to rate games and join the conversation.'));
     if (filtering) empty.append(button('Clear filters', 'button secondary', resetFilters));
     else if (state.user && state.hasSteam) empty.append(button('Sync my library', 'button primary', syncLibrary));
-    else if (state.user) empty.append(button('Explore games', 'button primary', () => navigate('explore')));
+    else if (state.user) { const connect = el('a', 'button primary', 'Connect Steam'); connect.href = '/account'; empty.append(connect); }
     else empty.append(steamLink('Create your account'));
     grid.append(empty);
   }
@@ -354,11 +354,16 @@ async function start() {
   if (new URLSearchParams(location.search).has('login_error')) {
     notify('Steam sign-in could not be completed. Start again using Connect Steam in this browser. If it repeats, check that the address matches APP_BASE_URL.', true); history.replaceState(null, '', '/app');
   }
+  const steamConnected = new URLSearchParams(location.search).get('steam') === 'connected';
+  if (steamConnected) history.replaceState(null, '', '/app');
   try {
     const session = await api('/auth/session', { anonymous: true });
     if (session) {
       acceptSession(session); sessionChannel?.postMessage('session-changed');
-      renderShell(); await loadLibrary(); if (state.user && state.hasSteam) void pollSync(`sync-json-user-${state.user.id}`, true);
+      renderShell(); await loadLibrary();
+      // Straight back from connecting Steam: start the first sync for them.
+      if (steamConnected && state.hasSteam) { notify('Steam connected. Bringing in your library now.'); void syncLibrary(); }
+      else if (state.user && state.hasSteam) void pollSync(`sync-json-user-${state.user.id}`, true);
     } else { renderShell(); await loadCatalog(); }
   } catch (error) { report(error); if (!state.user) { renderShell(); await loadCatalog(); } }
 }
