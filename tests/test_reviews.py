@@ -252,6 +252,15 @@ def test_comments_authorship_listing_and_validation(api):
     assert api.get(f"/reviews/{other}/comments").json() == []
 
 
+def test_text_with_a_nul_character_is_refused_before_the_database(api):
+    # Postgres cannot store NUL in text, so letting it through would be a 500.
+    assert post_review(api, body="a\x00b").status_code == 422
+    review_id = post_review(api, body="Fine").json()["id"]
+    assert api.patch(f"/reviews/{review_id}", json={"rating": 4, "body": "a\x00b"}, headers=auth()).status_code == 422
+    assert api.post(f"/reviews/{review_id}/comments", json={"body": "a\x00b"}, headers=auth()).status_code == 422
+    assert api.get(f"/reviews/{review_id}/comments").json() == []
+
+
 @pytest.mark.parametrize("path,payload", [("/games/1/reviews", {"rating": 4}),
                                            ("/reviews/1/comments", {"body": "Hi"})])
 def test_writes_require_authentication(api, path, payload):

@@ -4,6 +4,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+def storable(value: str) -> str:
+    # Postgres cannot store a NUL character in text; turn it away as bad input.
+    if "\x00" in value:
+        raise ValueError("Text contains a character that cannot be saved")
+    return value
+
+
 class GameOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -54,7 +61,7 @@ class ReviewCreate(BaseModel):
     def blank_body_is_none(cls, value: str | None) -> str | None:
         # A rating can stand on its own, so whitespace-only text is stored as
         # no text instead of rendering as an empty block under the stars.
-        return (value or "").strip() or None
+        return storable((value or "").strip()) or None
 
 
 class ReviewOut(BaseModel):
@@ -80,7 +87,7 @@ class CommentCreate(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Comment must contain text")
-        return value
+        return storable(value)
 
 
 class CommentOut(BaseModel):
