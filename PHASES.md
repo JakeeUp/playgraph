@@ -100,6 +100,9 @@ after they are observed. Real Steam and hosted Redis are not used by unit tests.
 - [ ] Real Clerk redirect, fresh-factor and enrolled-MFA/passkey acceptance.
 - [ ] Real Redis concurrent completion and outage/retry acceptance.
 - [ ] Connect a previously unclaimed Steam account from a new PlayGraph account.
+  Implemented: fresh same-user Clerk proof, a Steam round trip bound to the
+  initiating browser, session and user, and migration 0005 allowing one Steam
+  account per user. 198 Python tests pass. Real Steam and Clerk acceptance is open.
   Merging two existing accounts and unlink/replacement remain unsupported.
 - [ ] Phase 2D account-wide controls, recovery and multi-device acceptance.
 
