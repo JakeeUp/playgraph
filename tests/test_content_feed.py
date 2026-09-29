@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import FastAPI
@@ -168,3 +168,13 @@ def test_personal_feed_requires_authentication(fixture):
     del client.app.dependency_overrides[get_current_user]
     assert client.get("/me/feed").status_code == 401
     assert client.get("/feed").status_code == 200
+
+
+def test_feed_ages_compare_real_instants_across_a_clock_change():
+    # Postgres returns times in the session's zone. When the clocks go back,
+    # 1:30 before and 1:30 after are an hour apart, not the same moment.
+    before = datetime(2026, 11, 1, 1, 30, tzinfo=timezone(timedelta(hours=-7)))
+    after = datetime(2026, 11, 1, 1, 30, tzinfo=timezone(timedelta(hours=-8)))
+    assert feed._utc(after) - feed._utc(before) == timedelta(hours=1)
+    # SQLite returns times without a zone, and those are stored as UTC.
+    assert feed._utc(datetime(2026, 1, 1)) == datetime(2026, 1, 1, tzinfo=timezone.utc)

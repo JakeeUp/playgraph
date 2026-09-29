@@ -18,6 +18,13 @@ router = APIRouter(tags=["feed"])
 CANDIDATE_LIMIT = 500
 
 
+def _utc(moment: datetime) -> datetime:
+    # SQLite hands times back without a zone, stored as UTC. Postgres hands them
+    # back in the session's zone, where daylight saving can give rows different
+    # offsets, so those are converted rather than relabeled.
+    return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment.astimezone(timezone.utc)
+
+
 def _query(db: Session, q: str):
     query = db.query(Review).join(Game).filter(Game.content_kind == "game")
     if q.strip():
@@ -71,11 +78,11 @@ def for_you(limit: int = Query(20, ge=1, le=50), offset: int = Query(0, ge=0, le
     reasons, scores = {}, {}
     # Score against a fixed anchor in this candidate set, keeping pagination
     # deterministic while newly published reviews wait for an explicit refresh.
-    reference = max((row.created_at.replace(tzinfo=timezone.utc) for row in candidates),
+    reference = max((_utc(row.created_at) for row in candidates),
                     default=datetime.now(timezone.utc))
     for row in candidates:
         overlap = sorted({genre.strip() for genre in (row.game.genres or "").split(",")} & favorite_genres)
-        age_days = max(0, (reference - row.created_at.replace(tzinfo=timezone.utc)).total_seconds() / 86400)
+        age_days = max(0, (reference - _utc(row.created_at)).total_seconds() / 86400)
         scores[row.id] = (4 if row.game_id in owned else 0) + min(3, len(overlap)) + 2 / (1 + age_days / 7)
         reasons[row.id] = ("In your game library" if row.game_id in owned else
                            f"Because you play {overlap[0]} games" if overlap else "New in the community")
