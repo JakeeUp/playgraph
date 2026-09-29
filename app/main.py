@@ -59,6 +59,9 @@ app.add_middleware(SecurityMiddleware)
 async def browser_login_error(request: Request, exc: HTTPException):
     if request.url.path == "/auth/steam/callback" and request.query_params.get("ui") == "1":
         return RedirectResponse("/app?login_error=1", status_code=303)
+    if request.url.path == "/auth/steam/connect/callback":
+        # A browser lands here from Steam; show the account page, never raw JSON.
+        return RedirectResponse("/account?steam=failed", status_code=303)
     return await http_exception_handler(request, exc)
 
 app.include_router(auth.router)

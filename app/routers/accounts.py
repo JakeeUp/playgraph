@@ -70,15 +70,8 @@ async def complete_link(request: Request, user: User = Depends(get_current_user)
     # proves the destination identity without accepting a browser-supplied ID.
     claims = await clerk_auth.verify_token(request.headers.get("x-clerk-token", ""))
     profile = await clerk_auth.active_account(claims["sid"], claims["sub"])
-    ages = claims.get("fva")
-    elapsed = max(0, time.time() - claims["iat"])
-    if (not isinstance(ages, list) or len(ages) != 2
-            or any(type(age) is not int or age < -1 for age in ages)
-            or type(profile.get("two_factor_enabled")) is not bool
-            or ages[0] < 0
-            or not 0 <= ages[0] * 60 + elapsed < LINK_SECONDS
-            or (profile["two_factor_enabled"] and (ages[1] < 0 or not 0 <= ages[1] * 60 + elapsed < LINK_SECONDS))):
-        raise HTTPException(403, "Sign out of the PlayGraph sign-in below and sign in again, including MFA if enabled")
+    clerk_auth.require_recent_factors(claims, profile, LINK_SECONDS,
+        "Sign out of the PlayGraph sign-in below and sign in again, including MFA if enabled")
     if db.query(AuthIdentity).filter_by(issuer=settings.clerk_origin, subject=claims["sub"]).first():
         raise HTTPException(409, "This sign-in already owns a PlayGraph account. Separate accounts cannot be merged here.")
     # External verification awaited I/O: recheck the initiating session and

@@ -1,4 +1,8 @@
-"""Steam-only OpenID login with browser binding and one-time assertions."""
+"""Steam OpenID with browser binding and one-time assertions.
+
+The same verified round trip serves two purposes: signing in with Steam, and
+connecting Steam to a PlayGraph account that signed up without it.
+"""
 
 import hashlib
 import logging
@@ -18,7 +22,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import AuthIdentity, LinkedAccount, Platform, User, utcnow
 from app import clerk_auth
-from app.security import (LOGIN_TTL, NONCE_TTL, csrf_token, issue_session,
+from app.security import (LOGIN_TTL, NONCE_TTL, csrf_token, issue_session, rate_limit,
                           redis_call, session_cookie_name, state_key)
 from app.services import steam
 
@@ -33,14 +37,20 @@ def cookie_name():
     return "__Host-playgraph-login" if settings.app_base_url.startswith("https://") else "playgraph-login"
 
 
-@router.get("/steam/login")
-async def steam_login(request: Request, ui: bool = False):
+CONNECT_CALLBACK = "/auth/steam/connect/callback"
+
+
+async def begin_steam(request: Request, callback_path: str, mode: dict, binding_suffix: str) -> tuple[str, str]:
+    """Store single-use state bound to this browser; return (Steam URL, browser secret).
+
+    The binding suffix names whatever else the callback must match, such as the
+    login mode or the session and user a Steam connection is for.
+    """
     state = secrets.token_urlsafe(32)
     browser_secret = secrets.token_urlsafe(32)
-    binding = hashlib.sha256(browser_secret.encode()).hexdigest() + ("|ui" if ui else "")
+    binding = hashlib.sha256(browser_secret.encode()).hexdigest() + binding_suffix
     await redis_call(request, "set", state_key("login", state), binding, ex=LOGIN_TTL)
-    callback_query = {"state": state, **({"ui": "1"} if ui else {})}
-    return_to = f"{settings.app_base_url}/auth/steam/callback?{urlencode(callback_query)}"
+    return_to = f"{settings.app_base_url}{callback_path}?{urlencode({'state': state, **mode})}"
     params = {
         "openid.ns": OPENID_NS,
         "openid.mode": "checkid_setup",
@@ -49,7 +59,10 @@ async def steam_login(request: Request, ui: bool = False):
         "openid.identity": f"{OPENID_NS}/identifier_select",
         "openid.claimed_id": f"{OPENID_NS}/identifier_select",
     }
-    response = RedirectResponse(f"{STEAM_OPENID_URL}?{urlencode(params)}")
+    return f"{STEAM_OPENID_URL}?{urlencode(params)}", browser_secret
+
+
+def with_login_cookie(response: Response, browser_secret: str) -> Response:
     response.set_cookie(cookie_name(), browser_secret, max_age=LOGIN_TTL,
                         httponly=True, secure=settings.app_base_url.startswith("https://"),
                         samesite="lax", path="/")
@@ -57,16 +70,25 @@ async def steam_login(request: Request, ui: bool = False):
     return response
 
 
-@router.get("/steam/callback")
-async def steam_callback(request: Request, db: Session = Depends(get_db)):
+@router.get("/steam/login")
+async def steam_login(request: Request, ui: bool = False):
+    url, browser_secret = await begin_steam(request, "/auth/steam/callback",
+                                            {"ui": "1"} if ui else {}, "|ui" if ui else "")
+    return with_login_cookie(RedirectResponse(url), browser_secret)
+
+
+async def verified_steam_id(request: Request, callback_path: str, mode: dict, binding_suffix: str) -> str:
+    """Every check a Steam callback needs before its SteamID can be trusted.
+
+    The state must be single-use and bound to this browser plus binding_suffix,
+    the assertion must name exactly this return URL, its nonce must be fresh and
+    unused, and Steam itself must confirm the signature.
+    """
     pairs = request.query_params.multi_items()
     params = dict(pairs)
     if len(pairs) != len(params) or len(request.url.query) > 8192:
         raise HTTPException(status_code=400, detail="Invalid Steam callback")
     state = params.get("state", "")
-    ui = params.get("ui") == "1"
-    if "ui" in params and not ui:
-        raise HTTPException(status_code=400, detail="Invalid login mode")
     browser_secret = request.cookies.get(cookie_name(), "")
     if not re.fullmatch(r"[A-Za-z0-9_-]{43}", state):
         raise HTTPException(status_code=401, detail="Steam login state is invalid or expired. Start again.")
@@ -75,8 +97,7 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
             status_code=401,
             detail=f"Steam login cookie is missing. Start at {settings.app_base_url}/app and finish in that same browser.",
         )
-    callback_query = {"state": state, **({"ui": "1"} if ui else {})}
-    expected_return = f"{settings.app_base_url}/auth/steam/callback?{urlencode(callback_query)}"
+    expected_return = f"{settings.app_base_url}{callback_path}?{urlencode({'state': state, **mode})}"
     identity = params.get("openid.claimed_id", "")
     match = re.fullmatch(r"https?://steamcommunity\.com/openid/id/([0-9]{17})", identity)
     if (params.get("openid.ns") != OPENID_NS or params.get("openid.mode") != "id_res"
@@ -97,7 +118,7 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=401, detail="Steam assertion expired") from None
     key = state_key("login", state)
-    expected_browser = (hashlib.sha256(browser_secret.encode()).hexdigest() + ("|ui" if ui else "")).encode()
+    expected_browser = (hashlib.sha256(browser_secret.encode()).hexdigest() + binding_suffix).encode()
     stored = await redis_call(request, "get", key)
     if isinstance(stored, str):
         stored = stored.encode()
@@ -121,7 +142,16 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Steam login verification failed")
     if not await redis_call(request, "set", state_key("nonce", nonce), "used", nx=True, ex=NONCE_TTL):
         raise HTTPException(status_code=401, detail="Steam assertion already used")
-    steam_id = match.group(1)
+    return match.group(1)
+
+
+@router.get("/steam/callback")
+async def steam_callback(request: Request, db: Session = Depends(get_db)):
+    ui = request.query_params.get("ui") == "1"
+    if "ui" in request.query_params and not ui:
+        raise HTTPException(status_code=400, detail="Invalid login mode")
+    steam_id = await verified_steam_id(request, "/auth/steam/callback",
+                                       {"ui": "1"} if ui else {}, "|ui" if ui else "")
     linked = db.query(LinkedAccount).filter_by(platform=Platform.steam, platform_user_id=steam_id).first()
     if linked:
         user = linked.user
@@ -156,6 +186,70 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
                            httponly=True, samesite="lax")
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+
+def connect_binding(request: Request, user: User) -> str:
+    # The callback lands on the account that asked, from the browser that asked.
+    return f"|connect|{request.state.session_id}|{user.id}"
+
+
+def connect_outcome(outcome: str, page: str = "/account") -> RedirectResponse:
+    response = RedirectResponse(f"{page}?steam={outcome}", status_code=303)
+    response.delete_cookie(cookie_name(), path="/", secure=settings.app_base_url.startswith("https://"),
+                           httponly=True, samesite="lax")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.post("/steam/connect")
+async def start_steam_connect(request: Request, user: User = Depends(get_current_user),
+                              db: Session = Depends(get_db)):
+    """Begin connecting Steam to a PlayGraph account that signed up without it.
+
+    Needs a fresh sign-in from the same Clerk user as this session, and binds
+    the Steam round trip to this browser, session and user, so nobody can
+    finish it on someone else's account or with someone else's Steam.
+    """
+    if not settings.clerk_enabled:
+        raise HTTPException(404, "PlayGraph account sign-in is not enabled")
+    if "authorization" in request.headers or request.state.auth_provider != "clerk":
+        raise HTTPException(403, "Sign in with your PlayGraph account to connect Steam")
+    if db.query(LinkedAccount).filter_by(user_id=user.id, platform=Platform.steam).first():
+        raise HTTPException(409, "Steam is already connected to this account")
+    await rate_limit(request, "steam-connect", str(user.id), 5, LOGIN_TTL)
+    claims = await clerk_auth.verify_token(request.headers.get("x-clerk-token", ""))
+    if claims["sub"] != request.state.provider["subject"]:
+        raise clerk_auth.rejected()
+    profile = await clerk_auth.active_account(claims["sid"], claims["sub"])
+    clerk_auth.require_recent_factors(claims, profile, LOGIN_TTL,
+        "For your security, sign out and sign in again, including MFA if enabled, then connect Steam.")
+    url, browser_secret = await begin_steam(request, CONNECT_CALLBACK, {}, connect_binding(request, user))
+    return with_login_cookie(JSONResponse({"redirect": url}), browser_secret)
+
+
+@router.get(CONNECT_CALLBACK.removeprefix("/auth"))
+async def steam_connect_callback(request: Request, user: User = Depends(get_current_user),
+                                 db: Session = Depends(get_db)):
+    steam_id = await verified_steam_id(request, CONNECT_CALLBACK, {}, connect_binding(request, user))
+    if db.query(LinkedAccount).filter_by(user_id=user.id, platform=Platform.steam).first():
+        return connect_outcome("already")
+    owner = db.query(LinkedAccount).filter_by(platform=Platform.steam, platform_user_id=steam_id).first()
+    if owner is not None:
+        # Proving you own this Steam account does not move it: its reviews and
+        # verified hours stay with the PlayGraph account that already has it.
+        return connect_outcome("in-use")
+    try:
+        db.add(LinkedAccount(user_id=user.id, platform=Platform.steam, platform_user_id=steam_id))
+        db.commit()
+    except IntegrityError:
+        # Another tab connected first. The database allows one Steam account
+        # per user and one user per Steam account, so the loser changes nothing.
+        db.rollback()
+        return connect_outcome("already" if db.query(LinkedAccount).filter_by(
+            user_id=user.id, platform=Platform.steam).first() else "in-use")
+    logger.info("steam_connected user_id=%s", user.id)
+    return connect_outcome("connected", page="/app")
 
 
 @router.get("/session")

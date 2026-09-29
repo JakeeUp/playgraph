@@ -123,6 +123,24 @@ async def revoke(sid: str, subject: str):
     await backend("/sessions/" + sid + "/revoke", "POST")
 
 
+def require_recent_factors(claims: dict, profile: dict, seconds: int,
+                           message: str = "Sign in again, including MFA if enabled, then try again.") -> None:
+    """Refuse unless the first factor, and any enrolled second factor, were verified within `seconds`.
+
+    Clerk's fva claim holds the minutes since each factor was last verified, or
+    -1 when it never was. Anything malformed or missing fails closed.
+    """
+    ages = claims.get("fva")
+    elapsed = max(0, time.time() - claims["iat"])
+    if (not isinstance(ages, list) or len(ages) != 2
+            or any(type(age) is not int or age < -1 for age in ages)
+            or type(profile.get("two_factor_enabled")) is not bool
+            or ages[0] < 0
+            or not 0 <= ages[0] * 60 + elapsed < seconds
+            or (profile["two_factor_enabled"] and (ages[1] < 0 or not 0 <= ages[1] * 60 + elapsed < seconds))):
+        raise HTTPException(403, message)
+
+
 async def confirm_active(request, sid: str, subject: str) -> None:
     """The live revocation check, remembered for ACTIVE_SECONDS.
 
