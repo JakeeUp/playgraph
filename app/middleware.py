@@ -56,7 +56,7 @@ class SecurityMiddleware:
                         "default-src 'none'; script-src 'self'; style-src 'self'; "
                         "connect-src 'self'; img-src 'self' https://shared.fastly.steamstatic.com "
                         "https://shared.akamai.steamstatic.com https://cdn.akamai.steamstatic.com "
-                        "https://cdn.cloudflare.steamstatic.com; "
+                        "https://cdn.cloudflare.steamstatic.com; font-src 'self'; "
                         "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
                     )
                 elif request.url.path == "/account":
