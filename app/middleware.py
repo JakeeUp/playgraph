@@ -72,6 +72,12 @@ class SecurityMiddleware:
                         "https://*.protect.clerk.com; font-src 'self'; "
                         "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
                     )
+                elif message["status"] == 404 and headers.get("content-type", "").startswith("text/html"):
+                    # The not-found page: its own stylesheet, fonts and icon, and no script.
+                    headers["Content-Security-Policy"] = (
+                        "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; "
+                        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+                    )
                 elif request.url.path not in {"/docs", "/docs/oauth2-redirect", "/redoc"}:
                     headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
             await send(message)

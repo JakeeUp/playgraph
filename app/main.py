@@ -4,10 +4,11 @@ from urllib.parse import urlsplit
 
 from arq import create_pool
 from arq.connections import RedisSettings
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import settings
@@ -55,13 +56,18 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=[urlsplit(settings.app_b
 app.add_middleware(SecurityMiddleware)
 
 
-@app.exception_handler(HTTPException)
-async def browser_login_error(request: Request, exc: HTTPException):
+@app.exception_handler(StarletteHTTPException)
+async def browser_login_error(request: Request, exc: StarletteHTTPException):
     if request.url.path == "/auth/steam/callback" and request.query_params.get("ui") == "1":
         return RedirectResponse("/app?login_error=1", status_code=303)
     if request.url.path == "/auth/steam/connect/callback":
         # A browser lands here from Steam; show the account page, never raw JSON.
         return RedirectResponse("/account?steam=failed", status_code=303)
+    if (exc.status_code == 404 and request.method in {"GET", "HEAD"} and "endpoint" not in request.scope
+            and "text/html" in request.headers.get("accept", "")):
+        # A person followed a bad link, so show a page. A 404 from a real route,
+        # like a missing game, stays JSON for the app that asked.
+        return FileResponse(STATIC_DIR / "404.html", status_code=404)
     return await http_exception_handler(request, exc)
 
 app.include_router(auth.router)

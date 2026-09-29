@@ -24,7 +24,9 @@ def test_shell_assets_and_strict_csp(web):
     assert "script-src 'self'" in csp and "unsafe-inline" not in csp
     assert "frame-ancestors 'none'" in csp and "form-action 'self'" in csp
     assert "https://shared.fastly.steamstatic.com" in csp
-    for name in ["styles.css", "details.css", "social.css", "app.js", "game-detail.js", "rating.js", "feed.js", "library.js", "dom.js", "chart.js", "mark.svg"]:
+    assert "font-src 'self'" in csp
+    for name in ["styles.css", "details.css", "social.css", "app.js", "game-detail.js", "rating.js", "feed.js", "library.js", "dom.js", "chart.js",
+                 "mark.svg", "favicon-32.png", "apple-touch-icon.png", "fonts/plex-sans-400.woff2", "fonts/plex-mono-400.woff2"]:
         assert web.get("/assets/" + name).status_code == 200
     assert web.get("/auth/session").status_code == 401
 
@@ -85,3 +87,14 @@ def test_recommendations_require_a_session_and_report_unbuilt(web, db):
     response = web.get("/me/recommendations", headers=auth_headers(app.state.arq_pool, 1))
     assert response.status_code == 501
     assert response.json()["detail"] == "Recommendations are not available yet"
+
+
+def test_a_bad_link_gets_a_page_while_api_misses_stay_json(web):
+    page = web.get("/no-such-page", headers={"Accept": "text/html"})
+    assert page.status_code == 404 and page.headers["content-type"].startswith("text/html")
+    assert "Page not found" in page.text
+    csp = page.headers["content-security-policy"]
+    assert "style-src 'self'" in csp and "script-src" not in csp and "frame-ancestors 'none'" in csp
+    assert web.get("/no-such-page").json() == {"detail": "Not Found"}
+    game = web.get("/games/9999", headers={"Accept": "text/html"})
+    assert game.status_code == 404 and game.json() == {"detail": "Game not found"}
