@@ -1,33 +1,51 @@
-.account-header {
-  display:flex; align-items:center; justify-content:space-between; gap:16px;
-  padding:24px 32px; border-bottom:1px solid var(--edge-soft);
-}
+/* ==========================================================================
+   Account, sign-in and not-found pages: a header and one content column,
+   both on the same width and gutter so their left edges line up.
+   Uses only the tokens defined in styles.css.
+   ========================================================================== */
+
+.frame { width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto; padding:0 var(--gutter); }
+
+.account-header { border-bottom:1px solid var(--line); }
+.account-header .frame { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); height:var(--space-8); }
 .account-header .brand { padding:0; }
-.account-back { color:var(--ink-mid); text-underline-offset:4px; }
-.account-back:hover { color:var(--ink); }
+
 .account-layout {
-  display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 400px);
-  gap:64px; max-width:1000px; margin:0 auto; padding:64px 32px;
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,400px); gap:var(--space-8);
+  padding-top:var(--space-8); padding-bottom:var(--space-8);
 }
-.account-intro h1 { font-size:clamp(36px, 5vw, 56px); line-height:1.05; }
-.account-intro > p { color:var(--ink-mid); font-size:17px; max-width:400px; margin:24px 0; }
+.account-intro h1, .plain-page h1 { font-size:var(--text-3xl); }
+.account-intro > p { color:var(--text-muted); font-size:var(--text-lg); max-width:44ch; margin:var(--space-5) 0; }
 .account-intro .account-note {
-  font-size:13px; line-height:1.6; padding-top:24px; border-top:1px solid var(--edge-soft);
+  font-size:var(--text-ui); padding-top:var(--space-5); border-top:1px solid var(--line);
 }
+.account-steam-link { display:inline-block; margin-top:var(--space-4); font-size:var(--text-ui); }
 .account-form { min-width:0; }
-.account-form h2 { font-size:24px; }
-.account-form p { line-height:1.6; color:var(--ink-mid); }
-.account-actions { display:flex; flex-wrap:wrap; gap:8px; margin:24px 0; }
-.account-actions .button { min-height:40px; }
-.account-form .account-status { margin:0 0 16px; }
+.account-form h2 { font-size:var(--text-xl); margin-bottom:var(--space-3); }
+.account-form p { color:var(--text-muted); }
+.account-form p + p { margin-top:var(--space-3); }
+.account-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-4); margin:var(--space-5) 0; }
+.account-form .account-status { margin:0 0 var(--space-4); }
 .account-form .account-status:empty { display:none; }
+.account-form label { display:flex; gap:var(--space-2); align-items:flex-start; font-size:var(--text-ui); margin-top:var(--space-4); }
+#link-context { margin-bottom:var(--space-5); }
+#link-context .button { margin-top:var(--space-4); }
 #clerk-sign-in { max-width:100%; }
-@media (max-width:760px) {
-  .account-header { padding:16px; }
-  .account-layout { grid-template-columns:minmax(0, 1fr); gap:32px; padding:32px 16px; }
-  .account-intro > p { max-width:none; margin:16px 0; }
-  .account-intro .account-note { padding-top:16px; }
+.account-steam {
+  margin:var(--space-5) 0; padding:var(--space-4);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
 }
-.account-steam { margin:14px 0; padding:14px; border:1px solid var(--edge-soft); border-radius:var(--r-lg); }
-.account-steam h3 { margin:0 0 6px; font-size:14px; }
-.account-steam p { margin:0 0 12px; }
+.account-steam h3 { font-size:var(--text-md); margin-bottom:var(--space-2); }
+.account-steam p { margin-bottom:var(--space-4); }
+
+.plain-page { padding-top:var(--space-8); padding-bottom:var(--space-8); }
+.plain-page p { color:var(--text-muted); font-size:var(--text-lg); max-width:48ch; margin:var(--space-4) 0 var(--space-5); }
+.plain-page .num { color:var(--text-muted); font-size:var(--text-md); display:block; margin-bottom:var(--space-3); }
+
+@media (max-width:760px) {
+  :root { --gutter:var(--space-4); }
+  .account-layout { grid-template-columns:minmax(0,1fr); gap:var(--space-6); padding-top:var(--space-6); padding-bottom:var(--space-6); }
+  .account-intro h1, .plain-page h1 { font-size:var(--text-2xl); }
+  .account-intro > p { font-size:var(--text-md); margin:var(--space-4) 0; }
+  .account-intro .account-note { padding-top:var(--space-4); }
+}
