@@ -1,5 +1,6 @@
 /* ==========================================================================
    Review feed and the half-star rating control.
+   Uses only the tokens defined in styles.css.
    ========================================================================== */
 
 /* ---------------- feed ---------------- */
@@ -7,25 +8,21 @@
 .feed-items { display:flex; flex-direction:column; }
 
 .feed-card {
-  display:grid; grid-template-columns:72px minmax(0,1fr); gap:16px;
-  padding:18px 0; border-bottom:1px solid var(--edge-soft);
+  display:grid; grid-template-columns:80px minmax(0,1fr); gap:var(--space-5);
+  padding:var(--space-5) 0; border-bottom:1px solid var(--line);
 }
-.feed-cover { width:72px; align-self:start; padding:0; border:0; background:none; cursor:pointer; }
+.feed-cover { width:80px; align-self:start; padding:0; border:0; background:none; cursor:pointer; border-radius:var(--radius); }
+.feed-cover:hover .cover { border-color:var(--text-muted); }
 .feed-body { min-width:0; }
-.feed-game { display:flex; align-items:baseline; gap:4px 10px; flex-wrap:wrap; margin-bottom:6px; }
+.feed-game { display:flex; align-items:baseline; gap:var(--space-1) var(--space-3); flex-wrap:wrap; }
 .feed-title {
-  font-family:var(--display); font-weight:800; font-size:16px; letter-spacing:-.01em;
-  color:var(--ink); background:none; border:0; padding:0; cursor:pointer; text-align:left;
+  font-weight:600; font-size:var(--text-lg); letter-spacing:var(--tracking-tight); line-height:var(--leading-tight);
+  color:var(--text); background:none; border:0; padding:0; cursor:pointer; text-align:left;
 }
-.feed-title:hover { color:var(--amber-hi); }
-.feed-reason { margin:0; font-size:12px; color:var(--ink-dim); }
-.feed-card .review-card { padding-top:4px; border-bottom:0; }
-.feed-count { margin:4px 0 0; font-size:11.5px; font-weight:500; color:var(--ink-dim); }
-.thread-link {
-  font-size:11.5px; font-weight:600; color:var(--amber);
-  background:none; border:0; padding:0; cursor:pointer; text-decoration:none;
-}
-.thread-link:hover { color:var(--amber-hi); }
+.feed-title:hover { text-decoration:underline; text-underline-offset:3px; }
+.feed-reason { font-size:var(--text-sm); color:var(--text-muted); }
+.feed-card .review-card { padding-bottom:0; border-bottom:0; }
+.feed-count { margin-top:var(--space-2); font-size:var(--text-sm); color:var(--text-muted); }
 
 /* ==========================================================================
    HALF-STAR RATING
@@ -37,36 +34,26 @@
        span.star-fill(.full|.half)
          svg                     <- the amber overlay, clipped by the parent
 
-   So the fill width is what animates, not the star. .star-fill is the element
-   that carries .full and .half; the inner svg must keep the FULL star width so
-   that clipping the parent to 50% shows exactly half a star.
+   So the fill width is what changes, not the star. .star-fill carries .full
+   and .half; the inner svg keeps the FULL star width so that clipping the
+   parent to 50% shows exactly half a star.
    ========================================================================== */
 
-.rating-picker { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.rating-picker > label { display:inline-flex; align-items:center; gap:9px; font-size:11.5px; font-weight:600; color:var(--ink-dim); }
+.rating-picker { display:flex; align-items:center; gap:var(--space-3); flex-wrap:wrap; }
+.rating-picker > label { display:inline-flex; align-items:center; gap:var(--space-3); font-size:var(--text-ui); font-weight:500; }
 .rating-picker .helper { flex-basis:100%; }
 
 .rating-track { position:relative; display:inline-block; line-height:0; touch-action:none; }
-
-.rating-stars { display:inline-flex; gap:3px; line-height:0; }
+.rating-stars { display:inline-flex; gap:var(--space-1); line-height:0; }
 
 .rating-star {
-  --star:26px;
+  --star:28px;
   position:relative; display:block;
   width:var(--star); height:var(--star); flex:none;
 }
-.rating-star > svg {
-  width:var(--star); height:var(--star); display:block;
-  fill:#39434c;
-}
-.star-fill {
-  position:absolute; inset:0; overflow:hidden;
-  width:0; pointer-events:none;
-}
-.star-fill > svg {
-  width:var(--star); height:var(--star); display:block;
-  fill:var(--amber);
-}
+.rating-star > svg { width:var(--star); height:var(--star); display:block; fill:var(--surface-3); }
+.star-fill { position:absolute; inset:0; overflow:hidden; width:0; pointer-events:none; }
+.star-fill > svg { width:var(--star); height:var(--star); display:block; fill:var(--accent); }
 .star-fill.full { width:100%; }
 .star-fill.half { width:50%; }
 
@@ -78,23 +65,17 @@
   opacity:0; margin:0; padding:0; cursor:pointer;
   -webkit-appearance:none; appearance:none; background:none; border:0;
 }
-.rating-track:focus-within .rating-stars {
-  outline:2px solid var(--amber); outline-offset:3px; border-radius:2px;
-}
+.rating-track:focus-within .rating-stars { outline:2px solid var(--accent); outline-offset:3px; border-radius:var(--radius); }
 
-.rating-value {
-  font-family:var(--display); font-weight:800; font-size:15px;
-  color:var(--ink); font-variant-numeric:tabular-nums; min-width:62px;
-}
-.rating-clear { font-size:11.5px; }
+.rating-value { font-weight:500; font-size:var(--text-md); min-width:9ch; color:var(--text-muted); }
+.rating-value.num { color:var(--text); }
 
 /* Read-only star rows next to a review. Same markup, smaller. */
-.review-rating { display:inline-flex; vertical-align:middle; }
 .review-rating .rating-star { --star:14px; }
-.review-rating .rating-stars { gap:2px; }
+.review-rating .rating-stars { gap:var(--space-1); }
 
 @media (max-width:860px) {
-  .feed-card { grid-template-columns:56px minmax(0,1fr); gap:12px; }
-  .feed-cover { width:56px; }
-  .rating-star { --star:30px; }
+  .feed-card { grid-template-columns:64px minmax(0,1fr); gap:var(--space-4); }
+  .feed-cover { width:64px; }
+  .rating-star { --star:32px; }
 }
