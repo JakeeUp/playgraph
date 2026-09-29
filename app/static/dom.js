@@ -10,6 +10,16 @@ export const button = (text, className, action) => {
   const node = el('button', className, text); node.type = 'button';
   node.addEventListener('click', action); return node;
 };
+// A number in running text, with its h or % unit, so it can be set in the mono face.
+const NUMBER = /\d(?:[\d.,\u00a0\u202f]*\d)?(?:\s?(?:h|%))?(?![\p{L}\d])/gu;
+export function setNumbers(node, text) {
+  node.replaceChildren(); let last = 0;
+  for (const match of text.matchAll(NUMBER)) {
+    node.append(text.slice(last, match.index), el('span', 'num', match[0])); last = match.index + match[0].length;
+  }
+  node.append(text.slice(last)); return node;
+}
+export const numbered = (tag, className, text) => setNumbers(el(tag, className), text);
 export const steamLink = (text = 'Sign in') => {
   const link = el('a', 'button primary', text); link.href = '/account'; return link;
 };
@@ -18,7 +28,8 @@ export function cover(game) {
   const frame = el('span', 'cover'); frame.append(el('span', 'cover-placeholder', game.name));
   const img = el('img');
   img.src = steamArt(game.steam_appid, 'library_600x900.jpg');
-  img.alt = ''; img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+  img.alt = `${game.name} cover art`; img.width = 600; img.height = 900;
+  img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
   // Not every app has portrait library art. The landscape store header exists
   // for nearly all of them, so it is the one fallback before the text placeholder.
   let fallbackUsed = false;

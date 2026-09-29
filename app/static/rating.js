@@ -36,7 +36,7 @@ export function createRatingPicker(initialValue = 0) {
   function paint(value) {
     track.querySelector('.rating-stars')?.remove();
     track.prepend(starDisplay(value));
-    display.textContent = value ? `${value} / 5` : 'Not rated';
+    display.textContent = value ? `${value} / 5` : 'Not rated'; display.classList.toggle('num', Boolean(value));
   }
   function commit(value) {
     range.value = String(value);
