@@ -1,57 +1,50 @@
-import { genresFor, hours, integer, achievementPercent, steamArt } from './library.js';
-import { $, el, button, cover, steamLink, timeLabel, formError } from './dom.js';
+import { genresFor, hours, integer, achievementPercent } from './library.js';
+import { $, el, button, cover, steamLink, timeLabel, formError, numbered } from './dom.js';
 import { createRatingPicker, starDisplay } from './rating.js';
 
-// Store hero art, blurred behind the profile header. Decorative only, so a
-// game without hero art just keeps the plain dialog surface.
-function backdrop(game) {
-  const img = el('img', 'detail-backdrop');
-  img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
-  img.addEventListener('error', () => img.remove());
-  img.src = steamArt(game.steam_appid, 'library_hero.jpg');
-  return img;
-}
-
 export function createGameDialog(state, api, report = () => {}) {
-  let requestId = 0;
+  let requestId = 0; let pageTitle = document.title;
   const dialog = $('#game-dialog'); const content = $('#detail-content');
   $('#close-dialog').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => { requestId += 1; content.replaceChildren(); });
+  dialog.addEventListener('close', () => { requestId += 1; content.replaceChildren(); document.title = pageTitle; });
   async function open(game, createdReview = null, threadReview = null, editRequested = false) {
     const request = ++requestId; content.replaceChildren();
+    if (!dialog.open) pageTitle = document.title;
+    document.title = `${game.name} | PlayGraph`;
     const entry = state.library.find((row) => row.game.id === game.id);
     const profile = el('div', 'game-profile');
     const aside = el('aside', 'game-profile-aside'); aside.append(cover(game));
     const main = el('div', 'game-profile-main');
     const header = el('header', 'detail-header');
     const software = game.content_kind === 'software';
-    const info = el('div', 'detail-info'); info.append(el('p', 'detail-kind', software ? 'Software · Steam' : 'Game · Steam'));
+    const info = el('div', 'detail-info');
     const title = el('h2', '', game.name); title.id = 'detail-title';
-    info.append(title, el('p', 'detail-genres', genresFor(game).join(' · ') || 'Genres not available'));
+    info.append(title, el('p', 'detail-genres', [software ? 'Software' : '', ...genresFor(game)].filter(Boolean).join(' · ') || 'No genres listed'));
     if (entry) {
-      const data = el('div', 'detail-stats'); data.append(el('strong', '', `${hours(entry.playtime_minutes)} h`), el('span', '', software ? 'Recorded Steam usage' : 'Your Steam playtime'));
+      const data = el('div', 'detail-stats'); data.append(el('strong', '', `${hours(entry.playtime_minutes)} h`), el('span', '', software ? 'Time in this app' : 'Your Steam playtime'));
       if (achievementPercent(entry) != null) data.append(el('strong', '', `${integer(entry.achievements_unlocked)} / ${integer(entry.achievements_total)}`), el('span', '', 'Achievements unlocked'));
-      info.append(data, el('p', 'helper', `Library captured ${timeLabel(entry.captured_at)}`));
+      const synced = el('p', 'helper', 'From your Steam sync on '); synced.append(el('span', 'num', timeLabel(entry.captured_at)));
+      info.append(data, synced);
     }
     const store = el('a', 'text-button', 'View on Steam ↗'); store.href = `https://store.steampowered.com/app/${Number(game.steam_appid)}/`;
     store.target = '_blank'; store.rel = 'noopener noreferrer'; aside.append(store);
     const share = button('Copy game link', 'text-button', async () => {
-      try { await navigator.clipboard.writeText(`${location.origin}/app#game=${game.id}`); share.textContent = 'Game link copied'; }
+      try { await navigator.clipboard.writeText(`${location.origin}/app#game=${game.id}`); share.textContent = 'Link copied'; }
       catch { report(new Error('Could not copy the link. Try again with clipboard access enabled.')); }
-    }); aside.append(share); header.append(info); main.append(header); profile.append(aside, main); content.append(backdrop(game), profile);
+    }); aside.append(share); header.append(info); main.append(header); profile.append(aside, main); content.append(profile);
     const writeSection = el('section', 'write-review');
     if (createdReview && state.user) showOwnReview(createdReview, editRequested);
-    else if (state.user) writeSection.append(el('p', 'helper', 'Checking your review...'));
-    else writeSection.append(el('h3', '', 'Your point of view belongs here.'), el('p', 'muted', 'Sign in to rate this game and join the conversation.'), steamLink());
+    else if (state.user) writeSection.append(el('p', 'helper', 'Checking for your review…'));
+    else writeSection.append(el('h3', '', 'Sign in to review this game'), el('p', 'muted', 'Your rating and review go here. Connect Steam and it shows your hours too.'), steamLink());
     const section = el('section', 'reviews-section');
-    section.append(el('h3', '', threadReview ? 'Review discussion' : software ? 'Software reviews' : 'Player reviews'),
-      el('p', 'helper', threadReview ? 'A public conversation about this review.' : 'Most verified playtime first. Review stats reflect the moment of posting.'));
-    if (threadReview) section.append(button('← All reviews for this title', 'text-button', () => open(game)));
-    const list = el('div', 'reviews-list'); list.append(el('p', 'helper', 'Loading reviews...')); section.append(list);
-    const metadata = el('section', 'game-metadata'); metadata.append(el('h3', '', 'Catalog details'));
+    if (threadReview) section.append(el('h3', '', 'Review discussion'));
+    section.append(el('p', 'helper', threadReview ? 'Comments on this review are public.' : 'Most verified playtime first. Review stats reflect the moment of posting.'));
+    if (threadReview) section.append(button('← All reviews', 'text-button', () => open(game)));
+    const list = el('div', 'reviews-list'); list.append(el('p', 'helper', 'Loading reviews…')); section.append(list);
+    const metadata = el('section', 'game-metadata');
     const fields = el('dl', 'metadata-table');
-    for (const [name, value] of [['Source', 'Steam'], ['Category', software ? 'Software' : 'Game'], ['Genres', genresFor(game).join(', ') || 'Not available'], ['Steam app ID', String(game.steam_appid)], ['Artwork', 'Steam']]) {
-      fields.append(el('dt', '', name), el('dd', '', value));
+    for (const [name, value] of [['Source', 'Steam'], ['Category', software ? 'Software' : 'Game'], ['Genres', genresFor(game).join(', ') || 'Not listed'], ['Steam app ID', String(game.steam_appid)], ['Artwork', 'Steam']]) {
+      fields.append(el('dt', '', name), el('dd', name === 'Steam app ID' ? 'num' : '', value));
     }
     metadata.append(fields, el('p', 'helper', 'Imported from Steam. Release dates, developers and other platforms are not in this catalog yet.'));
     const tabs = el('div', 'detail-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Game information');
@@ -69,14 +62,14 @@ export function createGameDialog(state, api, report = () => {}) {
     });
     function selectTab(selected) { panels.forEach((panel, index) => { panel.hidden = index !== selected; controls[index].setAttribute('aria-selected', String(index === selected)); controls[index].tabIndex = index === selected ? 0 : -1; }); }
     main.append(tabs, ...panels); selectTab(createdReview ? 1 : 0);
-    aside.append(button(state.user ? 'Write / edit review' : 'Write a review', 'button secondary', () => { selectTab(1); controls[1].focus(); }));
+    aside.append(button(state.user ? 'Your review' : 'Write a review', 'button secondary', () => { selectTab(1); controls[1].focus(); }));
     function showOwnReview(own, editing = false) {
       writeSection.replaceChildren();
       if (editing) {
         const form = reviewForm(game, request, own, () => { showOwnReview(own); writeSection.querySelector('button.button').focus(); });
         writeSection.append(form); form.querySelector('input').focus(); return;
       }
-      writeSection.append(el('h3', '', 'Your published review'), reviewCard(own),
+      writeSection.append(el('h3', '', 'Your review'), reviewCard(own),
         button('Edit review', 'button secondary', () => showOwnReview(own, true)));
       const removal = el('div', 'review-removal'); const warning = el('div', 'delete-confirmation'); warning.hidden = true;
       const problem = el('p', 'form-error'); problem.setAttribute('role', 'alert'); problem.hidden = true;
@@ -103,14 +96,14 @@ export function createGameDialog(state, api, report = () => {}) {
         if (request !== requestId) return;
         if (!offset) list.replaceChildren();
         for (const review of reviews) list.append(reviewCard(review));
-        if (!offset && !reviews.length) list.append(el('p', 'review-empty', 'No reviews yet. Be the first to leave your mark.'));
+        if (!offset && !reviews.length) list.append(el('p', 'review-empty', 'No reviews yet.'));
         offset += reviews.length; more.hidden = reviews.length < 20; more.textContent = 'More reviews';
       } catch (failure) {
         if (request === requestId) { if (!offset) list.replaceChildren(); formError(error, failure); more.hidden = false; more.textContent = 'Retry loading reviews'; }
       } finally { more.disabled = false; }
     }
     async function loadOwnReview() {
-      writeSection.replaceChildren(el('p', 'helper', 'Checking your review...'));
+      writeSection.replaceChildren(el('p', 'helper', 'Checking for your review…'));
       try {
         const own = await api(`/me/games/${game.id}/review`);
         if (request !== requestId) return;
@@ -128,16 +121,16 @@ export function createGameDialog(state, api, report = () => {}) {
     await Promise.all([threadReview ? Promise.resolve() : loadReviews(), state.user && !createdReview ? loadOwnReview() : Promise.resolve()]);
   }
   function reviewForm(game, request, existing = null, cancel = null) {
-    const form = el('form', 'review-form'); form.append(el('h3', '', existing ? 'Edit your review' : 'What did you think?'));
+    const form = el('form', 'review-form'); form.append(el('h3', '', existing ? 'Edit your review' : 'Write a review'));
     const rating = createRatingPicker(existing?.rating ?? 0);
     const bodyLabel = el('label', '', 'Your review'); const body = el('textarea'); body.name = 'body'; body.rows = 4; body.maxLength = 10000;
-    body.placeholder = 'What stayed with you? What would you tell someone about to play?'; bodyLabel.append(body);
+    body.placeholder = 'What would you tell a friend who’s about to play it?'; bodyLabel.append(body);
     body.value = existing?.body || '';
     const disclosure = el('p', 'review-disclosure', existing ? 'Your changes are public. The original posting date and verified play stats will stay the same.' : 'Public review: your display name, rating, text, and available verified playtime and achievement percentage will be visible to everyone. Stats are saved as they are now.');
     const error = el('p', 'form-error'); error.setAttribute('role', 'alert'); error.hidden = true;
-    const submit = el('button', 'button primary', existing ? 'Save changes' : 'Publish review ↗'); submit.type = 'submit';
+    const submit = el('button', 'button primary', existing ? 'Save changes' : 'Publish review'); submit.type = 'submit';
     form.append(rating.element, bodyLabel, disclosure, error, submit);
-    const cancelButton = cancel ? button('Cancel editing', 'text-button', cancel) : null;
+    const cancelButton = cancel ? button('Cancel', 'text-button', cancel) : null;
     if (cancelButton) form.append(cancelButton);
     form.addEventListener('submit', async (event) => {
       event.preventDefault(); error.hidden = true;
@@ -157,7 +150,7 @@ export function createGameDialog(state, api, report = () => {}) {
     byline.append(stars); card.append(byline);
     const verified = review.verified_playtime_minutes == null ? 'No verified play data'
       : `${hours(review.verified_playtime_minutes)} h verified on Steam${review.verified_achievement_pct == null ? '' : ` · ${Math.round(review.verified_achievement_pct)}% achievements`}`;
-    card.append(el('p', review.verified_playtime_minutes == null ? 'verified-label unverified' : 'verified-label', verified)); if (review.body) card.append(el('p', 'review-body', review.body));
+    card.append(numbered('p', review.verified_playtime_minutes == null ? 'verified-label unverified' : 'verified-label', verified)); if (review.body) card.append(el('p', 'review-body', review.body));
     const comments = el('div', 'comments'); comments.hidden = true;
     const toggle = button('Show comments', 'text-button', () => {
       comments.hidden = !comments.hidden; toggle.textContent = comments.hidden ? 'Show comments' : 'Hide comments'; toggle.setAttribute('aria-expanded', String(!comments.hidden));
@@ -179,7 +172,7 @@ export function createGameDialog(state, api, report = () => {}) {
           const comment = el('article', 'comment'); comment.append(el('strong', '', row.author_name || `Player ${row.user_id}`),
             el('span', 'review-date', timeLabel(row.created_at)), el('p', '', row.body)); list.append(comment);
         }
-        if (!pageOffset && !rows.length) list.append(el('p', 'helper', 'Start the conversation.'));
+        if (!pageOffset && !rows.length) list.append(el('p', 'helper', 'No comments yet.'));
         offset = pageOffset + rows.length; more.hidden = rows.length < 20; more.textContent = 'More comments'; comments.dataset.loaded = 'true';
       } catch (failure) { if (version === loadVersion) { formError(error, failure); more.hidden = false; more.textContent = 'Retry comments'; } }
       finally { if (version === loadVersion) { loading = false; more.disabled = false; } }
@@ -194,12 +187,12 @@ export function createGameDialog(state, api, report = () => {}) {
         try {
           const row = await api(`/reviews/${review.id}/comments`, { method: 'POST', body: JSON.stringify({ body: input.value.trim() }) }); if (!card.isConnected) return;
           card.dispatchEvent(new CustomEvent('comment-published', { bubbles: true }));
-          input.value = ''; form.querySelector('.comment-posted')?.remove(); form.append(el('p', 'comment-posted', `Your comment was posted: ${row.body}`));
+          input.value = ''; form.querySelector('.comment-posted')?.remove(); form.append(el('p', 'comment-posted', 'Comment posted.'));
           await loadComments(true);
         } catch (failure) { formError(error, failure); } finally { submit.disabled = false; }
       });
     }
-    const threadLink = el('a', 'text-button thread-link', 'Open discussion ↗');
+    const threadLink = el('a', 'text-button thread-link', 'Open discussion');
     threadLink.href = `/app#review=${review.id}`;
     threadLink.addEventListener('click', (event) => {
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;

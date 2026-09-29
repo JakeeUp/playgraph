@@ -1,4 +1,4 @@
-import { $, el, button, cover, steamLink, aborted } from './dom.js';
+import { $, el, button, cover, steamLink, aborted, numbered, setNumbers } from './dom.js';
 
 export function createFeed(state, api, gameDialog, browse, report) {
   let requestId = 0;
@@ -17,10 +17,10 @@ export function createFeed(state, api, gameDialog, browse, report) {
     $('#feed-latest').classList.toggle('selected', !personalized);
     $('#feed-latest').setAttribute('aria-pressed', String(!personalized));
     $('#feed-description').textContent = personalized
-      ? 'Reviews from other players, matched to your game library and genres. Ranked within the latest 500 reviews. Software is excluded.'
+      ? 'Matched to your library and the genres you play, from the latest 500 reviews. Software reviews aren’t included.'
       : 'The latest public game reviews and conversations. Software reviews stay on the Software shelf.';
     $('#more-feed').disabled = true; $('#refresh-feed').disabled = true;
-    if (!append) { rows = []; anchor = null; libraryAnchor = null; list.replaceChildren(el('p', 'empty-message', 'Loading reviews...')); $('#more-feed').hidden = true; }
+    if (!append) { rows = []; anchor = null; libraryAnchor = null; list.replaceChildren(el('p', 'empty-message', 'Loading reviews…')); $('#more-feed').hidden = true; }
     try {
       const params = new URLSearchParams({ limit: '20', offset: String(rows.length), q: state.query });
       if (anchor !== null) params.set('before', String(anchor));
@@ -37,18 +37,18 @@ export function createFeed(state, api, gameDialog, browse, report) {
         artwork.setAttribute('aria-label', `Open ${item.game.name}`); artwork.append(cover(item.game));
         const body = el('div', 'feed-body'); const heading = el('header', 'feed-game');
         heading.append(button(item.game.name, 'feed-title', () => gameDialog.open(item.game)), el('p', 'feed-reason', item.reason));
-        const count = el('p', 'feed-count', `${item.comment_count} ${item.comment_count === 1 ? 'comment' : 'comments'}`);
+        const count = numbered('p', 'feed-count', `${item.comment_count} ${item.comment_count === 1 ? 'comment' : 'comments'}`);
         card.addEventListener('comment-published', () => {
           item.comment_count += 1;
-          count.textContent = `${item.comment_count} ${item.comment_count === 1 ? 'comment' : 'comments'}`;
+          setNumbers(count, `${item.comment_count} ${item.comment_count === 1 ? 'comment' : 'comments'}`);
         });
         body.append(heading, gameDialog.reviewCard(item.review), count); card.append(artwork, body);
         list.append(card);
       }
       if (!rows.length) {
         const empty = el('div', 'empty-message feed-empty');
-        empty.append(el('strong', '', state.query ? 'No reviews match that game' : 'The conversation starts here'),
-          el('p', '', personalized ? 'There are no matching reviews from other players yet. Latest reviews also includes your own posts.' : 'Open a game and publish a review. It will appear here for others to read and discuss.'));
+        empty.append(el('strong', '', state.query ? 'No reviews match that game' : 'No reviews yet'),
+          el('p', '', personalized ? 'There are no matching reviews from other players yet. Latest reviews also includes your own posts.' : 'Open a game and write one. It’ll show up here for everyone.'));
         if (personalized) empty.append(button('See latest reviews', 'button secondary', () => { mode = 'latest'; void load(); }));
         empty.append(button('Find a game to review', 'button primary', browse));
         if (!state.user) empty.append(steamLink('Sign in to review'));
@@ -57,7 +57,7 @@ export function createFeed(state, api, gameDialog, browse, report) {
       $('#more-feed').hidden = rows.length >= total || !data.items.length;
     } catch (error) {
       if (request !== requestId || aborted(error)) return;
-      if (!append) list.replaceChildren(el('p', 'empty-message', 'The feed could not load. Use Refresh to try again.'));
+      if (!append) list.replaceChildren(el('p', 'empty-message', 'Couldn’t load reviews. Use Refresh to try again.'));
       report(error);
     } finally { if (request === requestId) { $('#more-feed').disabled = false; $('#refresh-feed').disabled = false; } }
   }
