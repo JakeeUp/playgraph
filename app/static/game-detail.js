@@ -160,13 +160,21 @@ export function createGameDialog(state, api, report = () => {}) {
     }); return form;
   }
   function reviewCard(review, expandComments = false) {
-    const card = el('article', 'review-card'); const byline = el('div', 'review-byline'); const author = review.author_name || `Player ${review.user_id}`;
-    byline.append(el('span', 'avatar', author.slice(0, 1).toLocaleUpperCase()), el('strong', '', author), el('span', 'review-date', timeLabel(review.created_at)));
-    const stars = el('span', 'review-rating'); stars.append(starDisplay(review.rating)); stars.setAttribute('aria-label', `${review.rating} out of 5 stars`);
-    byline.append(stars); card.append(byline);
-    const verified = review.verified_playtime_minutes == null ? 'No verified play data'
-      : `${hours(review.verified_playtime_minutes)} h verified on Steam${review.verified_achievement_pct == null ? '' : ` · ${Math.round(review.verified_achievement_pct)}% achievements`}`;
-    card.append(numbered('p', review.verified_playtime_minutes == null ? 'verified-label unverified' : 'verified-label', verified)); if (review.body) card.append(el('p', 'review-body', review.body));
+    // Avatar in the first column; everything else in the second. One meta
+    // line carries who, the stars, the platform, verified hours and the date.
+    const card = el('article', 'review-card'); const author = review.author_name || `Player ${review.user_id}`;
+    const main = el('div', 'review-main'); const byline = el('div', 'review-byline');
+    const stars = el('span', 'review-rating'); stars.append(starDisplay(review.rating));
+    stars.setAttribute('role', 'img'); stars.setAttribute('aria-label', `${review.rating} out of 5 stars`);
+    byline.append(el('strong', 'review-author', author), stars);
+    if (review.verified_playtime_minutes == null) byline.append(el('span', 'verified-label unverified', 'No verified play data'));
+    else {
+      byline.append(el('span', 'platform-badge', 'PC'));
+      byline.append(numbered('span', 'verified-label', `${hours(review.verified_playtime_minutes)} h verified${review.verified_achievement_pct == null ? '' : ` · ${Math.round(review.verified_achievement_pct)}% achievements`}`));
+    }
+    byline.append(el('span', 'review-date', timeLabel(review.created_at)));
+    main.append(byline); if (review.body) main.append(el('p', 'review-body', review.body));
+    card.append(el('span', 'avatar', author.slice(0, 1).toLocaleUpperCase()), main);
     const comments = el('div', 'comments'); comments.hidden = true;
     const toggle = button('Show comments', 'text-button', () => {
       comments.hidden = !comments.hidden; toggle.textContent = comments.hidden ? 'Show comments' : 'Hide comments'; toggle.setAttribute('aria-expanded', String(!comments.hidden));
@@ -220,7 +228,7 @@ export function createGameDialog(state, api, report = () => {}) {
       catch { copy.textContent = 'Use the discussion link to share'; }
     });
     const actions = el('div', 'review-actions'); actions.append(toggle, threadLink, copy);
-    card.append(actions, comments);
+    main.append(actions, comments);
     if (expandComments) queueMicrotask(() => { if (card.isConnected) toggle.click(); });
     return card;
   }

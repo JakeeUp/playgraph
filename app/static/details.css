@@ -144,24 +144,22 @@ button.bar-hit { cursor:pointer; }
 
 .reviews-list { display:flex; flex-direction:column; }
 
-.review-card { padding:var(--space-4) 0; border-bottom:1px solid var(--line); }
-.review-byline {
-  display:flex; align-items:center; gap:var(--space-2); flex-wrap:wrap;
-  font-size:var(--text-ui); margin-bottom:var(--space-2);
+.review-card {
+  display:grid; grid-template-columns:32px minmax(0,1fr); gap:var(--space-3);
+  padding:var(--space-3) 0; border-bottom:1px solid var(--line);
 }
-.review-byline strong { font-weight:500; }
+.review-main { min-width:0; }
+/* One meta line: author, stars, platform, verified hours, then the date on the right. */
+.review-byline { display:flex; align-items:center; gap:var(--space-1) var(--space-2); flex-wrap:wrap; font-size:var(--text-xs); min-height:20px; }
+.review-author { font-size:var(--text-sm); font-weight:600; color:var(--text); }
 .review-date { font-family:var(--font-mono); font-size:var(--text-xs); color:var(--text-muted); }
+.review-byline .review-date { margin-left:auto; }
 .review-rating { display:inline-flex; flex:none; }
-.review-body { margin:var(--space-3) 0 0; font-size:var(--text-md); max-width:72ch; white-space:pre-wrap; overflow-wrap:anywhere; }
+.review-body { margin:var(--space-1) 0 0; font-size:var(--text-ui); max-width:72ch; white-space:pre-wrap; overflow-wrap:anywhere; }
 
-/* Verified hours. Green is used nowhere else. */
-.verified-label {
-  display:inline-flex; align-items:center; gap:var(--space-1);
-  font-size:var(--text-xs); line-height:var(--leading);
-  color:var(--verified); border:1px solid var(--verified-line); border-radius:var(--radius);
-  padding:0 var(--space-2);
-}
-.verified-label.unverified { color:var(--text-muted); border-color:var(--line); }
+/* Verified hours. Green means verified and nothing else. */
+.verified-label { font-size:var(--text-xs); color:var(--verified); }
+.verified-label.unverified { color:var(--text-muted); }
 
 .review-empty, .feed-empty, .comment-posted {
   font-size:var(--text-ui); color:var(--text-muted);
