@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     clerk_enabled: bool = False
     clerk_publishable_key: str = Field(default="", repr=False)
     clerk_secret_key: SecretStr = SecretStr("")
+    # Optional. Without it the For You page says news isn't set up yet.
+    apitube_api_key: SecretStr = SecretStr("")
 
     @property
     def clerk_origin(self) -> str:
