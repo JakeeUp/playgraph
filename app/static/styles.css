@@ -147,15 +147,15 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 }
 
 .brand {
-  display:flex; align-items:center; gap:var(--space-2); padding:0 var(--space-4);
-  font-weight:600; font-size:var(--text-lg); letter-spacing:var(--tracking-tight);
+  display:flex; align-items:center; gap:var(--space-2); flex:none;
+  font-family:var(--font-display); font-weight:700; font-size:var(--text-lg); letter-spacing:var(--tracking-tight);
   color:var(--text);
 }
 .brand:hover { text-decoration:none; }
-.brand img { width:24px; height:24px; flex:none; }
+.brand img { width:20px; height:20px; flex:none; }
 .beta {
-  font-size:var(--text-xs); font-weight:500; line-height:1; color:var(--text-muted);
-  border:1px solid var(--line); border-radius:var(--radius); padding:var(--space-1) var(--space-2);
+  font-family:var(--font-sans); font-size:var(--text-xs); font-weight:500; line-height:1; color:var(--text-muted);
+  background:var(--surface); border-radius:var(--radius-sm); padding:3px var(--space-1);
 }
 
 .nav-item {
