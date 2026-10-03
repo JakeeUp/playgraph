@@ -121,6 +121,7 @@ function renderShell() {
   }
   else account.append(steamLink('Sign in'));
   $('#nav-count').textContent = state.user ? integer(gameLibrary().length) : '';
+  renderBacklog();
   $('#welcome').hidden = Boolean(state.user) || software || isFeed || isNews;
   $('#summary').hidden = !own || !shelfLibrary().length;
   $('#insights').hidden = !own || software || !gameLibrary().length;
@@ -145,6 +146,17 @@ function renderShell() {
   $('#sort').querySelector('[value="playtime"]').textContent = shelf.mostUsed;
   updateGenres();
   if (own) renderInsights();
+}
+// The three counts in the header. Played and yet to play come from Steam
+// playtime; finished is not tracked, so it is not shown.
+function renderBacklog() {
+  const backlog = $('#backlog'); const games = gameLibrary();
+  backlog.hidden = !state.user || !games.length; if (backlog.hidden) { backlog.replaceChildren(); return; }
+  const summary = summarize(games);
+  backlog.replaceChildren(...[['Played', integer(summary.played), 'played'], ['Yet to play', integer(summary.games - summary.played), ''],
+    ['Hours', hours(summary.minutes), 'hours']].map(([label, value, tone]) => {
+    const item = el('div'); item.append(el('dt', '', label), el('dd', `num ${tone}`.trim(), value)); return item;
+  }));
 }
 function updateGenres() {
   const names = [...new Set(shelfLibrary().flatMap((entry) => genresFor(entry.game)))].sort();
