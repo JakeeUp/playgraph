@@ -82,3 +82,11 @@ test('bars share one baseline and one maximum, clamped to the unit range', () =>
   assert.equal(barFraction(-5, 200), 0);
   for (const [value, max] of [[5, 0], [5, -1], [NaN, 10], [Infinity, 10]]) assert.equal(barFraction(value, max), 0);
 });
+
+test('news ages read as minutes, then hours, then a date, and bad input is blank', async () => {
+  const { ageLabel } = await import('../app/static/news.js');
+  const now = Date.parse('2026-10-02T12:00:00Z');
+  assert.equal(ageLabel('2026-10-02T11:59:50Z', now), '1 min ago');
+  assert.equal(ageLabel('2026-10-02T07:00:00Z', now), '5 h ago');
+  assert.equal(ageLabel('not a date', now), '');
+});
