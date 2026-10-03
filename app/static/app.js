@@ -23,7 +23,7 @@ const PAGE_COPY = {
   software: { title: 'Software', tab: 'Software',
     subtitle: 'Apps on Steam, like Wallpaper Engine or Blender. Their hours stay out of your game stats.',
     search: 'Search software', searchLabel: 'Search software' },
-  feed: { title: 'For you', tab: 'For you',
+  feed: { title: 'Reviews', tab: 'Reviews',
     subtitle: 'Reviews from other players on games you own or genres you play.',
     search: 'Search reviews by game', searchLabel: 'Search reviews by game' },
   feedGuest: { title: 'Reviews', tab: 'Reviews',

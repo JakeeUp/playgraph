@@ -30,7 +30,7 @@
     <a class="brand" href="/app"><img src="/assets/mark.svg" alt="" width="24" height="24">PlayGraph<span class="beta">Beta</span></a>
     <nav aria-label="Main navigation">
       <button class="nav-item active" data-view="library">Library <span id="nav-count" class="nav-count num"></span></button>
-      <button class="nav-item" data-view="feed">For you</button>
+      <button class="nav-item" data-view="feed">Reviews</button>
       <button class="nav-item" data-view="explore">Explore</button>
       <button class="nav-item" data-view="stats">Playtime</button>
     </nav>
@@ -47,7 +47,7 @@
       <section id="summary" class="summary" aria-label="Your library at a glance" hidden></section>
       <section id="insights" class="insights" hidden></section>
       <section id="feed" hidden aria-label="Review feed">
-        <div class="section-heading"><div class="filter-chips"><button id="feed-for-you" class="chip selected" aria-pressed="true">For you</button><button id="feed-latest" class="chip" aria-pressed="false">Latest reviews</button></div><button id="refresh-feed" class="button secondary">Refresh</button></div>
+        <div class="section-heading"><div class="filter-chips"><button id="feed-for-you" class="chip selected" aria-pressed="true">Picked for you</button><button id="feed-latest" class="chip" aria-pressed="false">Latest reviews</button></div><button id="refresh-feed" class="button secondary">Refresh</button></div>
         <p id="feed-description" class="collection-note"></p>
         <div id="feed-items" class="feed-items" aria-live="polite"></div>
         <div class="load-more"><button id="more-feed" class="button secondary" hidden>More reviews</button></div>
@@ -66,7 +66,7 @@
 
   <nav class="tabbar" aria-label="Mobile navigation">
     <button class="nav-item active" data-view="library">Library</button>
-    <button class="nav-item" data-view="feed">For you</button>
+    <button class="nav-item" data-view="feed">Reviews</button>
     <button class="nav-item" data-view="explore">Explore</button>
     <button class="nav-item" data-view="stats">Playtime</button>
   </nav>
