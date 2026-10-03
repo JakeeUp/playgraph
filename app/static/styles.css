@@ -91,7 +91,7 @@
 body {
   margin:0;
   background:var(--bg);
-  color:var(--text);
+  color:var(--text-body);
   font-family:var(--font-sans);
   font-size:var(--text-md);
   line-height:var(--leading);
@@ -262,7 +262,7 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 .page-heading { display:flex; align-items:flex-end; gap:var(--space-4); flex-wrap:wrap; }
 .page-heading > div { flex:1 1 380px; min-width:0; }
 .page-heading h1 { font-size:var(--text-2xl); }
-.subtitle { margin-top:var(--space-2); font-size:var(--text-md); color:var(--text-muted); max-width:62ch; text-wrap:pretty; }
+.subtitle { margin-top:var(--space-2); font-size:var(--text-md); color:var(--text-body); max-width:62ch; text-wrap:pretty; }
 .page-heading > button { margin-left:auto; }
 
 /* ---- summary stat tiles ----
@@ -294,7 +294,7 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
   display:inline-flex; align-items:center; height:var(--control-h); padding:0 var(--control-pad);
   font-size:var(--text-ui); font-weight:500; white-space:nowrap;
   background:transparent; border:1px solid var(--line); border-radius:var(--radius);
-  color:var(--text-muted); cursor:pointer;
+  color:var(--text-body); cursor:pointer;
   transition:background-color var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
 .chip:hover { color:var(--text); border-color:var(--line-strong); }
