@@ -23,17 +23,35 @@ dialog::backdrop { background:var(--scrim); }
 
 /* ---------------- game page ---------------- */
 
-.game-profile { display:grid; grid-template-columns:200px minmax(0,1fr); gap:var(--space-6); padding:var(--space-6); clear:both; }
-.game-profile-aside { display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-3); position:sticky; top:var(--space-5); align-self:start; }
+/* Two columns. Left: the art, your numbers, the actions. Right: the
+   title and a reference sheet, then the review tabs. */
+.game-profile { display:grid; grid-template-columns:240px minmax(0,1fr); gap:var(--space-6); padding:var(--space-6); clear:both; }
+.game-profile-aside { display:flex; flex-direction:column; gap:var(--space-3); position:sticky; top:var(--space-5); align-self:start; min-width:0; }
 .game-profile-aside .cover { width:100%; }
-.game-profile-aside .button { width:100%; margin-top:var(--space-2); }
 .game-profile-main { min-width:0; }
+
+/* Your numbers: one flat block, cells split by a hairline. */
+.detail-stats { display:flex; margin:0; background:var(--surface-2); border-radius:var(--radius); }
+.detail-stats > div { flex:1; min-width:0; padding:var(--space-2) var(--space-3); }
+.detail-stats > div + div { border-left:1px solid var(--line); }
+.detail-stats dt { font-size:var(--text-xs); color:var(--text-muted); }
+.detail-stats dd { margin:2px 0 0; font-size:var(--text-md); font-weight:500; color:var(--text); }
+.detail-stats dd.played { color:var(--verified); }
+.detail-actions .button { width:100%; }
+.detail-links { display:flex; flex-wrap:wrap; gap:var(--space-1) var(--space-4); }
+.detail-links .text-button { font-size:var(--text-sm); }
+
 .detail-header { padding-bottom:var(--space-5); }
-.detail-info h2 { font-size:var(--text-2xl); margin-bottom:var(--space-2); overflow-wrap:anywhere; }
-.detail-genres { font-size:var(--text-ui); color:var(--text-muted); }
-.detail-stats { display:grid; grid-template-columns:max-content 1fr; align-items:baseline; gap:var(--space-2) var(--space-4); margin:var(--space-4) 0 var(--space-3); font-size:var(--text-ui); }
-.detail-stats strong { font-family:var(--font-mono); font-weight:500; font-size:var(--text-md); }
-.detail-stats span { color:var(--text-muted); }
+.detail-eyebrow { font-size:var(--text-xs); color:var(--text-muted); }
+.detail-info h2 { font-size:var(--text-3xl); margin:2px 0 var(--space-4); overflow-wrap:anywhere; }
+.detail-info .helper { margin-top:var(--space-2); }
+
+/* Hardware capsules, here and on review rows. */
+.platform-badges { display:flex; flex-wrap:wrap; gap:var(--space-1); list-style:none; margin:0; padding:0; }
+.platform-badge {
+  display:inline-block; font-size:10px; font-weight:600; line-height:16px; color:var(--text);
+  background:var(--surface-3); border-radius:var(--radius-sm); padding:0 var(--space-1);
+}
 
 .detail-tabs { display:flex; flex-wrap:wrap; gap:var(--space-5); border-bottom:1px solid var(--line); margin-bottom:var(--space-5); }
 .detail-tab {
@@ -46,8 +64,9 @@ dialog::backdrop { background:var(--scrim); }
 .detail-tab[aria-selected="true"] { color:var(--text); border-bottom-color:var(--accent); }
 .game-profile-main [role="tabpanel"] { min-height:280px; }
 .game-profile-main h3 { font-size:var(--text-lg); margin-bottom:var(--space-2); }
-.metadata-table { display:grid; grid-template-columns:120px minmax(0,1fr); margin:0 0 var(--space-4); font-size:var(--text-ui); }
-.metadata-table dt, .metadata-table dd { padding:var(--space-3) 0; margin:0; border-bottom:1px solid var(--line); }
+.metadata-table { display:grid; grid-template-columns:104px minmax(0,1fr); margin:0; font-size:var(--text-ui); border-top:1px solid var(--line); }
+.metadata-table dt, .metadata-table dd { padding:6px 0; margin:0; border-bottom:1px solid var(--line); }
+.metadata-table dd { color:var(--text); }
 .metadata-table dt { color:var(--text-muted); }
 .metadata-table dd { overflow-wrap:anywhere; }
 .delete-confirmation { border:1px solid var(--line); border-radius:var(--radius-lg); padding:var(--space-4); margin-top:var(--space-2); }
@@ -177,7 +196,8 @@ textarea:focus-visible { border-color:var(--accent); }
 .comment p { margin-top:var(--space-1); }
 
 @media (max-width:860px) {
-  .game-profile { grid-template-columns:152px minmax(0,1fr); gap:var(--space-5); padding:var(--space-5); }
+  .game-profile { grid-template-columns:180px minmax(0,1fr); gap:var(--space-5); padding:var(--space-5); }
+  .detail-info h2 { font-size:var(--text-2xl); }
   .insights { grid-template-columns:minmax(0,1fr); }
   .spotlight-body { grid-template-columns:80px minmax(0,1fr); gap:var(--space-4); }
   .spotlight-cover { width:80px; }
@@ -189,7 +209,6 @@ textarea:focus-visible { border-color:var(--accent); }
   .game-profile { grid-template-columns:minmax(0,1fr); gap:var(--space-5); padding:var(--space-4); }
   .game-profile-aside { position:static; display:grid; grid-template-columns:104px minmax(0,1fr); column-gap:var(--space-4); row-gap:var(--space-2); align-items:center; }
   .game-profile-aside .cover { grid-row:1 / 4; }
-  .game-profile-aside .button { margin-top:0; }
   .detail-header { padding-bottom:var(--space-2); }
   .detail-info h2 { font-size:var(--text-xl); }
   .detail-tabs { gap:var(--space-4); margin-bottom:var(--space-4); }

@@ -19,19 +19,31 @@ export function createGameDialog(state, api, report = () => {}) {
     const software = game.content_kind === 'software';
     const info = el('div', 'detail-info');
     const title = el('h2', '', game.name); title.id = 'detail-title';
-    info.append(title, el('p', 'detail-genres', [software ? 'Software' : '', ...genresFor(game)].filter(Boolean).join(' · ') || 'No genres listed'));
+    info.append(el('p', 'detail-eyebrow', [software ? 'Software' : 'Game', 'Steam'].join(' · ')), title);
+    // Your numbers sit under the art: hours and achievements when the game is
+    // in your library, otherwise a plain note.
+    const stats = el('dl', 'detail-stats');
     if (entry) {
-      const data = el('div', 'detail-stats'); data.append(el('strong', '', `${hours(entry.playtime_minutes)} h`), el('span', '', software ? 'Time in this app' : 'Your Steam playtime'));
-      if (achievementPercent(entry) != null) data.append(el('strong', '', `${integer(entry.achievements_unlocked)} / ${integer(entry.achievements_total)}`), el('span', '', 'Achievements unlocked'));
-      const synced = el('p', 'helper', 'From your Steam sync on '); synced.append(el('span', 'num', timeLabel(entry.captured_at)));
-      info.append(data, synced);
+      const pct = achievementPercent(entry);
+      for (const [label, value] of [[software ? 'Time used' : 'Played', `${hours(entry.playtime_minutes)} h`],
+        ['Achievements', pct == null ? 'None' : `${integer(entry.achievements_unlocked)} / ${integer(entry.achievements_total)}`]]) {
+        const cell = el('div'); cell.append(el('dt', '', label), numbered('dd', entry.playtime_minutes > 0 && label !== 'Achievements' ? 'played' : '', value)); stats.append(cell);
+      }
+    } else {
+      const cell = el('div'); cell.append(el('dt', '', 'Your library'), el('dd', '', state.user ? 'Not in your Steam library' : 'Sign in to see your hours')); stats.append(cell);
     }
-    const store = el('a', 'text-button', 'View on Steam ↗'); store.href = `https://store.steampowered.com/app/${Number(game.steam_appid)}/`;
-    store.target = '_blank'; store.rel = 'noopener noreferrer'; aside.append(store);
-    const share = button('Copy game link', 'text-button', async () => {
-      try { await navigator.clipboard.writeText(`${location.origin}/app#game=${game.id}`); share.textContent = 'Link copied'; }
-      catch { report(new Error('Could not copy the link. Try again with clipboard access enabled.')); }
-    }); aside.append(share); header.append(info); main.append(header); profile.append(aside, main); content.append(profile);
+    aside.append(stats);
+    // Reference sheet: label column, value column, hairline rows.
+    const fields = el('dl', 'metadata-table');
+    const platforms = el('ul', 'platform-badges'); platforms.append(el('li', 'platform-badge', 'PC'));
+    for (const [name, value] of [['Genres', genresFor(game).join(', ') || 'Not listed'], ['Category', software ? 'Software' : 'Game'],
+      ['Platforms', platforms], ['Source', 'Steam'], ['Steam app ID', String(game.steam_appid)]]) {
+      const dd = el('dd', name === 'Steam app ID' ? 'num' : ''); dd.append(value); fields.append(el('dt', '', name), dd);
+    }
+    info.append(fields);
+    if (entry) { const synced = el('p', 'helper', 'Your numbers are from your Steam sync on '); synced.append(el('span', 'num', timeLabel(entry.captured_at))); info.append(synced); }
+    else info.append(el('p', 'helper', 'Imported from Steam. Release dates, developers and console versions aren’t in this catalog yet.'));
+    header.append(info); main.append(header); profile.append(aside, main); content.append(profile);
     const writeSection = el('section', 'write-review');
     if (createdReview && state.user) showOwnReview(createdReview, editRequested);
     else if (state.user) writeSection.append(el('p', 'helper', 'Checking for your review…'));
@@ -41,28 +53,32 @@ export function createGameDialog(state, api, report = () => {}) {
     section.append(el('p', 'helper', threadReview ? 'Comments on this review are public.' : 'Most verified playtime first. Review stats reflect the moment of posting.'));
     if (threadReview) section.append(button('← All reviews', 'text-button', () => open(game)));
     const list = el('div', 'reviews-list'); list.append(el('p', 'helper', 'Loading reviews…')); section.append(list);
-    const metadata = el('section', 'game-metadata');
-    const fields = el('dl', 'metadata-table');
-    for (const [name, value] of [['Source', 'Steam'], ['Category', software ? 'Software' : 'Game'], ['Genres', genresFor(game).join(', ') || 'Not listed'], ['Steam app ID', String(game.steam_appid)], ['Artwork', 'Steam']]) {
-      fields.append(el('dt', '', name), el('dd', name === 'Steam app ID' ? 'num' : '', value));
-    }
-    metadata.append(fields, el('p', 'helper', 'Imported from Steam. Release dates, developers and other platforms are not in this catalog yet.'));
     const tabs = el('div', 'detail-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Game information');
-    const panels = [section, writeSection, metadata]; const labels = ['Community reviews', 'Your review', 'Details'];
+    const panels = [section, writeSection]; const labels = ['Community reviews', 'Your review'];
     const controls = labels.map((label, index) => {
       const control = button(label, 'detail-tab', () => selectTab(index));
       control.id = `detail-tab-${index}`; control.setAttribute('role', 'tab'); control.setAttribute('aria-controls', `detail-panel-${index}`);
       panels[index].id = `detail-panel-${index}`; panels[index].setAttribute('role', 'tabpanel'); panels[index].setAttribute('aria-labelledby', control.id); panels[index].tabIndex = 0;
       control.addEventListener('keydown', event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-        event.preventDefault(); const next = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (index + (event.key === 'ArrowRight' ? 1 : 2)) % 3;
+        event.preventDefault(); const last = labels.length - 1;
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? last : (index + (event.key === 'ArrowRight' ? 1 : last)) % labels.length;
         selectTab(next); controls[next].focus();
       });
       tabs.append(control); return control;
     });
     function selectTab(selected) { panels.forEach((panel, index) => { panel.hidden = index !== selected; controls[index].setAttribute('aria-selected', String(index === selected)); controls[index].tabIndex = index === selected ? 0 : -1; }); }
     main.append(tabs, ...panels); selectTab(createdReview ? 1 : 0);
-    aside.append(button(state.user ? 'Your review' : 'Write a review', 'button secondary', () => { selectTab(1); controls[1].focus(); }));
+    const actions = el('div', 'detail-actions');
+    actions.append(button(state.user ? 'Your review' : 'Write a review', 'button primary', () => { selectTab(1); controls[1].focus(); }));
+    const store = el('a', 'text-button', 'View on Steam ↗'); store.href = `https://store.steampowered.com/app/${Number(game.steam_appid)}/`;
+    store.target = '_blank'; store.rel = 'noopener noreferrer';
+    const share = button('Copy game link', 'text-button', async () => {
+      try { await navigator.clipboard.writeText(`${location.origin}/app#game=${game.id}`); share.textContent = 'Link copied'; }
+      catch { report(new Error('Could not copy the link. Try again with clipboard access enabled.')); }
+    });
+    const links = el('div', 'detail-links'); links.append(store, share);
+    aside.append(actions, links);
     function showOwnReview(own, editing = false) {
       writeSection.replaceChildren();
       if (editing) {
