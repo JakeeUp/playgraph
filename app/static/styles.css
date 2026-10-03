@@ -3,8 +3,8 @@
    Every color, type size, space and radius used anywhere lives in the token
    block below; the other stylesheets only refer to these names. Surfaces are
    flat: depth comes from a lighter surface or a 1px line, never a shadow,
-   gradient or blur. Amber is for primary actions, links, the active tab and
-   rating stars, nothing decorative.
+   gradient or blur. Orange is for primary actions, links, the active tab and
+   rating stars, nothing decorative. Cover art is the brightest thing on screen.
    ========================================================================== */
 
 @font-face { font-family:"Space Grotesk"; font-style:normal; font-weight:500; font-display:swap; src:url("/assets/fonts/space-grotesk-500.woff2") format("woff2"); }
@@ -17,23 +17,25 @@
 
 :root {
   /* Surfaces, lightest last. */
-  --bg:#121212;
-  --surface:#1c1c1e;
-  --surface-2:#242427;
-  --surface-3:#2e2e32;
-  --line:rgba(255,255,255,0.12);
-  --line-strong:rgba(255,255,255,0.24);
-  --scrim:rgba(0,0,0,0.72);
-  --badge:rgba(18,18,18,0.88);
+  --bg:#101418;
+  --surface:#182026;
+  --surface-2:#222c36;
+  --surface-3:#2c3946;
+  --line:rgba(255,255,255,0.07);
+  --line-strong:rgba(255,255,255,0.14);
+  --scrim:rgba(6,9,12,0.78);
+  --badge:rgba(16,20,24,0.88);
 
-  /* Text. Muted text is 5.8:1 on the lightest surface, 6.4:1 on --bg. */
-  --text:#e8e8ea;
-  --text-muted:rgba(232,232,234,0.62);
+  /* Text. White for titles and values, slate for running text, dusk for
+     metadata. Muted is 4.9:1 on --bg, 4.5:1 on --surface. */
+  --text:#ffffff;
+  --text-body:#9bb0c1;
+  --text-muted:#6e889d;
 
-  /* Amber, a little less saturated than before. 8.4:1 on --bg. */
-  --accent:#e4a048;
-  --accent-hover:#ecb46a;
-  --on-accent:#121212;
+  /* Kinetic orange. 7.4:1 on --bg. */
+  --accent:#ff7a00;
+  --accent-hover:#ff9433;
+  --on-accent:#101418;
 
   /* Meaning, not decoration: verified hours, errors, and the one chart series. */
   --verified:#4fb98a;
