@@ -24,6 +24,7 @@ def test_shell_assets_and_strict_csp(web):
     assert "script-src 'self'" in csp and "unsafe-inline" not in csp
     assert "frame-ancestors 'none'" in csp and "form-action 'self'" in csp
     assert "https://shared.fastly.steamstatic.com" in csp
+    assert "https://*.futurecdn.net" in csp and "https://clan.fastly.steamstatic.com" in csp and " https: " not in csp and " https:;" not in csp
     assert "font-src 'self'" in csp
     for name in ["styles.css", "details.css", "social.css", "app.js", "game-detail.js", "rating.js", "feed.js", "library.js", "dom.js", "chart.js",
                  "mark.svg", "favicon-32.png", "apple-touch-icon.png", "fonts/plex-sans-400.woff2", "fonts/plex-mono-400.woff2"]:

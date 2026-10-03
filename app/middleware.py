@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from urllib.parse import urlsplit
 
 from fastapi import HTTPException, Request
 from starlette.datastructures import MutableHeaders
@@ -9,10 +10,13 @@ from starlette.responses import JSONResponse
 
 from app.config import settings
 from app.security import rate_headers, rate_limit
+from app.services.news import IMAGE_HOSTS
+from app.services.steam_news import CLAN_IMAGES
 
 MAX_BODY_BYTES = 65536
 REQUESTS_PER_MINUTE = 120
 LOGINS_PER_MINUTE = 10
+NEWS_IMAGES = " ".join([*(f"https://*.{host}" for host in IMAGE_HOSTS), urlsplit(CLAN_IMAGES)._replace(path="").geturl()])
 logger = logging.getLogger("playgraph.security")
 
 
@@ -56,7 +60,7 @@ class SecurityMiddleware:
                         "default-src 'none'; script-src 'self'; style-src 'self'; "
                         "connect-src 'self'; img-src 'self' https://shared.fastly.steamstatic.com "
                         "https://shared.akamai.steamstatic.com https://cdn.akamai.steamstatic.com "
-                        "https://cdn.cloudflare.steamstatic.com; font-src 'self'; "
+                        f"https://cdn.cloudflare.steamstatic.com {NEWS_IMAGES}; font-src 'self'; "
                         "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
                     )
                 elif request.url.path == "/account":
