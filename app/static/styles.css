@@ -70,7 +70,6 @@
   --space-8:64px;
   --gutter:var(--space-5);
   --content-max:1200px;
-  --side-w:216px;
   --header-h:52px;
 
   /* One control: every button, chip, select and toggle is this tall with this radius. */
@@ -99,17 +98,9 @@ body {
   -webkit-font-smoothing:antialiased;
 }
 
-/* The grid lives on .shell, never on body. Browser extensions inject elements
-   as body children; if body were the grid container, one stray node would take
-   a cell and push the whole app sideways. */
-.shell {
-  display:grid;
-  grid-template-columns:var(--side-w) minmax(0,1fr);
-  grid-template-areas:"side main";
-  min-height:100vh;
-}
-.sidebar { grid-area:side; }
-.workspace { grid-area:main; }
+/* Layout lives on .shell, never on body. Browser extensions inject elements
+   as body children and must not be able to push the app sideways. */
+.shell { min-height:100vh; }
 
 h1, h2, h3, h4 { margin:0; color:var(--text); font-family:var(--font-display); font-weight:700; letter-spacing:var(--tracking-tight); line-height:var(--leading-tight); text-wrap:balance; }
 p { margin:0; }
@@ -143,14 +134,16 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
-/* ============================ SIDEBAR ============================ */
+/* ============================ HEADER ============================ */
+/* One row: brand, sections, search, your counts, account. */
 
-.sidebar {
-  background:var(--bg);
-  border-right:1px solid var(--line);
-  padding:var(--space-4) 0;
-  display:flex; flex-direction:column; gap:var(--space-5);
-  position:sticky; top:0; height:100vh; overflow-y:auto;
+.workspace { min-width:0; display:flex; flex-direction:column; }
+
+.topbar { border-bottom:1px solid var(--line); background:var(--bg); position:sticky; top:0; z-index:20; }
+.topbar-inner {
+  display:flex; align-items:center; gap:var(--space-5);
+  width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto;
+  height:var(--header-h); padding:0 var(--gutter);
 }
 
 .brand {
@@ -165,31 +158,23 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
   border:1px solid var(--line); border-radius:var(--radius); padding:var(--space-1) var(--space-2);
 }
 
-.sidebar nav { display:flex; flex-direction:column; gap:var(--space-1); padding:0 var(--space-2); }
-
 .nav-item {
-  display:flex; align-items:center; gap:var(--space-2); width:100%; height:var(--control-h);
-  background:none; border:0; border-left:2px solid transparent; border-radius:0 var(--radius) var(--radius) 0;
-  color:var(--text-muted); font-size:var(--text-ui); font-weight:500;
-  padding:0 var(--space-2); cursor:pointer; text-align:left;
+  display:flex; align-items:center; gap:var(--space-2); height:var(--control-h);
+  background:none; border:0; border-radius:var(--radius);
+  color:var(--text-body); font-size:var(--text-ui); font-weight:500;
+  padding:0 var(--space-2); cursor:pointer; white-space:nowrap;
   transition:background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
-.nav-item:hover { color:var(--text); background:var(--surface); }
-.nav-item.active { color:var(--text); background:var(--surface-2); border-left-color:var(--accent); }
-.nav-count { margin-left:auto; font-size:var(--text-xs); color:var(--text-muted); }
+.nav-item:hover { color:var(--text); }
+.nav-item.active { color:var(--text); }
+.nav-count { font-size:var(--text-xs); color:var(--text-muted); }
+.topnav { display:flex; align-items:center; gap:var(--space-1); }
+.topnav .nav-item.active { background:var(--surface-2); }
 
 /* ============================ TOPBAR ============================ */
 
-.workspace { min-width:0; display:flex; flex-direction:column; }
-
-.topbar {
-  display:flex; align-items:center; gap:var(--space-4);
-  padding:var(--space-3) var(--gutter); border-bottom:1px solid var(--line);
-  background:var(--bg);
-  position:sticky; top:0; z-index:20;
-}
 .search {
-  flex:1; max-width:440px; height:var(--control-h); display:flex; align-items:center; gap:var(--space-2);
+  flex:1; max-width:320px; margin-left:auto; height:var(--control-h); display:flex; align-items:center; gap:var(--space-2);
   background:var(--surface); border:1px solid var(--line);
   border-radius:var(--radius); padding:0 var(--space-3);
   transition:border-color var(--dur) var(--ease);
@@ -207,7 +192,7 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
   font-family:var(--font-mono); font-size:var(--text-xs); color:var(--text-muted); line-height:1;
   border:1px solid var(--line); border-radius:var(--radius); padding:var(--space-1) var(--space-2);
 }
-.account { margin-left:auto; display:flex; align-items:center; gap:var(--space-3); }
+.account { display:flex; align-items:center; gap:var(--space-3); }
 .account-manage { display:flex; align-items:center; gap:var(--space-2); color:var(--text); }
 .account-manage:hover { text-decoration:none; }
 .account-manage:hover .account-name { text-decoration:underline; text-underline-offset:3px; }

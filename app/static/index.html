@@ -27,20 +27,20 @@
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <div class="shell">
-  <aside class="sidebar">
-    <a class="brand" href="/app"><img src="/assets/mark.svg" alt="" width="24" height="24">PlayGraph<span class="beta">Beta</span></a>
-    <nav aria-label="Main navigation">
-      <button class="nav-item active" data-view="library">Library <span id="nav-count" class="nav-count num"></span></button>
-      <button class="nav-item" data-view="news">For you</button>
-      <button class="nav-item" data-view="feed">Reviews</button>
-      <button class="nav-item" data-view="explore">Explore</button>
-      <button class="nav-item" data-view="stats">Playtime</button>
-    </nav>
-  </aside>
   <div class="workspace">
     <header class="topbar">
-      <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="search" type="search" placeholder="Search games" maxlength="120" aria-label="Search games"><kbd>/</kbd></label>
-      <div id="account" class="account"><a class="button primary" href="/account">Sign in</a></div>
+      <div class="topbar-inner">
+        <a class="brand" href="/app"><img src="/assets/mark.svg" alt="" width="20" height="20">PlayGraph<span class="beta">Beta</span></a>
+        <nav class="topnav" aria-label="Main navigation">
+          <button class="nav-item active" data-view="library">Library <span id="nav-count" class="nav-count num"></span></button>
+          <button class="nav-item" data-view="news">For you</button>
+          <button class="nav-item" data-view="feed">Reviews</button>
+          <button class="nav-item" data-view="explore">Explore</button>
+          <button class="nav-item" data-view="stats">Playtime</button>
+        </nav>
+        <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="search" type="search" placeholder="Search games" maxlength="120" aria-label="Search games"><kbd>/</kbd></label>
+        <div id="account" class="account"><a class="button primary" href="/account">Sign in</a></div>
+      </div>
     </header>
     <main id="main" tabindex="-1">
       <div id="notice" class="notice" role="status" hidden></div>
