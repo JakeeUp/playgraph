@@ -14,7 +14,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.config import settings
 from app.database import engine
 from app.migrations import require_current_schema
-from app.routers import accounts, auth, catalog, feed, library, reviews
+from app.routers import accounts, auth, catalog, feed, library, news, reviews
 from app.middleware import SecurityMiddleware
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
 from app.security_logging import configure_access_logging
@@ -76,6 +76,7 @@ app.include_router(library.router)
 app.include_router(reviews.router)
 app.include_router(catalog.router)
 app.include_router(feed.router)
+app.include_router(news.router)
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
