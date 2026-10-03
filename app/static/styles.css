@@ -332,8 +332,8 @@ select:disabled { color:var(--text-muted); cursor:default; }
 
 .game-grid {
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(136px,1fr));
-  gap:var(--space-5) var(--space-4);
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:var(--space-5) var(--grid-gap);
 }
 
 .game-card { min-width:0; }
