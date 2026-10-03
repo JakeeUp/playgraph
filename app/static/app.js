@@ -328,6 +328,8 @@ async function pollSync(jobId, restore = false) {
 }
 document.querySelectorAll('[data-view]').forEach((node) => node.addEventListener('click', () => navigate(node.dataset.view)));
 document.querySelectorAll('[data-filter]').forEach((node) => node.addEventListener('click', () => { state.filter = node.dataset.filter; state.shown = 48; renderCollection(); }));
+document.querySelectorAll('.platform-switch .in-dev').forEach((node) => node.addEventListener('click', () =>
+  notify(`${node.firstChild.textContent.trim()} libraries are in development. Only Steam games can be imported for now.`)));
 $('#genre').addEventListener('change', (event) => { state.genre = event.target.value; state.shown = 48; renderCollection(); });
 $('#sort').addEventListener('change', (event) => { state.sort = event.target.value; renderCollection(); });
 $('#search').addEventListener('input', (event) => {

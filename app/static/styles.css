@@ -292,6 +292,17 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 .chip.selected { background:var(--surface-2); border-color:var(--line-strong); color:var(--text); }
 .chip:disabled { opacity:0.6; cursor:default; }
 
+/* Platforms. PC is the only source today; the consoles say so instead of
+   pretending to filter. aria-disabled keeps them focusable and announced. */
+.platform-switch { display:flex; gap:var(--space-1); flex-wrap:wrap; }
+.platform-switch .chip { gap:var(--space-2); }
+.chip.in-dev { color:var(--text-muted); border-style:dashed; cursor:help; }
+.chip.in-dev:hover { color:var(--text-body); border-color:var(--line-strong); }
+.dev-tag {
+  font-size:10px; font-weight:500; line-height:1; color:var(--accent);
+  background:rgba(255,122,0,0.12); border-radius:var(--radius-sm); padding:3px var(--space-1);
+}
+
 /* Games / Software. Changes WHAT the shelf holds; the chips beside it filter
    what is already there. Different job, different control. */
 .kind-switch { display:flex; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; flex:none; }
