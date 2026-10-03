@@ -71,6 +71,7 @@
   --gutter:var(--space-5);
   --content-max:1200px;
   --side-w:216px;
+  --header-h:52px;
 
   /* One control: every button, chip, select and toggle is this tall with this radius. */
   --control-h:32px;

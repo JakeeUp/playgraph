@@ -2,6 +2,7 @@ import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize
 import { $, el, button, steamLink, cover, aborted, numbered, setNumbers } from './dom.js';
 import { createGameDialog } from './game-detail.js';
 import { createFeed } from './feed.js';
+import { createNews } from './news.js';
 import { barList } from './chart.js';
 
 // Page copy per view. pageKey() folds the signed-out library and playtime
@@ -23,6 +24,9 @@ const PAGE_COPY = {
   software: { title: 'Software', tab: 'Software',
     subtitle: 'Apps on Steam, like Wallpaper Engine or Blender. Their hours stay out of your game stats.',
     search: 'Search software', searchLabel: 'Search software' },
+  news: { title: 'For you', tab: 'For you',
+    subtitle: 'What’s happening in games right now, from Steam and the big gaming sites.',
+    search: 'Search headlines', searchLabel: 'Search headlines' },
   feed: { title: 'Reviews', tab: 'Reviews',
     subtitle: 'Reviews from other players on games you own or genres you play.',
     search: 'Search reviews by game', searchLabel: 'Search reviews by game' },
@@ -49,9 +53,10 @@ const shelfLibrary = () => state.view === 'software'
   ? state.library.filter((entry) => entry.game.content_kind === 'software') : gameLibrary();
 const shelfCopy = () => SHELF[state.view === 'software' ? 'software' : 'game'];
 const pageKey = () => state.view === 'feed' && !state.user ? 'feedGuest'
-  : ['feed', 'software', 'explore'].includes(state.view) ? state.view
+  : ['feed', 'news', 'software', 'explore'].includes(state.view) ? state.view
   : state.user ? (state.view === 'stats' ? 'stats' : 'library') : 'welcome';
 const gameDialog = createGameDialog(state, api, report);
+const news = createNews(state, api);
 const feed = createFeed(state, api, gameDialog, () => navigate(state.user ? 'library' : 'explore'), report);
 document.addEventListener('review-changed', () => { if (state.view === 'feed') void feed.load(); else feed.invalidate(); });
 const sessionChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('playgraph-session') : null;
@@ -100,6 +105,7 @@ function renderShell() {
   const own = privateView();
   const software = state.view === 'software';
   const isFeed = state.view === 'feed';
+  const isNews = state.view === 'news';
   document.querySelectorAll('[data-view]').forEach((item) => {
     const active = item.dataset.view === state.view; item.classList.toggle('active', active);
     if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
@@ -115,11 +121,11 @@ function renderShell() {
   }
   else account.append(steamLink('Sign in'));
   $('#nav-count').textContent = state.user ? integer(gameLibrary().length) : '';
-  $('#welcome').hidden = Boolean(state.user) || software || isFeed;
+  $('#welcome').hidden = Boolean(state.user) || software || isFeed || isNews;
   $('#summary').hidden = !own || !shelfLibrary().length;
   $('#insights').hidden = !own || software || !gameLibrary().length;
-  $('#collection').hidden = isFeed || (state.view === 'stats' && Boolean(state.user) && gameLibrary().length > 0);
-  $('#feed').hidden = !isFeed;
+  $('#collection').hidden = isFeed || isNews || (state.view === 'stats' && Boolean(state.user) && gameLibrary().length > 0);
+  $('#feed').hidden = !isFeed; $('#news').hidden = !isNews;
   $('#sync-button').hidden = !state.user || !state.hasSteam; $('#filters').hidden = !own;
   $('#sort').disabled = !own; $('#sort').value = own ? state.sort : 'name';
   const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
@@ -271,7 +277,8 @@ function navigate(view) {
   feed.invalidate();
   Object.assign(state, { view, query: '', genre: '', filter: 'all', shown: 48 }); state.catalogRequest += 1;
   $('#search').value = ''; $('#genre').value = ''; clearTimeout(state.searchTimer); renderShell();
-  if (view === 'feed') void feed.load(); else if (privateView()) renderCollection(); else void loadCatalog();
+  if (view === 'feed') void feed.load(); else if (view === 'news') void news.load();
+  else if (privateView()) renderCollection(); else void loadCatalog();
 }
 function resetFilters() {
   Object.assign(state, { query: '', genre: '', filter: 'all', shown: 48 }); $('#search').value = ''; $('#genre').value = '';
@@ -314,7 +321,8 @@ $('#sort').addEventListener('change', (event) => { state.sort = event.target.val
 $('#search').addEventListener('input', (event) => {
   state.query = event.target.value; state.shown = 48; clearTimeout(state.searchTimer); state.catalogRequest += 1;
   if (state.user && state.view === 'stats') { state.view = 'library'; renderShell(); }
-  if (state.view === 'feed') { feed.invalidate(); state.searchTimer = setTimeout(() => void feed.load(), 280); }
+  if (state.view === 'news') news.render();
+  else if (state.view === 'feed') { feed.invalidate(); state.searchTimer = setTimeout(() => void feed.load(), 280); }
   else if (privateView()) renderCollection(); else state.searchTimer = setTimeout(() => void loadCatalog(), 280);
 });
 for (const mode of ['grid', 'list']) $('#'+mode+'-view').addEventListener('click', () => {

@@ -79,3 +79,31 @@
   .feed-cover { width:64px; }
   .rating-star { --star:32px; }
 }
+
+/* ---------------- news (For you) ----------------
+   Headlines on the bare canvas, split by hairlines, each led by the
+   article's picture when it has one. The side column holds the parts that
+   are still being built. */
+
+.news { display:grid; grid-template-columns:minmax(0,1fr) 260px; gap:var(--space-6); align-items:start; }
+.news-items { display:flex; flex-direction:column; border-top:1px solid var(--line); }
+.news-row { padding:var(--space-4) 0; border-bottom:1px solid var(--line); }
+.news-image { display:block; aspect-ratio:16/9; margin-bottom:var(--space-3); border-radius:var(--radius); overflow:hidden; background:var(--surface); }
+.news-image img { width:100%; height:100%; object-fit:cover; display:block; transition:transform var(--dur) var(--ease); }
+.news-row:hover .news-image img { transform:scale(1.02); }
+.news-meta { display:flex; gap:var(--space-2); font-size:var(--text-xs); color:var(--text-muted); }
+.news-source { color:var(--text-body); font-weight:500; }
+.news-tag { color:var(--accent); }
+.news-heading { margin-top:2px; font-size:var(--text-md); line-height:var(--leading-tight); }
+.news-title { color:var(--text); }
+.news-title:hover { color:var(--accent); text-decoration:none; }
+.news-summary { margin-top:var(--space-1); max-width:80ch; font-size:var(--text-ui); color:var(--text-body); }
+.news-side { display:flex; flex-direction:column; gap:var(--space-3); position:sticky; top:calc(var(--header-h) + var(--space-5)); }
+.side-block { background:var(--surface); border-radius:var(--radius); padding:var(--space-4); }
+.side-block h2 { display:inline; font-size:var(--text-md); margin-right:var(--space-2); }
+.side-block p { margin-top:var(--space-2); font-size:var(--text-sm); color:var(--text-muted); }
+
+@media (max-width:860px) {
+  .news { grid-template-columns:minmax(0,1fr); gap:var(--space-5); }
+  .news-side { position:static; }
+}
