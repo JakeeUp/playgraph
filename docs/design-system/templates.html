@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arcade Darkroom templates</title>
+<!-- Preview only. The app itself never loads third-party scripts or fonts. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="base.css">
+<!-- After base.css so these faces win over its /assets/fonts paths. -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  // Same object as tailwind.config.js.
+  tailwind.config = {
+    theme: {
+      boxShadow: { none: "none" },
+      borderRadius: { none: "0", sm: "2px", DEFAULT: "3px", md: "4px", full: "9999px" },
+      extend: {
+        colors: { game: {
+          bg: "#101418", surface: "#182026", raised: "#222c36",
+          line: "rgba(255,255,255,0.06)", "line-strong": "rgba(255,255,255,0.12)",
+          text: "#ffffff", body: "#9bb0c1", muted: "#6e889d",
+          accent: "#ff7a00", "accent-hover": "#ff9433",
+          playing: "#00b4d8", done: "#00e054", fave: "#ff3366" } },
+        fontFamily: {
+          display: ['"Space Grotesk"', '"IBM Plex Sans"', "system-ui", "sans-serif"],
+          sans: ['"IBM Plex Sans"', "system-ui", "sans-serif"],
+          mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"] },
+        fontSize: {
+          tag: ["10px", "14px"], meta: ["11px", "16px"], body: ["13px", "19px"],
+          ui: ["14px", "20px"], title: ["17px", "22px"], head: ["22px", "26px"], hero: ["34px", "38px"] },
+        letterSpacing: { head: "-0.02em" },
+        spacing: { "0.5": "2px", "1.5": "6px", "2.5": "10px", "3.5": "14px",
+          grid: "14px", row: "12px", avatar: "32px", "avatar-sm": "24px", thumb: "36px" },
+        aspectRatio: { cover: "2 / 3", cart: "4 / 3" },
+        maxWidth: { page: "1280px" },
+        transitionDuration: { fast: "120ms" },
+      },
+    },
+  };
+</script>
+</head>
+<body class="bg-game-bg text-body text-game-body font-sans">
+
+<!-- =====================================================================
+     1. Global header: wordmark, sections, search, backlog summary, profile
+     ===================================================================== -->
+<header class="sticky top-0 z-20 bg-game-bg/95 border-b border-game-line">
+  <!-- Phones: logo, search and avatar on top, sections on a second row.
+       From md up everything sits on one 48px row. -->
+  <div class="mx-auto max-w-page px-4 pt-2 md:pt-0 md:h-12 flex flex-wrap items-center gap-x-5 gap-y-2">
+    <a href="#" class="link-plain flex items-center gap-1.5 shrink-0" aria-label="PlayGraph home">
+      <span class="block w-3.5 h-3.5 rounded-sm bg-game-accent"></span>
+      <span class="font-display font-bold text-title tracking-head text-game-text">PlayGraph</span>
+    </a>
+
+    <nav aria-label="Main" class="order-last basis-full md:order-none md:basis-auto overflow-x-auto pb-2 md:pb-0">
+      <ul class="flex items-center gap-4 text-ui">
+        <li><a href="#" aria-current="page" class="text-game-text font-medium">Games</a></li>
+        <li><a href="#" class="text-game-body hover:text-game-text">Library</a></li>
+        <li><a href="#" class="text-game-body hover:text-game-text">Lists</a></li>
+        <li><a href="#" class="text-game-body hover:text-game-text">Activity</a></li>
+      </ul>
+    </nav>
+
+    <form role="search" class="ml-auto flex-1 max-w-[260px]">
+      <label for="q" class="sr-only">Search games</label>
+      <input id="q" type="search" placeholder="Search 4,812 games"
+        class="w-full h-8 px-2.5 rounded bg-game-surface text-body text-game-text placeholder:text-game-muted border border-transparent focus:border-game-line-strong focus:outline-none">
+    </form>
+
+    <!-- Backlog summary: three counts the user checks every visit. -->
+    <dl class="hidden lg:flex items-center gap-3.5 text-meta" aria-label="Your backlog">
+      <div class="flex items-baseline gap-1"><dt class="text-game-muted">Playing</dt><dd class="num text-game-playing">3</dd></div>
+      <div class="flex items-baseline gap-1"><dt class="text-game-muted">Backlog</dt><dd class="num text-game-text">142</dd></div>
+      <div class="flex items-baseline gap-1"><dt class="text-game-muted">Done</dt><dd class="num text-game-done">61</dd></div>
+    </dl>
+
+    <a href="#" class="link-plain flex items-center gap-2 shrink-0" aria-label="Your profile, jfern">
+      <span class="grid place-items-center w-avatar h-avatar rounded-full bg-game-raised text-meta font-semibold text-game-text">JF</span>
+    </a>
+  </div>
+</header>
+
+<main class="mx-auto max-w-page px-4 pb-16">
+
+<!-- =====================================================================
+     2. Catalog grid: 3 → 7 columns, 14px gaps, covers on the bare canvas
+     ===================================================================== -->
+<section aria-labelledby="lib-h" class="pt-6">
+  <div class="flex flex-wrap items-end gap-x-4 gap-y-2 pb-3 border-b border-game-line">
+    <h1 id="lib-h" class="font-display font-bold tracking-head text-head">Your library</h1>
+    <p class="text-meta text-game-muted"><span class="num">326</span> games · <span class="num">1,904</span> h logged</p>
+
+    <div class="ml-auto flex items-center gap-1.5 text-meta">
+      <div role="group" aria-label="Platform" class="flex gap-1">
+        <button class="h-6 px-2 rounded bg-game-raised text-game-text" aria-pressed="true">All</button>
+        <button class="h-6 px-2 rounded text-game-body hover:bg-game-surface" aria-pressed="false">PC</button>
+        <button class="h-6 px-2 rounded text-game-body hover:bg-game-surface" aria-pressed="false">PS5</button>
+        <button class="h-6 px-2 rounded text-game-body hover:bg-game-surface" aria-pressed="false">Switch</button>
+      </div>
+      <span class="w-px h-4 bg-game-line-strong mx-1" aria-hidden="true"></span>
+      <button id="art-toggle" class="h-6 px-2 rounded text-game-body hover:bg-game-surface" aria-pressed="false">Cartridge art</button>
+    </div>
+  </div>
+
+  <ul id="grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-grid pt-4">
+    <!-- One card, written out in full. The rest are cloned from #cover-card below. -->
+    <li class="group">
+      <article class="cover">
+        <a href="#" class="link-plain block h-full">
+          <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1245620/library_600x900.jpg"
+               data-cart="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1245620/header.jpg"
+               alt="Elden Ring" loading="lazy">
+        </a>
+        <!-- Status strip: 2px of colour along the bottom edge. -->
+        <span class="absolute inset-x-0 bottom-0 h-0.5 bg-game-done" aria-hidden="true"></span>
+        <!-- Inline logging controls, shown on hover or keyboard focus. -->
+        <div class="absolute inset-x-0 bottom-0 flex justify-center gap-1 p-1.5 bg-game-bg/85 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-fast">
+          <button class="grid place-items-center w-7 h-7 rounded text-game-done hover:bg-game-raised" aria-label="Played Elden Ring" aria-pressed="true">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>
+          </button>
+          <button class="grid place-items-center w-7 h-7 rounded text-game-fave hover:bg-game-raised" aria-label="Favorite Elden Ring" aria-pressed="true">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 14s-5.5-3.4-5.5-7.3A3 3 0 0 1 8 4.6a3 3 0 0 1 5.5 2.1C13.5 10.6 8 14 8 14z"/></svg>
+          </button>
+          <button class="grid place-items-center w-7 h-7 rounded text-game-body hover:bg-game-raised hover:text-game-text" aria-label="Add Elden Ring to a list">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7 3h2v4h4v2H9v4H7V9H3V7h4z"/></svg>
+          </button>
+        </div>
+      </article>
+      <p class="mt-1.5 text-meta text-game-text truncate">Elden Ring</p>
+      <p class="text-tag text-game-muted"><span class="num">142</span> h · PC</p>
+    </li>
+  </ul>
+
+  <template id="cover-card">
+    <li class="group">
+      <article class="cover">
+        <a href="#" class="link-plain block h-full"><img alt="" loading="lazy"></a>
+        <span data-strip class="absolute inset-x-0 bottom-0 h-0.5" aria-hidden="true"></span>
+        <div class="absolute inset-x-0 bottom-0 flex justify-center gap-1 p-1.5 bg-game-bg/85 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-fast">
+          <button data-act="Played" class="grid place-items-center w-7 h-7 rounded text-game-body hover:bg-game-raised hover:text-game-text" aria-pressed="false">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>
+          </button>
+          <button data-act="Favorite" class="grid place-items-center w-7 h-7 rounded text-game-body hover:bg-game-raised hover:text-game-text" aria-pressed="false">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 14s-5.5-3.4-5.5-7.3A3 3 0 0 1 8 4.6a3 3 0 0 1 5.5 2.1C13.5 10.6 8 14 8 14z"/></svg>
+          </button>
+          <button data-act="List" class="grid place-items-center w-7 h-7 rounded text-game-body hover:bg-game-raised hover:text-game-text">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7 3h2v4h4v2H9v4H7V9H3V7h4z"/></svg>
+          </button>
+        </div>
+      </article>
+      <p data-title class="mt-1.5 text-meta text-game-text truncate"></p>
+      <p data-meta class="text-tag text-game-muted"></p>
+    </li>
+  </template>
+</section>
+
+<!-- =====================================================================
+     3. Detail dashboard: art and actions left, reference sheet right
+     ===================================================================== -->
+<section aria-labelledby="game-h" class="mt-12 grid gap-6 md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(0,1fr)]">
+  <aside class="space-y-3">
+    <div class="cover max-w-[160px] md:max-w-none">
+      <img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1145360/library_600x900.jpg" alt="Hades cover art">
+    </div>
+
+    <dl class="grid grid-cols-2 bg-game-surface rounded text-meta">
+      <div class="p-2.5 border-r border-game-line">
+        <dt class="text-game-muted">Status</dt>
+        <dd class="mt-0.5 text-ui font-medium text-game-done">Completed</dd>
+      </div>
+      <div class="p-2.5">
+        <dt class="text-game-muted">Logged</dt>
+        <dd class="mt-0.5 text-ui font-medium text-game-text"><span class="num">87.4</span> h</dd>
+      </div>
+    </dl>
+
+    <div class="grid grid-cols-[1fr_auto_auto] gap-1">
+      <button class="h-8 rounded-md bg-game-accent hover:bg-game-accent-hover text-game-bg text-ui font-semibold">Log a play</button>
+      <button class="grid place-items-center w-8 h-8 rounded-md bg-game-surface text-game-fave hover:bg-game-raised" aria-label="Favorite" aria-pressed="true">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 14s-5.5-3.4-5.5-7.3A3 3 0 0 1 8 4.6a3 3 0 0 1 5.5 2.1C13.5 10.6 8 14 8 14z"/></svg>
+      </button>
+      <button class="grid place-items-center w-8 h-8 rounded-md bg-game-surface text-game-body hover:bg-game-raised hover:text-game-text" aria-label="Add to a list">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7 3h2v4h4v2H9v4H7V9H3V7h4z"/></svg>
+      </button>
+    </div>
+
+    <p class="flex items-center gap-2 text-meta text-game-muted">
+      <span class="stars text-ui" style="--pct:90%" role="img" aria-label="Average 4.5 out of 5"></span>
+      <span><span class="num text-game-text">4.5</span> from <span class="num">2,318</span> ratings</span>
+    </p>
+  </aside>
+
+  <div class="min-w-0">
+    <p class="text-meta text-game-muted"><span class="num">2020</span> · Supergiant Games</p>
+    <h2 id="game-h" class="font-display font-bold tracking-head text-hero mt-0.5">Hades</h2>
+    <p class="mt-2 max-w-[62ch] text-ui text-game-body">Battle out of the Underworld in a rogue-like dungeon crawler. Every escape attempt is short; the story moves forward each time you die.</p>
+
+    <!-- Reference-manual block: label column, value column, tight rows. -->
+    <dl class="mt-5 grid grid-cols-[96px_minmax(0,1fr)] text-body border-t border-game-line">
+      <dt class="py-1.5 text-game-muted border-b border-game-line">Developer</dt>
+      <dd class="py-1.5 border-b border-game-line"><a href="#" class="text-game-text underline decoration-game-line-strong underline-offset-[3px] hover:text-game-accent hover:decoration-current transition-colors duration-fast">Supergiant Games</a></dd>
+      <dt class="py-1.5 text-game-muted border-b border-game-line">Publisher</dt>
+      <dd class="py-1.5 border-b border-game-line text-game-text">Supergiant Games</dd>
+      <dt class="py-1.5 text-game-muted border-b border-game-line">Released</dt>
+      <dd class="py-1.5 border-b border-game-line text-game-text"><time datetime="2020-09-17">17 Sep 2020</time></dd>
+      <dt class="py-1.5 text-game-muted border-b border-game-line">Genres</dt>
+      <dd class="py-1.5 border-b border-game-line text-game-text">Roguelike, Action RPG, Hack and slash</dd>
+      <dt class="py-1.5 text-game-muted border-b border-game-line">Mechanics</dt>
+      <dd class="py-1.5 border-b border-game-line text-game-text">Permadeath runs, persistent upgrades, branching dialogue</dd>
+      <dt class="py-1.5 text-game-muted border-b border-game-line">Platforms</dt>
+      <dd class="py-1.5 border-b border-game-line">
+        <ul class="flex flex-wrap gap-1">
+          <li class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">PC</li>
+          <li class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">PS5</li>
+          <li class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">PS4</li>
+          <li class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">Switch</li>
+          <li class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">Xbox Series</li>
+        </ul>
+      </dd>
+    </dl>
+
+    <div class="mt-6">
+      <div role="tablist" aria-label="Game sections" class="flex gap-4 border-b border-game-line text-ui">
+        <button role="tab" aria-selected="true" class="-mb-px pb-2 border-b-2 border-game-accent text-game-text font-medium">Reviews <span class="num text-meta text-game-muted">412</span></button>
+        <button role="tab" aria-selected="false" class="-mb-px pb-2 border-b-2 border-transparent text-game-body hover:text-game-text">Lists <span class="num text-meta text-game-muted">88</span></button>
+        <button role="tab" aria-selected="false" class="-mb-px pb-2 border-b-2 border-transparent text-game-body hover:text-game-text">Your plays <span class="num text-meta text-game-muted">3</span></button>
+      </div>
+
+      <!-- =================================================================
+           4. Review timeline: avatar, meta line, thumb, stars, badge, text
+           ================================================================= -->
+      <ol class="divide-y divide-game-line" aria-label="Recent reviews">
+        <li class="grid grid-cols-[32px_minmax(0,1fr)_36px] gap-x-3 py-row">
+          <span class="grid place-items-center w-avatar h-avatar rounded-full bg-[#2b3a2f] text-meta font-semibold text-game-text" aria-hidden="true">MK</span>
+          <div class="min-w-0">
+            <p class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-meta">
+              <a href="#" class="font-medium link-plain text-game-text hover:text-game-accent">mkowalski</a>
+              <span class="stars" style="--pct:100%" role="img" aria-label="5 out of 5"></span>
+              <span class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">Switch</span>
+              <span class="text-game-muted"><span class="num">104</span> h · completed</span>
+              <time datetime="2026-09-30" class="ml-auto text-game-muted">2d</time>
+            </p>
+            <p class="mt-1 text-body text-game-body">Finished the true ending on a train. Zagreus' dialogue still hadn't repeated at hour ninety, which is a thing I didn't think a roguelike could do.</p>
+            <p class="mt-1 flex gap-3 text-meta text-game-muted">
+              <button class="hover:text-game-fave">♥ <span class="num">38</span></button>
+              <a href="#" class="link-plain text-game-muted hover:text-game-text"><span class="num">6</span> replies</a>
+            </p>
+          </div>
+          <img class="w-thumb aspect-cover object-cover rounded-sm" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1145360/library_600x900.jpg" alt="" loading="lazy">
+        </li>
+
+        <li class="grid grid-cols-[32px_minmax(0,1fr)_36px] gap-x-3 py-row">
+          <span class="grid place-items-center w-avatar h-avatar rounded-full bg-[#3a2b33] text-meta font-semibold text-game-text" aria-hidden="true">RA</span>
+          <div class="min-w-0">
+            <p class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-meta">
+              <a href="#" class="font-medium link-plain text-game-text hover:text-game-accent">rosa.a</a>
+              <span class="stars" style="--pct:70%" role="img" aria-label="3.5 out of 5"></span>
+              <span class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">PC</span>
+              <span class="text-game-muted"><span class="num">22</span> h · playing</span>
+              <time datetime="2026-09-28" class="ml-auto text-game-muted">4d</time>
+            </p>
+            <p class="mt-1 text-body text-game-body">Combat is great. The meta grind for Darkness started to feel like chores around clear six; I'm putting the heat up instead of farming.</p>
+            <p class="mt-1 flex gap-3 text-meta text-game-muted">
+              <button class="hover:text-game-fave">♥ <span class="num">11</span></button>
+              <a href="#" class="link-plain text-game-muted hover:text-game-text"><span class="num">2</span> replies</a>
+            </p>
+          </div>
+          <img class="w-thumb aspect-cover object-cover rounded-sm" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1145360/library_600x900.jpg" alt="" loading="lazy">
+        </li>
+
+        <li class="grid grid-cols-[32px_minmax(0,1fr)_36px] gap-x-3 py-row">
+          <span class="grid place-items-center w-avatar h-avatar rounded-full bg-[#2b3340] text-meta font-semibold text-game-text" aria-hidden="true">DT</span>
+          <div class="min-w-0">
+            <p class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-meta">
+              <a href="#" class="font-medium link-plain text-game-text hover:text-game-accent">dtran</a>
+              <span class="stars" style="--pct:90%" role="img" aria-label="4.5 out of 5"></span>
+              <span class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">PS5</span>
+              <span class="text-game-muted"><span class="num">61</span> h · 100%</span>
+              <time datetime="2026-09-21" class="ml-auto text-game-muted">11d</time>
+            </p>
+            <p class="mt-1 text-body text-game-body">Platinum. Fishing achievement was the last one and I regret nothing.</p>
+            <p class="mt-1 flex gap-3 text-meta text-game-muted">
+              <button class="hover:text-game-fave">♥ <span class="num">5</span></button>
+            </p>
+          </div>
+          <img class="w-thumb aspect-cover object-cover rounded-sm" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1145360/library_600x900.jpg" alt="" loading="lazy">
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+  // Preview data. In the app this comes from /api/library.
+  const art = id => `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${id}`;
+  const strip = { done: "bg-game-done", playing: "bg-game-playing", played: "bg-game-accent", none: "" };
+  const games = [
+    [1145360, "Hades", 87, "PC", "done", true],
+    [1086940, "Baldur's Gate 3", 214, "PC", "playing", true],
+    [367520, "Hollow Knight", 46, "Switch", "done", false],
+    [632470, "Disco Elysium", 38, "PC", "done", true],
+    [753640, "Outer Wilds", 19, "PC", "done", true],
+    [1091500, "Cyberpunk 2077", 71, "PS5", "played", false],
+    [504230, "Celeste", 24, "Switch", "done", false],
+    [413150, "Stardew Valley", 133, "PC", "playing", false],
+    [646570, "Slay the Spire", 302, "PC", "played", true],
+    [2379780, "Balatro", 58, "PC", "playing", false],
+    [588650, "Dead Cells", 12, "PS5", "none", false],
+    [620, "Portal 2", 15, "PC", "done", false],
+    [1145350, "Hades II", 0, "PC", "none", false],
+  ];
+  const grid = document.getElementById("grid");
+  const tpl = document.getElementById("cover-card");
+  for (const [id, title, hours, platform, status, fave] of games) {
+    const li = tpl.content.firstElementChild.cloneNode(true);
+    const img = li.querySelector("img");
+    img.src = `${art(id)}/library_600x900.jpg`;
+    img.dataset.cart = `${art(id)}/header.jpg`;
+    img.alt = title;
+    if (strip[status]) li.querySelector("[data-strip]").classList.add(strip[status]);
+    li.querySelector("[data-title]").textContent = title;
+    li.querySelector("[data-meta]").innerHTML = hours ? `<span class="num">${hours}</span> h · ${platform}` : `Backlog · ${platform}`;
+    for (const b of li.querySelectorAll("[data-act]")) {
+      b.setAttribute("aria-label", b.dataset.act === "List" ? `Add ${title} to a list` : `${b.dataset.act} ${title}`);
+      const on = (b.dataset.act === "Played" && status !== "none") || (b.dataset.act === "Favorite" && fave);
+      if (b.hasAttribute("aria-pressed")) b.setAttribute("aria-pressed", on);
+      if (on) b.classList.replace("text-game-body", b.dataset.act === "Favorite" ? "text-game-fave" : "text-game-done");
+    }
+    grid.append(li);
+  }
+
+  // Toggle buttons in the preview.
+  document.addEventListener("click", e => {
+    const b = e.target.closest("button[aria-pressed]");
+    if (!b || b.id === "art-toggle") return;
+    // Played / favorite on a cover: flip state and colour.
+    if (b.closest(".cover")) {
+      const on = b.getAttribute("aria-pressed") !== "true";
+      const color = b.getAttribute("aria-label").startsWith("Favorite") ? "text-game-fave" : "text-game-done";
+      b.setAttribute("aria-pressed", on);
+      b.classList.toggle(color, on);
+      b.classList.toggle("text-game-body", !on);
+      return;
+    }
+    const group = b.closest('[role="group"]');
+    if (group) {
+      for (const x of group.querySelectorAll("button")) {
+        x.setAttribute("aria-pressed", x === b);
+        x.classList.toggle("bg-game-raised", x === b);
+        x.classList.toggle("text-game-text", x === b);
+      }
+    }
+  });
+
+  // Portrait box art vs. horizontal cartridge-label crop.
+  document.getElementById("art-toggle").addEventListener("click", e => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", on);
+    e.currentTarget.classList.toggle("bg-game-raised", on);
+    e.currentTarget.classList.toggle("text-game-text", on);
+    grid.classList.toggle("xl:grid-cols-7", !on);
+    grid.classList.toggle("xl:grid-cols-6", on);
+    for (const c of grid.querySelectorAll(".cover")) {
+      c.classList.toggle("is-cart", on);
+      const img = c.querySelector("img");
+      [img.src, img.dataset.cart] = [img.dataset.cart, img.src];
+    }
+  });
+</script>
+</body>
+</html>
