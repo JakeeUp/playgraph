@@ -73,7 +73,9 @@ dialog::backdrop { background:var(--scrim); }
 .delete-confirmation p { margin-bottom:var(--space-4); font-size:var(--text-ui); }
 .delete-confirmation button { margin:0 var(--space-2) var(--space-2) 0; }
 .review-removal { margin-top:var(--space-3); }
-.review-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-4); margin-top:var(--space-3); }
+.review-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-4); margin-top:var(--space-2); }
+.review-actions .text-button { font-size:var(--text-xs); color:var(--text-muted); }
+.review-actions .text-button:hover { color:var(--text); }
 .write-review > .button, .review-form > .button { align-self:flex-start; }
 
 /* ---------------- playtime cards ---------------- */
