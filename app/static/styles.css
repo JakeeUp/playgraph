@@ -395,7 +395,7 @@ select:disabled { color:var(--text-muted); cursor:default; }
 /* ---- empty + load more ---- */
 .empty-message {
   grid-column:1/-1; display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2);
-  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
+  background:var(--surface); border-radius:var(--radius-lg);
   padding:var(--space-5); color:var(--text-muted); font-size:var(--text-ui);
 }
 .empty-message strong { font-weight:600; font-size:var(--text-md); color:var(--text); }
@@ -408,7 +408,7 @@ select:disabled { color:var(--text-muted); cursor:default; }
 
 .welcome {
   display:grid; grid-template-columns:minmax(0,1fr) auto; gap:var(--space-6); align-items:center;
-  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
+  background:var(--surface); border-radius:var(--radius-lg);
   padding:var(--space-6);
 }
 .welcome h2 { font-size:var(--text-xl); margin-bottom:var(--space-2); }
@@ -417,7 +417,7 @@ select:disabled { color:var(--text-muted); cursor:default; }
 .welcome-art { display:flex; gap:var(--space-2); }
 .welcome-art img {
   width:112px; height:auto; aspect-ratio:2/3; object-fit:cover; display:block;
-  border-radius:var(--radius); border:1px solid var(--line); background:var(--surface-2);
+  border-radius:var(--radius-sm); background:var(--surface-2);
 }
 
 /* ============================ FOOTER ============================ */
