@@ -429,10 +429,11 @@ select:disabled { color:var(--text-muted); cursor:default; }
 
 @media (max-width:860px) {
   :root { --gutter:var(--space-4); }
-  .shell { grid-template-columns:minmax(0,1fr); grid-template-areas:"main"; }
-  .sidebar { display:none; }
+  .topnav, .beta { display:none; }
+  .topbar-inner { gap:var(--space-3); }
+  .brand { font-size:0; gap:0; }
   .workspace > main { padding-bottom:calc(var(--space-8) + var(--space-7) + env(safe-area-inset-bottom,0px)); gap:var(--space-5); }
-  .search { max-width:none; }
+  .search { max-width:none; margin-left:0; }
   .search kbd { display:none; }
   .account-name { display:none; }
   .game-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-4) var(--space-2); }
@@ -461,7 +462,7 @@ select:disabled { color:var(--text-muted); cursor:default; }
 }
 
 @media (max-width:420px) {
-  .topbar { gap:var(--space-2); }
+  .topbar-inner { gap:var(--space-2); }
   .account .button { padding:0 var(--space-3); }
 }
 
