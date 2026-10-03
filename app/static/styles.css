@@ -38,11 +38,11 @@
   --on-accent:#101418;
 
   /* Meaning, not decoration: verified hours, errors, and the one chart series. */
-  --verified:#4fb98a;
-  --verified-line:rgba(79,185,138,0.45);
-  --danger:#e8857e;
-  --series:#3987e5;
-  --series-hover:#5d9dea;
+  --verified:#00e054;
+  --verified-line:rgba(0,224,84,0.4);
+  --danger:#ff5c7a;
+  --series:#00b4d8;
+  --series-hover:#3cc8e6;
 
   --font-display:"Space Grotesk","IBM Plex Sans",system-ui,sans-serif;
   --font-sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
