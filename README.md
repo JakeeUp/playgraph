@@ -23,14 +23,14 @@ together, with your play history alongside them.
 - Game pages with community reviews, your review, and shareable links
 - Edit or delete your own reviews without changing their original playtime snapshot
 
-| Library and playtime | Reviews and game pages |
+| Your games | Reviews and news |
 |---|---|
-| ![The library grid, sorted by most played](docs/screenshots/library-grid.webp) | ![A game page with playtime, achievements and a review](docs/screenshots/game-page.webp) |
-| The whole Steam library, hours on every game | Your hours and achievements next to the reviews |
-| ![Playtime by genre and a top 10 by hours](docs/screenshots/playtime.webp) | ![The review feed](docs/screenshots/feed.webp) |
-| Where the hours went, by genre and by game | Verified hours on reviews, when available |
-| ![More of the library grid](docs/screenshots/library-scroll.webp) | ![A game page opened from the feed](docs/screenshots/game-page-from-feed.webp) |
-| Cover art straight from Steam | Open any game right from the feed |
+| ![The library grid, sorted by achievement progress](docs/screenshots/library-grid.webp) | ![A game page with playtime, achievements and a review](docs/screenshots/game-page.webp) |
+| Sort by achievement progress; finished games get a 100% tag | Your hours and achievements next to the reviews |
+| ![Playtime by genre and a top 10 by hours](docs/screenshots/playtime.webp) | ![The reviews page](docs/screenshots/reviews.webp) |
+| Where the hours went, by genre and by game | Verified hours on reviews, when Steam has them |
+| ![The catalog on the Explore page](docs/screenshots/explore.webp) | ![Game news on the For you page](docs/screenshots/for-you.webp) |
+| Every game imported into PlayGraph so far | Game news from Steam and the big gaming sites |
 
 Sign-in runs through Clerk. Once you're in, the account page lets you connect
 Steam. This is the development build; the email address is obscured in the
