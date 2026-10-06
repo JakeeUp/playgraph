@@ -6,9 +6,9 @@ export function createGameDialog(state, api, report = () => {}) {
   let requestId = 0; let pageTitle = document.title;
   const dialog = $('#game-dialog'); const content = $('#detail-content');
   $('#close-dialog').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => { requestId += 1; content.replaceChildren(); document.title = pageTitle; });
+  dialog.addEventListener('close', () => { requestId += 1; dialog.style.removeProperty('--tint'); content.replaceChildren(); document.title = pageTitle; });
   async function open(game, createdReview = null, threadReview = null, editRequested = false) {
-    const request = ++requestId; content.replaceChildren();
+    const request = ++requestId; content.replaceChildren(); dialog.style.removeProperty('--tint');
     if (!dialog.open) pageTitle = document.title;
     document.title = `${game.name} | PlayGraph`;
     const entry = state.library.find((row) => row.game.id === game.id);
@@ -19,7 +19,7 @@ export function createGameDialog(state, api, report = () => {}) {
     const software = game.content_kind === 'software';
     const info = el('div', 'detail-info');
     const title = el('h2', '', game.name); title.id = 'detail-title';
-    info.append(el('p', 'detail-eyebrow', [software ? 'Software' : 'Game', 'Steam'].join(' · ')), title);
+    info.append(el('p', 'detail-kicker', [software ? 'Software' : 'Game', 'Steam'].join(' · ')), title);
     // Your numbers sit under the art: hours and achievements when the game is
     // in your library, otherwise a plain note.
     const stats = el('dl', 'detail-stats');
@@ -43,7 +43,7 @@ export function createGameDialog(state, api, report = () => {}) {
     info.append(fields);
     if (entry) { const synced = el('p', 'helper', 'Your numbers are from your Steam sync on '); synced.append(el('span', 'num', timeLabel(entry.captured_at))); info.append(synced); }
     else info.append(el('p', 'helper', 'Imported from Steam. Release dates, developers and console versions aren’t in this catalog yet.'));
-    header.append(info); main.append(header); profile.append(aside, main); content.append(heroBand(game), profile);
+    header.append(info); main.append(header); profile.append(aside, main); content.append(heroBand(game), profile); tint(game, request);
     const writeSection = el('section', 'write-review');
     if (createdReview && state.user) showOwnReview(createdReview, editRequested);
     else if (state.user) writeSection.append(el('p', 'helper', 'Checking for your review…'));
@@ -135,6 +135,28 @@ export function createGameDialog(state, api, report = () => {}) {
     if (!dialog.open) dialog.showModal(); dialog.scrollTop = 0; $('#close-dialog').focus();
     if (threadReview) list.replaceChildren(reviewCard(threadReview, true));
     await Promise.all([threadReview ? Promise.resolve() : loadReviews(), state.user && !createdReview ? loadOwnReview() : Promise.resolve()]);
+  }
+  // Per-game color: average the cover (Steam's CDN allows CORS) on an 8x12 canvas,
+  // darken it so it never goes bright, and expose it as --tint. Failure leaves CSS fallbacks.
+  function tint(game, request) {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (request !== requestId) return;
+      try {
+        const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 12;
+        const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, 8, 12);
+        // Weight each pixel by its saturation, so the cover's real color wins
+        // over the greys and blacks most box art is mostly made of.
+        const px = ctx.getImageData(0, 0, 8, 12).data; const sum = [0, 0, 0]; let total = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          const weight = Math.max(px[i], px[i + 1], px[i + 2]) - Math.min(px[i], px[i + 1], px[i + 2]) + 8;
+          for (let c = 0; c < 3; c++) sum[c] += px[i + c] * weight; total += weight;
+        }
+        const [r, g, b] = sum.map((v) => Math.round(v / total * 0.55));
+        dialog.style.setProperty('--tint', `rgb(${r},${g},${b})`);
+      } catch { /* tainted canvas: keep the CSS fallback */ }
+    };
+    img.src = steamArt(game.steam_appid, 'library_600x900.jpg');
   }
   // Backdrop band behind the cover and title. Wide hero art first, then the
   // store header blurred hard (it is too small to show sharp at this width),
