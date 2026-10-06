@@ -11,7 +11,7 @@
   <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
   <link rel="preload" href="/assets/fonts/plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/assets/fonts/space-grotesk-700.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/assets/styles.css">
   <link rel="stylesheet" href="/assets/details.css">
   <link rel="stylesheet" href="/assets/social.css">
@@ -50,18 +50,16 @@
         <div class="welcome-hero">
           <div class="welcome-wall" aria-hidden="true"></div>
           <div class="welcome-copy">
-            <span class="eyebrow">Your Steam library, reviewed</span>
-            <h2 id="welcome-title">Reviews with <span class="grad-text">the hours behind them</span></h2>
-            <p>Rate the games you play and see what other players thought. Connect Steam and every review shows how long you actually played.</p>
-            <div class="welcome-actions"><a href="/account" class="button primary large">Create a free account</a><a href="#collection" class="button secondary large">Browse games</a></div>
+            <h2 id="welcome-title">Reviews that show the hours.</h2>
+            <p>Every review on PlayGraph comes with the reviewer&rsquo;s real Steam playtime. Two hundred hours in, or twenty minutes before a refund? Now you can tell.</p>
+            <div class="welcome-actions"><a href="/account" class="button primary large">Create an account</a><a href="#collection">Browse the catalog</a></div>
             <span class="helper">On the old Steam beta? That sign-in is on the account page.</span>
           </div>
         </div>
-        <ul class="features">
-          <li class="feature" data-icon="gamepad"><h3>Bring your Steam library</h3><p>Connect once. Your games, hours and achievements come in with every sync.</p></li>
-          <li class="feature" data-icon="star"><h3>Review with proof</h3><p>Rate in half stars. Your review shows the hours you put in, straight from Steam.</p></li>
-          <li class="feature" data-icon="compass"><h3>Find your next game</h3><p>Read reviews from people who own the game, and see where your own hours go.</p></li>
-        </ul>
+        <section id="front-reviews" class="front-reviews" aria-labelledby="front-reviews-title" hidden>
+          <div class="section-heading"><h2 id="front-reviews-title">Latest reviews</h2><div class="display-controls"><button class="text-button" data-view="feed">All reviews</button></div></div>
+          <ol id="front-reviews-list"></ol>
+        </section>
       </section>
       <section id="summary" class="summary" aria-label="Your library at a glance" hidden></section>
       <section id="insights" class="insights" hidden></section>

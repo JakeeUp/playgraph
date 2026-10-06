@@ -1,5 +1,6 @@
 import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown, steamArt } from './library.js';
-import { $, el, button, steamLink, cover, aborted, numbered, setNumbers } from './dom.js';
+import { $, el, button, steamLink, cover, aborted, numbered, setNumbers, timeLabel } from './dom.js';
+import { starDisplay } from './rating.js';
 import { createGameDialog } from './game-detail.js';
 import { createFeed } from './feed.js';
 import { createNews } from './news.js';
@@ -138,7 +139,7 @@ function renderShell() {
   const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
   // The welcome hero has its own headline, so the plain page heading steps aside.
   $('.page-heading').hidden = pageKey() === 'welcome';
-  if ($('#welcome').hidden === false) buildWall();
+  if ($('#welcome').hidden === false) { buildWall(); void loadFrontReviews(); }
   if (!own) setHero(null);
   $('#page-title').textContent = copy.title;
   $('#page-subtitle').textContent = copy.subtitle;
@@ -171,6 +172,29 @@ function buildWall() {
     }
     wall.append(strip);
   }
+}
+// The three newest public reviews, on the signed-out front door. They show
+// what the site is for better than a list of features would. Loaded once;
+// with no reviews yet the section just stays hidden.
+let frontReviewsLoaded = false;
+async function loadFrontReviews() {
+  if (frontReviewsLoaded) return; frontReviewsLoaded = true;
+  try {
+    const data = await api('/feed?limit=3&offset=0&q=', { anonymous: true });
+    const items = data?.items ?? []; if (!items.length) return;
+    $('#front-reviews-list').replaceChildren(...items.map(({ review, game }) => {
+      const row = el('li', 'front-review');
+      const art = button('', '', () => gameDialog.open(game)); art.setAttribute('aria-label', `Open ${game.name}`); art.append(cover(game));
+      const body = el('div'); const head = el('div', 'front-review-head');
+      head.append(button(game.name, 'front-review-title', () => gameDialog.open(game)), starDisplay(review.rating),
+        el('span', 'sr-only', `Rated ${review.rating} out of 5.`));
+      if (review.verified_playtime_minutes != null) head.append(el('span', 'hours-block', `${hours(review.verified_playtime_minutes)} h played`));
+      else head.append(el('span', 'helper', 'No Steam hours'));
+      const by = el('p', 'front-review-by', `${review.author_name} · `); by.append(el('span', 'num', timeLabel(review.created_at)));
+      body.append(head, el('p', 'front-review-body', review.body), by); row.append(art, body); return row;
+    }));
+    $('#front-reviews').hidden = false;
+  } catch { frontReviewsLoaded = false; }  // Optional extra: the catalog below still works without it.
 }
 // The library page heading sits on the wide hero art of your most played
 // game. The URL comes from the numeric app id, like every other cover.
