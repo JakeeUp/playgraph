@@ -1,4 +1,4 @@
-import { genresFor, hours, integer, achievementPercent } from './library.js';
+import { genresFor, hours, integer, achievementPercent, steamArt } from './library.js';
 import { $, el, button, cover, steamLink, timeLabel, formError, numbered } from './dom.js';
 import { createRatingPicker, starDisplay } from './rating.js';
 
@@ -43,7 +43,7 @@ export function createGameDialog(state, api, report = () => {}) {
     info.append(fields);
     if (entry) { const synced = el('p', 'helper', 'Your numbers are from your Steam sync on '); synced.append(el('span', 'num', timeLabel(entry.captured_at))); info.append(synced); }
     else info.append(el('p', 'helper', 'Imported from Steam. Release dates, developers and console versions aren’t in this catalog yet.'));
-    header.append(info); main.append(header); profile.append(aside, main); content.append(profile);
+    header.append(info); main.append(header); profile.append(aside, main); content.append(heroBand(game), profile);
     const writeSection = el('section', 'write-review');
     if (createdReview && state.user) showOwnReview(createdReview, editRequested);
     else if (state.user) writeSection.append(el('p', 'helper', 'Checking for your review…'));
@@ -135,6 +135,20 @@ export function createGameDialog(state, api, report = () => {}) {
     if (!dialog.open) dialog.showModal(); dialog.scrollTop = 0; $('#close-dialog').focus();
     if (threadReview) list.replaceChildren(reviewCard(threadReview, true));
     await Promise.all([threadReview ? Promise.resolve() : loadReviews(), state.user && !createdReview ? loadOwnReview() : Promise.resolve()]);
+  }
+  // Backdrop band behind the cover and title. Wide hero art first, then the
+  // store header blurred hard (it is too small to show sharp at this width),
+  // then nothing: the CSS gradient underneath carries it.
+  function heroBand(game) {
+    const band = el('div', 'detail-hero'); band.setAttribute('aria-hidden', 'true');
+    const img = el('img'); img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+    let step = 0; const files = ['library_hero.jpg', 'header.jpg'];
+    const load = () => { img.src = steamArt(game.steam_appid, files[step]); };
+    img.addEventListener('error', () => {
+      step += 1;
+      if (step < files.length) { band.classList.add('soft'); load(); } else img.remove();
+    });
+    load(); band.append(img); return band;
   }
   function reviewForm(game, request, existing = null, cancel = null) {
     const form = el('form', 'review-form'); form.append(el('h3', '', existing ? 'Edit your review' : 'Write a review'));
