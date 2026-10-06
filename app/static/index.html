@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#121212">
+  <meta name="theme-color" content="#0d1117">
   <meta name="color-scheme" content="dark">
   <meta name="description" content="A game library with reviews. Connect Steam and each review shows how long you actually played.">
   <title>Games | PlayGraph</title>
@@ -46,7 +46,23 @@
     <main id="main" tabindex="-1">
       <div id="notice" class="notice" role="status" hidden></div>
       <section class="page-heading"><div><h1 id="page-title">Games on PlayGraph</h1><p id="page-subtitle" class="subtitle">Everything imported so far. Open a game to read its reviews.</p></div><button id="sync-button" class="button secondary" hidden>Sync Steam</button></section>
-      <section id="welcome" class="welcome"><div><h2>Reviews with the hours behind them</h2><p>Make an account to rate games and write reviews. Connect Steam and each review shows how long you actually played.</p><a href="/account" class="button primary">Create an account</a><span class="helper">On the old Steam beta? That sign-in is on the account page.</span></div><div class="welcome-art"><img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1145360/library_600x900.jpg" alt="Hades cover art" width="600" height="900"><img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1245620/library_600x900.jpg" alt="Elden Ring cover art" width="600" height="900"><img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1086940/library_600x900.jpg" alt="Baldur's Gate 3 cover art" width="600" height="900"></div></section>
+      <section id="welcome" class="welcome" aria-labelledby="welcome-title">
+        <div class="welcome-hero">
+          <div class="welcome-wall" aria-hidden="true"></div>
+          <div class="welcome-copy">
+            <span class="eyebrow">Your Steam library, reviewed</span>
+            <h2 id="welcome-title">Reviews with <span class="grad-text">the hours behind them</span></h2>
+            <p>Rate the games you play and see what other players thought. Connect Steam and every review shows how long you actually played.</p>
+            <div class="welcome-actions"><a href="/account" class="button primary large">Create a free account</a><a href="#collection" class="button secondary large">Browse games</a></div>
+            <span class="helper">On the old Steam beta? That sign-in is on the account page.</span>
+          </div>
+        </div>
+        <ul class="features">
+          <li class="feature" data-icon="gamepad"><h3>Bring your Steam library</h3><p>Connect once. Your games, hours and achievements come in with every sync.</p></li>
+          <li class="feature" data-icon="star"><h3>Review with proof</h3><p>Rate in half stars. Your review shows the hours you put in, straight from Steam.</p></li>
+          <li class="feature" data-icon="compass"><h3>Find your next game</h3><p>Read reviews from people who own the game, and see where your own hours go.</p></li>
+        </ul>
+      </section>
       <section id="summary" class="summary" aria-label="Your library at a glance" hidden></section>
       <section id="insights" class="insights" hidden></section>
       <section id="news" class="news" hidden aria-label="Gaming news">
@@ -73,7 +89,7 @@
         <div id="games" class="game-grid" aria-live="polite"><p class="empty-message">Loading games…</p></div>
         <div class="load-more"><button id="load-more" class="button secondary" hidden>Show more games</button><span id="shown-count" class="helper"></span></div>
       </section>
-      <footer><span>PlayGraph beta</span><span>Game art and playtime come from Steam</span></footer>
+      <footer><span class="footer-brand"><img src="/assets/mark.svg" alt="" width="18" height="18">PlayGraph beta</span><span>Game art and playtime come from Steam</span></footer>
     </main>
   </div>
   </div>

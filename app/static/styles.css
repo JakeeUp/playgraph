@@ -235,7 +235,8 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 .account-manage { display:flex; align-items:center; gap:var(--space-2); color:var(--text); }
 .account-manage:hover { text-decoration:none; }
 .account-manage:hover .account-name { text-decoration:underline; text-underline-offset:3px; }
-.account-name { font-size:var(--text-ui); font-weight:500; }
+.account-name { font-size:var(--text-ui); font-weight:500; white-space:nowrap; }
+.signout { white-space:nowrap; }
 .avatar {
   width:32px; height:32px; border-radius:50%; flex:none;
   background:var(--grad-brand); box-shadow:0 0 0 2px var(--bg),0 0 0 3px var(--accent-ring);
@@ -286,8 +287,28 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 .notice.error { border-color:rgba(255,92,122,0.5); background:rgba(255,92,122,0.08); color:var(--danger); }
 
 /* ---- page heading ---- */
-.page-heading { display:flex; align-items:flex-end; gap:var(--space-4); flex-wrap:wrap; }
+.page-heading { position:relative; display:flex; align-items:flex-end; gap:var(--space-4); flex-wrap:wrap; }
 .page-heading > div { flex:1 1 380px; min-width:0; }
+/* Your most played game's wide art behind the heading. It fades out to the
+   right and the bottom, so the title always sits on calm, dark color. */
+.page-heading.has-hero {
+  isolation:isolate; overflow:hidden; min-height:220px; align-items:flex-end;
+  padding:var(--space-7) var(--space-6) var(--space-6); border-radius:var(--radius-lg);
+  border:1px solid var(--line); box-shadow:var(--shadow-2); background:var(--surface);
+}
+.page-heading.has-hero h1 { font-size:var(--text-3xl); text-shadow:0 2px 18px rgba(0,0,0,0.5); }
+.page-heading.has-hero .subtitle { color:var(--text); opacity:0.85; }
+.hero-art {
+  position:absolute; inset:0; z-index:-2; width:100%; height:100%; object-fit:cover; object-position:center 30%;
+  animation:fade-in 600ms var(--ease) both;
+}
+.hero-art.soft { filter:blur(28px) saturate(1.4); transform:scale(1.2); }
+.page-heading.has-hero::before {
+  content:""; position:absolute; inset:0; z-index:-1;
+  background:linear-gradient(90deg,rgba(var(--bg-rgb),0.92) 0%,rgba(var(--bg-rgb),0.55) 55%,rgba(var(--bg-rgb),0.15) 100%),
+    linear-gradient(0deg,rgba(var(--bg-rgb),0.85) 0%,transparent 60%);
+}
+@keyframes fade-in { from { opacity:0; } to { opacity:1; } }
 .page-heading h1 { font-size:var(--text-2xl); }
 .eyebrow {
   display:inline-flex; align-items:center; gap:var(--space-2); margin-bottom:var(--space-3);
@@ -486,19 +507,64 @@ select:disabled { color:var(--text-muted); cursor:default; }
 
 /* ============================ WELCOME ============================ */
 
-.welcome {
-  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:var(--space-6); align-items:center;
-  background:var(--surface); border-radius:var(--radius-lg);
-  padding:var(--space-6);
+/* The signed-out front door. A tilted wall of covers drifts slowly behind
+   the headline, dimmed on the left where the words are. */
+.welcome { display:flex; flex-direction:column; gap:var(--space-5); }
+.welcome-hero {
+  position:relative; isolation:isolate; overflow:hidden; display:flex; align-items:center; min-height:480px;
+  padding:var(--space-8) var(--space-7); border-radius:calc(var(--radius-lg) + 6px);
+  background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow-2);
 }
-.welcome h2 { font-size:var(--text-xl); margin-bottom:var(--space-2); }
-.welcome p { margin-bottom:var(--space-5); color:var(--text-muted); max-width:54ch; }
-.welcome .helper { display:block; margin-top:var(--space-3); }
-.welcome-art { display:flex; gap:var(--space-2); }
-.welcome-art img {
-  width:112px; height:auto; aspect-ratio:2/3; object-fit:cover; display:block;
-  border-radius:var(--radius-sm); background:var(--surface-2);
+.welcome-wall {
+  position:absolute; z-index:-2; inset:-30% -10% -30% 25%; display:flex; flex-direction:column; gap:var(--space-4);
+  transform:rotate(-10deg); opacity:0.9;
 }
+.wall-row { display:flex; gap:var(--space-4); width:max-content; animation:drift 60s linear infinite alternate; }
+.wall-row:nth-child(2) { animation-direction:alternate-reverse; margin-left:-90px; }
+.wall-row:nth-child(3) { animation-duration:75s; margin-left:-40px; }
+.wall-row img {
+  width:150px; height:auto; aspect-ratio:2/3; object-fit:cover; display:block; flex:none;
+  border-radius:var(--radius-sm); background:var(--surface-2); box-shadow:var(--shadow-2);
+}
+@keyframes drift { from { transform:translateX(0); } to { transform:translateX(-260px); } }
+/* Dark on the left for the words, a warm wash from the corner, and a fade at the bottom edge. */
+.welcome-hero::before {
+  content:""; position:absolute; inset:0; z-index:-1;
+  background:
+    linear-gradient(90deg,var(--surface) 0%,rgba(21,28,36,0.94) 34%,rgba(21,28,36,0.55) 62%,rgba(21,28,36,0.25) 100%),
+    radial-gradient(600px 400px at 0% 100%,rgba(255,122,0,0.16),transparent 70%),
+    linear-gradient(0deg,rgba(21,28,36,0.8) 0%,transparent 35%);
+}
+.welcome-copy { position:relative; max-width:560px; display:flex; flex-direction:column; align-items:flex-start; }
+.welcome h2 { font-size:var(--text-hero); line-height:1.02; letter-spacing:-0.03em; margin-bottom:var(--space-4); }
+.welcome-copy > p { margin-bottom:var(--space-6); color:var(--text-body); font-size:var(--text-lg); max-width:46ch; text-wrap:pretty; }
+.welcome-actions { display:flex; flex-wrap:wrap; gap:var(--space-3); }
+.welcome .helper { display:block; margin-top:var(--space-4); }
+
+/* Three plain promises under the hero, each with a tinted icon. */
+.features { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-4); }
+.feature {
+  position:relative; padding:var(--space-5); padding-top:calc(var(--space-5) + 44px + var(--space-4));
+  background:linear-gradient(180deg,var(--surface-2),var(--surface)); border:1px solid var(--line);
+  border-radius:var(--radius-lg); box-shadow:var(--highlight),var(--shadow-1);
+  transition:border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  animation:rise 480ms var(--ease) both;
+}
+.feature:nth-child(2) { animation-delay:80ms; } .feature:nth-child(3) { animation-delay:160ms; }
+.feature:hover { border-color:var(--line-strong); transform:translateY(-3px); }
+.feature::before {
+  content:""; position:absolute; left:var(--space-5); top:var(--space-5); width:44px; height:44px;
+  border-radius:12px; background:var(--tint);
+}
+.feature::after {
+  content:""; position:absolute; left:calc(var(--space-5) + 11px); top:calc(var(--space-5) + 11px); width:22px; height:22px;
+  background:var(--ink); -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat;
+}
+.feature[data-icon="gamepad"] { --icon:url("/assets/icons/gamepad.svg"); --tint:rgba(0,180,216,0.14); --ink:var(--series-hover); }
+.feature[data-icon="star"] { --icon:url("/assets/icons/star.svg"); --tint:var(--accent-soft); --ink:var(--accent); }
+.feature[data-icon="compass"] { --icon:url("/assets/icons/compass.svg"); --tint:rgba(255,77,109,0.14); --ink:var(--accent-2); }
+.feature h3 { font-size:var(--text-lg); margin-bottom:var(--space-2); }
+.feature p { font-size:var(--text-ui); color:var(--text-muted); }
 
 /* ============================ FOOTER ============================ */
 
@@ -541,8 +607,13 @@ select:disabled { color:var(--text-muted); cursor:default; }
   .stat::before { left:var(--space-4); top:var(--space-4); margin-top:0; width:36px; height:36px; border-radius:10px; }
   .stat::after { left:calc(var(--space-4) + 9px); top:calc(var(--space-4) + 9px); margin-top:0; width:18px; height:18px; }
   .stat-value { font-size:var(--text-xl); }
-  .welcome { grid-template-columns:minmax(0,1fr); padding:var(--space-5); }
-  .welcome-art { display:none; }
+  .welcome-hero { min-height:0; padding:var(--space-7) var(--space-5); }
+  .welcome-wall { inset:-20% -40% -20% -10%; opacity:0.45; }
+  .welcome-hero::before { background:linear-gradient(0deg,var(--surface) 10%,rgba(21,28,36,0.8) 60%,rgba(21,28,36,0.6) 100%); }
+  .welcome-copy > p { font-size:var(--text-md); }
+  .features { grid-template-columns:minmax(0,1fr); gap:var(--space-3); }
+  .page-heading.has-hero { min-height:180px; padding:var(--space-6) var(--space-4) var(--space-4); }
+  .page-heading.has-hero h1 { font-size:var(--text-2xl); }
   .display-controls { width:100%; margin-left:0; }
 
   .tabbar {

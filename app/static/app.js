@@ -1,4 +1,4 @@
-import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown } from './library.js';
+import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown, steamArt } from './library.js';
 import { $, el, button, steamLink, cover, aborted, numbered, setNumbers } from './dom.js';
 import { createGameDialog } from './game-detail.js';
 import { createFeed } from './feed.js';
@@ -43,6 +43,12 @@ const SHELF = {
     unused: 'Not used', mostUsed: 'Most used', plural: 'apps', verb: 'used', more: 'Show more apps',
     note: 'Software usage and achievements do not count toward your game stats or For You preferences.' },
 };
+// Steam app ids for the drifting cover wall behind the signed-out welcome.
+// Well-known games with portrait art, so the first screen looks like games
+// people recognise. Any cover that fails to load just drops out of the row.
+const WALL_APPS = [1145360, 1245620, 1086940, 1091500, 292030, 413150, 367520, 1174180, 730,
+  814380, 1593500, 2050650, 105600, 620, 553850, 1868140, 2358720, 570,
+  271590, 1817070, 489830, 374320, 1888930, 588650, 504230, 646570, 268910];
 const state = { user: null, csrf: '', library: [], genres: [], catalog: [], total: 0,
   view: 'library', query: '', filter: 'all', genre: '', sort: 'playtime', shown: 48,
   controller: new AbortController(), generation: 0, catalogRequest: 0,
@@ -130,6 +136,10 @@ function renderShell() {
   $('#sync-button').hidden = !state.user || !state.hasSteam; $('#filters').hidden = !own;
   $('#sort').disabled = !own; $('#sort').value = own ? state.sort : 'name';
   const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
+  // The welcome hero has its own headline, so the plain page heading steps aside.
+  $('.page-heading').hidden = pageKey() === 'welcome';
+  if ($('#welcome').hidden === false) buildWall();
+  if (!own) setHero(null);
   $('#page-title').textContent = copy.title;
   $('#page-subtitle').textContent = copy.subtitle;
   // An open game page owns the tab title until it closes.
@@ -146,6 +156,37 @@ function renderShell() {
   $('#sort').querySelector('[value="playtime"]').textContent = shelf.mostUsed;
   updateGenres();
   if (own) renderInsights();
+}
+function buildWall() {
+  const wall = $('.welcome-wall'); if (wall.childElementCount) return;
+  const perRow = Math.ceil(WALL_APPS.length / 3);
+  for (let row = 0; row < 3; row += 1) {
+    const strip = el('div', 'wall-row');
+    for (const appid of WALL_APPS.slice(row * perRow, (row + 1) * perRow)) {
+      const img = el('img'); img.alt = ''; img.width = 600; img.height = 900;
+      img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+      img.src = steamArt(appid, 'library_600x900.jpg');
+      img.addEventListener('error', () => img.remove(), { once: true });
+      strip.append(img);
+    }
+    wall.append(strip);
+  }
+}
+// The library page heading sits on the wide hero art of your most played
+// game. The URL comes from the numeric app id, like every other cover.
+function setHero(game) {
+  const heading = $('.page-heading'); const appid = game?.steam_appid;
+  if (heading.dataset.hero === String(appid ?? '')) return;
+  heading.dataset.hero = String(appid ?? '');
+  heading.querySelector('.hero-art')?.remove(); heading.classList.toggle('has-hero', Boolean(appid));
+  if (!appid) return;
+  const art = el('img', 'hero-art'); art.alt = ''; art.decoding = 'async'; art.referrerPolicy = 'no-referrer';
+  // Not every game has hero art. The store header, blurred, still gives the color.
+  art.addEventListener('error', () => {
+    if (art.classList.contains('soft')) { art.remove(); return; }
+    art.classList.add('soft'); art.src = steamArt(appid, 'header.jpg');
+  });
+  art.src = steamArt(appid, 'library_hero.jpg'); heading.prepend(art);
 }
 // The three counts in the header. Played and yet to play come from Steam
 // playtime; finished is not tracked, so it is not shown.
@@ -184,6 +225,7 @@ function renderInsights() {
     stat('Achievements unlocked', integer(summary.unlocked), '', `Across ${integer(summary.achievementGames)} games with achievements`));
   const insights = $('#insights'); insights.classList.toggle('expanded', state.view === 'stats');
   const top = selectLibrary(gameLibrary()).find((entry) => entry.playtime_minutes > 0);
+  setHero(state.view === 'software' ? null : top?.game);
   insights.replaceChildren(...(top ? [spotlight(top)] : []), genreCard(),
     ...(state.view === 'stats' ? [mostPlayedCard()] : []));
 }
