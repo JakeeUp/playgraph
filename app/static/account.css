@@ -6,40 +6,19 @@
 
 .frame { width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto; padding:0 var(--gutter); }
 
-.account-header { position:sticky; top:0; z-index:20; border-bottom:1px solid var(--line); background:var(--glass); -webkit-backdrop-filter:blur(14px) saturate(1.4); backdrop-filter:blur(14px) saturate(1.4); }
+.account-header { position:sticky; top:0; z-index:20; border-bottom:1px solid var(--line); background:var(--bg); }
 .account-header .frame { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); height:var(--space-8); }
 .account-header .brand { padding:0; }
 
 .account-layout {
   display:grid; grid-template-columns:minmax(0,1fr) minmax(0,400px); gap:var(--space-8);
   padding-top:var(--space-8); padding-bottom:var(--space-8);
-  position:relative;
-}
-.account-layout::before {
-  content:""; position:absolute; top:-100px; left:50%; transform:translateX(-50%);
-  width:600px; height:600px; border-radius:50%;
-  background:radial-gradient(circle at center,rgba(255,122,0,0.12) 0%,transparent 70%);
-  pointer-events:none; z-index:-1;
-}
-.account-layout::after {
-  content:""; position:absolute; top:-50px; right:0;
-  width:500px; height:500px; border-radius:50%;
-  background:radial-gradient(circle at center,rgba(0,180,216,0.08) 0%,transparent 70%);
-  pointer-events:none; z-index:-1;
 }
 .account-intro { display:flex; flex-direction:column; }
 .account-hero { flex:1; }
-.account-hero .eyebrow { display:block; margin-bottom:var(--space-4); }
-.account-intro h1, .plain-page h1 { font-size:var(--text-hero); margin-bottom:var(--space-5); }
-.account-benefits { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:var(--space-3); margin-bottom:var(--space-8); }
-.account-benefits li { display:flex; align-items:center; gap:var(--space-3); font-size:var(--text-md); color:var(--text-body); }
-/* A tinted circle holding an orange check. The mask sits on the inner
-   pseudo-element so it doesn't clip the circle too. */
-.benefit-icon { position:relative; width:26px; height:26px; border-radius:50%; background:var(--accent-soft); flex:none; }
-.benefit-icon::after {
-  content:""; position:absolute; inset:6px; background:var(--accent);
-  -webkit-mask:url("/assets/icons/check.svg") center/contain no-repeat; mask:url("/assets/icons/check.svg") center/contain no-repeat;
-}
+.account-intro h1 { font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:800; font-size:var(--text-3xl); line-height:var(--leading-tight); margin-bottom:var(--space-5); }
+.plain-page h1 { font-size:var(--text-hero); margin-bottom:var(--space-5); }
+.account-lede { color:var(--text-body); font-size:var(--text-lg); max-width:40ch; margin:var(--space-4) 0 var(--space-6); }
 .account-intro > p { color:var(--text-muted); font-size:var(--text-lg); max-width:44ch; margin:0; }
 .account-intro .account-note {
   font-size:var(--text-ui); padding-top:var(--space-5); border-top:1px solid var(--line);
@@ -63,39 +42,23 @@
 .account-steam h3 { font-size:var(--text-md); margin-bottom:var(--space-2); }
 .account-steam p { margin-bottom:var(--space-4); }
 
-.plain-page { padding-top:var(--space-8); padding-bottom:var(--space-8); display:flex; align-items:center; justify-content:center; min-height:calc(100vh - var(--header-h)); position:relative; }
-.plain-page::before {
-  content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-  width:600px; height:600px; border-radius:50%;
-  background:radial-gradient(circle at center,rgba(255,122,0,0.12) 0%,transparent 70%);
-  pointer-events:none; z-index:-1;
-}
-.plain-page::after {
-  content:""; position:absolute; top:30%; right:0;
-  width:500px; height:500px; border-radius:50%;
-  background:radial-gradient(circle at center,rgba(0,180,216,0.08) 0%,transparent 70%);
-  pointer-events:none; z-index:-1;
-}
-.not-found { text-align:center; }
+.plain-page { padding-top:var(--space-8); padding-bottom:var(--space-8); }
+.not-found { text-align:left; }
 .not-found-content { max-width:600px; }
-.not-found-number { display:block; font-size:clamp(80px,16vw,160px); font-family:var(--font-display); font-weight:700; letter-spacing:-0.04em; margin:0 0 var(--space-3); line-height:1; }
+.not-found-number { display:block; font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:900; font-size:clamp(96px,18vw,180px); color:var(--text); margin:0 0 var(--space-3); line-height:0.9; }
 .plain-page h1.not-found-title { font-size:var(--text-2xl); margin-bottom:var(--space-4); }
-.plain-page p { color:var(--text-muted); font-size:var(--text-lg); max-width:48ch; margin:var(--space-4) auto var(--space-8); }
+.plain-page p { color:var(--text-muted); font-size:var(--text-lg); max-width:48ch; margin:var(--space-3) 0 var(--space-6); }
 .plain-page .button { margin-top:var(--space-2); }
 .plain-page .num { color:var(--text-muted); font-size:var(--text-md); display:block; margin-bottom:var(--space-3); }
 
 @media (max-width:760px) {
   :root { --gutter:var(--space-4); }
   .account-layout { grid-template-columns:minmax(0,1fr); gap:var(--space-6); padding-top:var(--space-6); padding-bottom:var(--space-6); }
-  .account-layout::before { width:400px; height:400px; top:-50px; }
-  .account-layout::after { width:300px; height:300px; display:none; }
-  .account-intro h1, .plain-page h1 { font-size:var(--text-2xl); }
+  .account-intro h1 { font-size:var(--text-2xl); }
   .account-intro > p { font-size:var(--text-md); margin:0; }
   .account-intro .account-note { padding-top:var(--space-4); }
-  .account-benefits { margin-bottom:var(--space-6); }
-  .plain-page { padding-top:var(--space-6); padding-bottom:var(--space-6); min-height:auto; }
-  .plain-page::before { width:300px; height:300px; top:auto; bottom:-100px; }
-  .plain-page::after { display:none; }
-  .not-found-number { font-size:clamp(72px,24vw,110px); }
-  .plain-page p { font-size:var(--text-md); margin:var(--space-3) auto var(--space-6); }
+  .plain-page { padding-top:var(--space-6); padding-bottom:var(--space-6); }
+  .plain-page h1 { font-size:var(--text-2xl); }
+  .not-found-number { font-size:clamp(96px,24vw,140px); }
+  .plain-page p { font-size:var(--text-md); margin:var(--space-3) 0 var(--space-6); }
 }
