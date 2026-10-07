@@ -324,14 +324,14 @@ class PSNClient:
                 try:
                     await self._token_request({"refresh_token": state.refresh_token,
                                                "grant_type": "refresh_token", "scope": SCOPE,
-                                               "token_format": "jwt"})
+                                               "token_format": "jwt"})  # nosec B105
                     return state.access_token
                 except PSNAuthError:
                     state.reset(fingerprint)  # fall back to a full NPSSO exchange
             code = await self._authorization_code()
             await self._token_request({"code": code, "grant_type": "authorization_code",
                                        "redirect_uri": REDIRECT_URI, "scope": SCOPE,
-                                       "token_format": "jwt"})
+                                       "token_format": "jwt"})  # nosec B105
             return state.access_token
 
     def invalidate_access_token(self) -> None:
