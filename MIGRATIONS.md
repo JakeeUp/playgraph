@@ -49,5 +49,13 @@ schema. Keep baseline definitions frozen instead of importing evolving ORM model
 inside historical revisions. Run empty-install, populated-upgrade and failure-path
 tests before applying changes to the owner's database.
 
+Revision `0007_psn_accounts_and_sources` adds PlayStation linking. On SQLite it
+copies `games` and `playtime_snapshots` in batch mode (every row, ID and index is
+kept), adds columns elsewhere in place, labels every existing snapshot
+`source='steam'` with the user's Steam link, and labels existing verified reviews
+`verified_source='steam'`. On PostgreSQL it rebuilds the `platform` enum type with
+`'psn'`; that path has been inspected but not yet run against a server. Downgrade
+is refused; restore a verified backup instead.
+
 The implementation follows Alembic's documented connection-sharing and schema
 versioning interfaces: [Alembic cookbook](https://alembic.sqlalchemy.org/en/latest/cookbook.html#sharing-a-connection-across-one-or-more-programmatic-migration-commands).

@@ -22,26 +22,32 @@ from redis.exceptions import RedisError
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Game, LinkedAccount, Platform, PlaytimeSnapshot, User
-from app.schemas import GenreBreakdownOut, LibraryEntryOut
+from app.models import Game, LinkedAccount, Platform, PlaytimeSnapshot, SnapshotSource, User
+from app.schemas import GenreBreakdownOut, LibraryEntryOut, TrophiesOut
 from app.queue_codec import QUEUE_NAME, deserialize
 from app.security import rate_limit
 
 router = APIRouter(prefix="/me", tags=["library"])
 
 
-def _latest_snapshots(db: Session, user_id: int, before_id: int | None = None):
-    """Every game the user owns, paired with its most recent snapshot.
+def _latest_snapshots(db: Session, user_id: int, before_id: int | None = None,
+                      kind: str = "all", source: str | None = None):
+    """Every game the user owns, paired with its most recent snapshot per source.
 
     Snapshots are append-only (see models.py), so a game accumulates one row
     per sync. Both /library and /genres need the newest row per game, so the
-    subquery lives here instead of being written twice and drifting.
+    subquery lives here instead of being written twice and drifting. The
+    ranking reads ix_playtime_snapshots_user_game_captured rather than the
+    table. `kind` filters in SQL so unwanted rows are never turned into objects.
+
+    Ranked per (game, source): a Steam snapshot never hides a PlayStation one
+    for the same game, or the other way round. `source` limits to one store.
     """
     snapshot_query = (
         db.query(
             PlaytimeSnapshot.id.label("snapshot_id"),
             func.row_number().over(
-                partition_by=PlaytimeSnapshot.game_id,
+                partition_by=(PlaytimeSnapshot.game_id, PlaytimeSnapshot.source),
                 order_by=(PlaytimeSnapshot.captured_at.desc(), PlaytimeSnapshot.id.desc()),
             ).label("position"),
         )
@@ -49,9 +55,11 @@ def _latest_snapshots(db: Session, user_id: int, before_id: int | None = None):
     )
     if before_id is not None:
         snapshot_query = snapshot_query.filter(PlaytimeSnapshot.id <= before_id)
+    if source is not None:
+        snapshot_query = snapshot_query.filter(PlaytimeSnapshot.source == source)
     latest_per_game = snapshot_query.subquery()
 
-    return (
+    query = (
         db.query(PlaytimeSnapshot, Game)
         .join(Game, Game.id == PlaytimeSnapshot.game_id)
         .join(
@@ -60,9 +68,11 @@ def _latest_snapshots(db: Session, user_id: int, before_id: int | None = None):
             & (latest_per_game.c.position == 1),
         )
         .filter(PlaytimeSnapshot.user_id == user_id)
-        .order_by(PlaytimeSnapshot.playtime_minutes.desc())
-        .all()
     )
+    if kind != "all":
+        query = query.filter(Game.content_kind == kind)
+    # Unknown (NULL) playtime sorts last on both SQLite and Postgres.
+    return query.order_by(PlaytimeSnapshot.playtime_minutes.desc().nulls_last(), PlaytimeSnapshot.id).all()
 
 
 @router.post("/sync", status_code=202)
@@ -135,18 +145,33 @@ async def sync_status(job_id: str, request: Request, user: User = Depends(get_cu
 @router.get("/library", response_model=list[LibraryEntryOut])
 def get_library(user: User = Depends(get_current_user), db: Session = Depends(get_db),
                 kind: Literal["game", "software", "all"] = "all"):
-    """Each owned game joined with its most recent PlaytimeSnapshot."""
+    """Each owned game joined with its most recent PlaytimeSnapshot, one entry
+    per source. Clients must keep sources apart; see LibraryEntryOut."""
     return [
         LibraryEntryOut(
             game=game,
+            source=snapshot.source,
             playtime_minutes=snapshot.playtime_minutes,
             achievements_unlocked=snapshot.achievements_unlocked,
             achievements_total=snapshot.achievements_total,
+            trophies=_trophies(snapshot),
             captured_at=snapshot.captured_at,
         )
-        for snapshot, game in _latest_snapshots(db, user.id)
-        if kind == "all" or game.content_kind == kind
+        for snapshot, game in _latest_snapshots(db, user.id, kind=kind)
     ]
+
+
+GRADES = ("platinum", "gold", "silver", "bronze")
+
+
+def _trophies(snapshot: PlaytimeSnapshot) -> TrophiesOut | None:
+    if snapshot.source != SnapshotSource.psn.value or snapshot.trophies_bronze_total is None:
+        return None
+    return TrophiesOut(
+        earned={grade: getattr(snapshot, f"trophies_{grade}") or 0 for grade in GRADES},
+        total={grade: getattr(snapshot, f"trophies_{grade}_total") or 0 for grade in GRADES},
+        progress=snapshot.trophy_progress,
+    )
 
 
 @router.get("/genres", response_model=list[GenreBreakdownOut])
@@ -162,12 +187,13 @@ def get_genre_breakdown(
     if this ever needs to answer cross-user questions like "average hours
     per genre across everyone" - at that point genres want their own table
     and a join.
+
+    Steam only: genres come from the Steam store, and PlayStation hours are
+    reported separately rather than folded into these totals.
     """
     totals: dict[str, dict[str, int]] = {}
 
-    for snapshot, game in _latest_snapshots(db, user.id):
-        if kind != "all" and game.content_kind != kind:
-            continue
+    for snapshot, game in _latest_snapshots(db, user.id, kind=kind, source=SnapshotSource.steam.value):
         if not game.genres:
             continue
         minutes = snapshot.playtime_minutes or 0

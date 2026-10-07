@@ -9,12 +9,13 @@ from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import settings
 from app.database import engine
 from app.migrations import require_current_schema
-from app.routers import accounts, auth, catalog, feed, library, news, reviews
+from app.routers import accounts, auth, catalog, feed, library, news, psn, reviews
 from app.middleware import SecurityMiddleware
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
 from app.security_logging import configure_access_logging
@@ -51,6 +52,28 @@ app = FastAPI(
     swagger_ui_parameters={"persistAuthorization": False},
 )
 
+
+class CompressionMiddleware:
+    """Gzip text responses, except under /auth/.
+
+    Auth responses carry the CSRF token and login state, and they are small, so
+    they stay uncompressed rather than give a compression side channel anything
+    to measure. Fonts and images are already compressed and are skipped by type.
+    """
+
+    def __init__(self, app):
+        self.app = app
+        self.gzip = GZipMiddleware(app, minimum_size=1024, compresslevel=6)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"].startswith("/auth/"):
+            return await self.app(scope, receive, send)
+        return await self.gzip(scope, receive, send)
+
+
+# Added first so it runs innermost: the security middleware still sees and sets
+# headers on the final, compressed response.
+app.add_middleware(CompressionMiddleware)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=[urlsplit(settings.app_base_url).hostname],
                    www_redirect=False)
 app.add_middleware(SecurityMiddleware)
@@ -77,6 +100,7 @@ app.include_router(reviews.router)
 app.include_router(catalog.router)
 app.include_router(feed.router)
 app.include_router(news.router)
+app.include_router(psn.router)
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")

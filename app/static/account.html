@@ -10,8 +10,13 @@
   <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
   <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preload" href="/assets/fonts/plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/assets/styles.css">
   <link rel="stylesheet" href="/assets/account.css">
+  <link rel="modulepreload" href="/assets/dom.js">
+  <link rel="modulepreload" href="/assets/library.js">
+  <link rel="modulepreload" href="/assets/psn-account.js">
   <script type="module" src="/assets/account.js"></script>
 </head>
 <body class="account-page">
@@ -65,6 +70,34 @@
         </div>
       </div>
       <button id="retry-account" type="button" class="button secondary" hidden>Try again</button>
+      <section id="psn-section" class="account-psn" aria-labelledby="psn-title" hidden>
+        <h3 id="psn-title">PlayStation</h3>
+        <p>Bring in your trophies, and your PS4 and PS5 hours when your privacy settings share them. PlayGraph reads your public PSN profile through PlayStation’s unofficial app interface. It never asks for your PSN password or sign-in, and this is not a Sony-approved connection.</p>
+        <p id="psn-status" class="account-status" role="status" aria-live="polite"></p>
+        <form id="psn-start" hidden>
+          <label for="psn-online-id">Your PSN Online ID</label>
+          <input id="psn-online-id" name="online_id" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="16" required aria-describedby="psn-id-help">
+          <p id="psn-id-help" class="helper">3 to 16 letters, numbers, hyphens or underscores. Your profile needs to be visible to anyone.</p>
+          <button type="submit" class="button secondary">Get my code</button>
+        </form>
+        <div id="psn-pending" hidden>
+          <p>Edit your profile on your PlayStation or in the PlayStation App, add this code to About Me, save, then check.</p>
+          <p class="psn-code-row"><code id="psn-code" class="psn-code"></code><button id="psn-copy" type="button" class="button secondary">Copy code</button></p>
+          <p class="helper">For <strong id="psn-pending-id"></strong>. The code works in this browser for 15 minutes. If the check misses it, wait a minute and try again.</p>
+          <div class="account-actions">
+            <button id="psn-check" type="button" class="button primary">Check my profile</button>
+            <button id="psn-cancel" type="button" class="button secondary">Cancel</button>
+          </div>
+        </div>
+        <div id="psn-linked" hidden>
+          <p>Linked to <strong id="psn-linked-id"></strong>. <span id="psn-last-sync"></span></p>
+          <p id="psn-privacy" class="helper"></p>
+          <div class="account-actions">
+            <button id="psn-sync" type="button" class="button secondary">Sync now</button>
+            <a href="/app">See your PlayStation games</a>
+          </div>
+        </div>
+      </section>
       <noscript><p>Sign-in needs JavaScript. You can still <a href="/app">browse the catalog</a>.</p></noscript>
     </section>
   </main>

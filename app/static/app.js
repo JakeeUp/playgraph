@@ -1,5 +1,6 @@
-import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown, steamArt } from './library.js';
-import { $, el, button, steamLink, cover, aborted, numbered, setNumbers, timeLabel } from './dom.js';
+import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown, steamArt,
+  splitBySource, playStationSummary, playtimeLabel } from './library.js';
+import { $, el, button, steamLink, cover, wallArt, aborted, numbered, setNumbers, timeLabel } from './dom.js';
 import { starDisplay } from './rating.js';
 import { createGameDialog } from './game-detail.js';
 import { createFeed } from './feed.js';
@@ -50,14 +51,18 @@ const SHELF = {
 const WALL_APPS = [1145360, 1245620, 1086940, 1091500, 292030, 413150, 367520, 1174180, 730,
   814380, 1593500, 2050650, 105600, 620, 553850, 1868140, 2358720, 570,
   271590, 1817070, 489830, 374320, 1888930, 588650, 504230, 646570, 268910];
-const state = { user: null, csrf: '', library: [], genres: [], catalog: [], total: 0,
+// state.library holds Steam entries only, so every Steam view and total is
+// exactly what it was. PlayStation entries sit apart in state.psnLibrary and
+// get their own shelf behind the platform switch; the two are never summed.
+const state = { user: null, csrf: '', library: [], psnLibrary: [], platform: 'steam', genres: [], catalog: [], total: 0,
   view: 'library', query: '', filter: 'all', genre: '', sort: 'playtime', shown: 48,
   controller: new AbortController(), generation: 0, catalogRequest: 0,
   pollTimer: null, expiryTimer: null, searchTimer: null, syncing: false };
 const privateView = () => Boolean(state.user) && ['library', 'software', 'stats'].includes(state.view);
 const gameLibrary = () => state.library.filter((entry) => entry.game.content_kind !== 'software');
+const psnShelf = () => state.view === 'library' && state.platform === 'psn' && state.psnLibrary.length > 0;
 const shelfLibrary = () => state.view === 'software'
-  ? state.library.filter((entry) => entry.game.content_kind === 'software') : gameLibrary();
+  ? state.library.filter((entry) => entry.game.content_kind === 'software') : psnShelf() ? state.psnLibrary : gameLibrary();
 const shelfCopy = () => SHELF[state.view === 'software' ? 'software' : 'game'];
 const pageKey = () => state.view === 'feed' && !state.user ? 'feedGuest'
   : ['feed', 'news', 'software', 'explore'].includes(state.view) ? state.view
@@ -102,7 +107,7 @@ function stopPolling() {
 function clearSession() {
   stopPolling(); clearTimeout(state.expiryTimer); clearTimeout(state.searchTimer);
   state.controller.abort(); state.controller = new AbortController(); state.generation += 1; state.catalogRequest += 1;
-  Object.assign(state, { user: null, csrf: '', library: [], genres: [], catalog: [], total: 0,
+  Object.assign(state, { user: null, csrf: '', library: [], psnLibrary: [], platform: 'steam', genres: [], catalog: [], total: 0,
     query: '', filter: 'all', genre: '', view: 'library', shown: 48 });
   $('#search').value = ''; $('#genre').replaceChildren(new Option('All genres', ''));
   gameDialog.clear(); feed.clear(); $('#summary').replaceChildren(); $('#insights').replaceChildren();
@@ -131,10 +136,10 @@ function renderShell() {
   renderBacklog();
   $('#welcome').hidden = Boolean(state.user) || software || isFeed || isNews;
   $('#summary').hidden = !own || !shelfLibrary().length;
-  $('#insights').hidden = !own || software || !gameLibrary().length;
+  $('#insights').hidden = !own || software || psnShelf() || !gameLibrary().length;
   $('#collection').hidden = isFeed || isNews || (state.view === 'stats' && Boolean(state.user) && gameLibrary().length > 0);
   $('#feed').hidden = !isFeed; $('#news').hidden = !isNews;
-  $('#sync-button').hidden = !state.user || !state.hasSteam; $('#filters').hidden = !own;
+  $('#sync-button').hidden = !state.user || !state.hasSteam || psnShelf(); $('#filters').hidden = !own;
   $('#sort').disabled = !own; $('#sort').value = own ? state.sort : 'name';
   const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
   // The welcome hero has its own headline, so the plain page heading steps aside.
@@ -142,12 +147,14 @@ function renderShell() {
   if ($('#welcome').hidden === false) { buildWall(); void loadFrontReviews(); }
   if (!own) setHero(null);
   $('#page-title').textContent = copy.title;
-  $('#page-subtitle').textContent = copy.subtitle;
+  $('#page-subtitle').textContent = psnShelf()
+    ? 'Your PlayStation games: trophies, and PS4 and PS5 hours when your PSN privacy settings share them.' : copy.subtitle;
   // An open game page owns the tab title until it closes.
   if (!$('#game-dialog').open) document.title = `${copy.tab} | PlayGraph`;
-  $('#collection-title').textContent = own ? shelf.own : shelf.catalog;
-  $('#collection-note').hidden = own && !software;
-  $('#collection-note').textContent = shelf.note;
+  $('#collection-title').textContent = psnShelf() ? 'Your PlayStation games' : own ? shelf.own : shelf.catalog;
+  $('#collection-note').hidden = own && !software && !psnShelf();
+  $('#collection-note').textContent = psnShelf() ? PSN_NOTE : shelf.note;
+  renderPlatformSwitch();
   $('#search').placeholder = copy.search;
   $('#search').setAttribute('aria-label', copy.searchLabel);
   $('#load-more').textContent = shelf.more;
@@ -158,18 +165,36 @@ function renderShell() {
   updateGenres();
   if (own) renderInsights();
 }
+// Said plainly wherever PlayStation data appears: it is public profile data
+// read through Sony's unofficial app interface, not a Sony-approved link.
+const PSN_NOTE = 'From your public PSN profile, read through PlayStation’s unofficial app interface. Not a Sony-approved connection. Sync it from your account page.';
+// The PS5 chip stays "in development" until this account has PlayStation games.
+function renderPlatformSwitch() {
+  const pc = $('#platform-pc'); const ps = $('#platform-psn');
+  const available = Boolean(state.user) && state.psnLibrary.length > 0;
+  if (available && ps.dataset.live !== '1') {
+    ps.dataset.live = '1'; ps.classList.remove('in-dev'); ps.textContent = 'PlayStation';
+    ps.removeAttribute('aria-disabled'); ps.removeAttribute('aria-describedby');
+  } else if (!available && ps.dataset.live === '1') {
+    delete ps.dataset.live; ps.classList.add('in-dev'); ps.replaceChildren('PS5 ', el('span', 'dev-tag', 'In development'));
+    ps.setAttribute('aria-disabled', 'true'); ps.setAttribute('aria-describedby', 'platform-note'); ps.removeAttribute('aria-pressed');
+  }
+  const onPsn = psnShelf();
+  pc.classList.toggle('selected', !onPsn); pc.setAttribute('aria-pressed', String(!onPsn));
+  if (available) { ps.classList.toggle('selected', onPsn); ps.setAttribute('aria-pressed', String(onPsn)); }
+  else ps.classList.remove('selected');
+}
+function selectPlatform(platform) {
+  if (state.view !== 'library') navigate('library');
+  Object.assign(state, { platform, query: '', genre: '', filter: 'all', shown: 48 });
+  $('#search').value = ''; $('#genre').value = ''; renderShell(); renderCollection();
+}
 function buildWall() {
   const wall = $('.welcome-wall'); if (wall.childElementCount) return;
   const perRow = Math.ceil(WALL_APPS.length / 3);
   for (let row = 0; row < 3; row += 1) {
     const strip = el('div', 'wall-row');
-    for (const appid of WALL_APPS.slice(row * perRow, (row + 1) * perRow)) {
-      const img = el('img'); img.alt = ''; img.width = 600; img.height = 900;
-      img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
-      img.src = steamArt(appid, 'library_600x900.jpg');
-      img.addEventListener('error', () => img.remove(), { once: true });
-      strip.append(img);
-    }
+    strip.append(...WALL_APPS.slice(row * perRow, (row + 1) * perRow).map(wallArt));
     wall.append(strip);
   }
 }
@@ -235,6 +260,16 @@ function stat(label, value, unit, note) {
   node.append(el('span', 'stat-label', label), number, numbered('span', 'stat-note', note)); return node;
 }
 function renderInsights() {
+  if (psnShelf()) {
+    // PlayStation stats on their own: trophies, and only the hours PSN shared.
+    const ps = playStationSummary(state.psnLibrary);
+    $('#summary').replaceChildren(stat('PlayStation games', integer(ps.games), '', 'From your public PSN profile'),
+      stat('PlayStation hours', hours(ps.minutes), 'hrs', `Shared for ${integer(ps.withHours)} of ${integer(ps.games)} games`),
+      stat('Trophies earned', integer(ps.earned), '', `of ${integer(ps.total)} across your trophy lists`),
+      stat('Platinum trophies', integer(ps.platinum), '', `${integer(ps.gold)} gold · ${integer(ps.silver)} silver · ${integer(ps.bronze)} bronze`));
+    setHero(null);
+    return;
+  }
   const summary = summarize(shelfLibrary());
   if (state.view === 'software') {
     $('#summary').replaceChildren(stat('Apps in your library', integer(summary.games), '', 'Synced from Steam'),
@@ -308,12 +343,19 @@ function renderCollection() {
   const grid = $('#games'); grid.replaceChildren(); const shelf = shelfCopy();
   for (const entry of visible) {
     const game = entry.game; const card = el('article', 'game-card'); const open = button('', '', () => gameDialog.open(game));
-    open.setAttribute('aria-label', `Open ${game.name}${own ? `, ${hours(entry.playtime_minutes)} hours ${shelf.verb}` : ''}`);
+    const psn = entry.source === 'psn';
+    open.setAttribute('aria-label', `Open ${game.name}${!own ? '' : psn
+      ? `, PlayStation, ${entry.playtime_minutes == null ? 'hours not shared' : `${hours(entry.playtime_minutes)} hours played`}`
+      : `, ${hours(entry.playtime_minutes)} hours ${shelf.verb}`}`);
     const art = cover(game); const pct = achievementPercent(entry);
-    if (own && pct === 100) art.append(numbered('span', 'cover-badge', '100%'));
+    if (own && psn && entry.trophies?.earned.platinum > 0) art.append(el('span', 'cover-badge', 'Platinum'));
+    else if (own && pct === 100) art.append(numbered('span', 'cover-badge', '100%'));
     else if (own && entry.playtime_minutes === 0) art.append(el('span', 'cover-badge', shelf.unused));
-    const meta = el('span', 'game-meta'); meta.append(el('span', 'genre-text', genresFor(game)[0] || 'Steam'));
-    if (own) meta.append(el('span', entry.playtime_minutes > 0 ? 'num played' : 'num', `${hours(entry.playtime_minutes)} h`));
+    const meta = el('span', 'game-meta');
+    if (psn) meta.append(el('span', 'platform-badge', 'PlayStation'));
+    else meta.append(el('span', 'genre-text', genresFor(game)[0] || 'Steam'));
+    if (own && psn) meta.append(el('span', entry.playtime_minutes > 0 ? 'num played' : 'num', playtimeLabel(entry)));
+    else if (own) meta.append(el('span', entry.playtime_minutes > 0 ? 'num played' : 'num', `${hours(entry.playtime_minutes)} h`));
     open.append(art, el('h3', 'game-name', game.name), meta); card.append(open); grid.append(card);
   }
   if (!visible.length) {
@@ -348,12 +390,14 @@ async function loadLibrary() {
   const generation = state.generation;
   const library = await api('/me/library');
   if (!state.user || generation !== state.generation) return;
-  state.library = library; state.genres = genreBreakdown(library);
+  const { steam, psn } = splitBySource(library);
+  state.library = steam; state.psnLibrary = psn; state.genres = genreBreakdown(steam);
   renderShell(); if (privateView()) renderCollection();
 }
 function navigate(view) {
   feed.invalidate();
   Object.assign(state, { view, query: '', genre: '', filter: 'all', shown: 48 }); state.catalogRequest += 1;
+  if (view !== 'library') state.platform = 'steam';
   $('#search').value = ''; $('#genre').value = ''; clearTimeout(state.searchTimer); renderShell();
   if (view === 'feed') void feed.load(); else if (view === 'news') void news.load();
   else if (privateView()) renderCollection(); else void loadCatalog();
@@ -394,8 +438,15 @@ async function pollSync(jobId, restore = false) {
 }
 document.querySelectorAll('[data-view]').forEach((node) => node.addEventListener('click', () => navigate(node.dataset.view)));
 document.querySelectorAll('[data-filter]').forEach((node) => node.addEventListener('click', () => { state.filter = node.dataset.filter; state.shown = 48; renderCollection(); }));
-document.querySelectorAll('.platform-switch .in-dev').forEach((node) => node.addEventListener('click', () =>
+document.querySelectorAll('.platform-switch .in-dev:not(#platform-psn)').forEach((node) => node.addEventListener('click', () =>
   notify(`${node.firstChild.textContent.trim()} libraries are in development. Only Steam games can be imported for now.`)));
+$('#platform-pc').addEventListener('click', () => { if (state.platform !== 'steam') selectPlatform('steam'); });
+$('#platform-psn').addEventListener('click', () => {
+  if (state.user && state.psnLibrary.length) { selectPlatform('psn'); return; }
+  notify(state.user && state.psnEnabled
+    ? (state.hasPsn ? 'Your PlayStation games show up here after your first PSN sync finishes.' : 'Link PlayStation from your account page to bring in your trophies.')
+    : 'PS5 libraries are in development. Only Steam games can be imported for now.');
+});
 $('#genre').addEventListener('change', (event) => { state.genre = event.target.value; state.shown = 48; renderCollection(); });
 $('#sort').addEventListener('change', (event) => { state.sort = event.target.value; renderCollection(); });
 $('#search').addEventListener('input', (event) => {
@@ -419,6 +470,7 @@ window.addEventListener('pageshow', (event) => { if (event.persisted) location.r
 function acceptSession(session) {
   state.user = session.user; state.csrf = session.csrf_token;
   state.hasSteam = session.has_steam; state.authProvider = session.auth_provider;
+  state.hasPsn = Boolean(session.has_psn); state.psnEnabled = Boolean(session.psn_enabled);
   clearTimeout(state.expiryTimer);
   state.expiryTimer = setTimeout(() => { clearSession(); notify('Your session ended. Sign in to continue.', true); void loadCatalog(); }, Math.max(0, session.expires_at * 1000 - Date.now()));
 }

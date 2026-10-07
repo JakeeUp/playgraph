@@ -88,7 +88,7 @@ def _most_played(limit: int) -> list[tuple[int, str]]:
     with SessionLocal() as db:
         rows = (db.query(Game.steam_appid, Game.name)
                 .join(PlaytimeSnapshot, PlaytimeSnapshot.game_id == Game.id)
-                .filter(Game.content_kind == "game")
+                .filter(Game.content_kind == "game", Game.steam_appid.is_not(None))
                 .group_by(Game.id, Game.steam_appid, Game.name)
                 .order_by(func.count(func.distinct(PlaytimeSnapshot.user_id)).desc(),
                           func.max(PlaytimeSnapshot.playtime_minutes).desc(), Game.id)

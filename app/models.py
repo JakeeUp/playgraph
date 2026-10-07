@@ -8,6 +8,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -34,7 +35,15 @@ def utcnow() -> datetime:
 
 class Platform(str, enum.Enum):
     steam = "steam"
-    # xbox / psn intentionally not supported in v1 - see README "Scope"
+    # PlayStation via a verified public profile; see docs/PSN_INTEGRATION.md.
+    psn = "psn"
+
+
+class SnapshotSource(str, enum.Enum):
+    """Where a snapshot's numbers came from. Readers never add one source's
+    minutes to another's, even for the same Game."""
+    steam = "steam"
+    psn = "psn"
 
 
 class User(Base):
@@ -62,7 +71,7 @@ class AuthIdentity(Base):
 
 
 class LinkedAccount(Base):
-    """A platform identity (currently only Steam) linked to a User.
+    """A platform identity (Steam or PlayStation) linked to a User.
 
     Kept separate from User rather than just storing steam_id on User so that
     supporting a second platform later (Xbox, etc.) doesn't require a schema
@@ -78,15 +87,23 @@ class LinkedAccount(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     platform = Column(Enum(Platform), nullable=False)
-    platform_user_id = Column(String, nullable=False)  # SteamID64
+    # SteamID64, or the numeric PSN accountId (stable; Online IDs can be renamed).
+    platform_user_id = Column(String, nullable=False)
     linked_at = Column(DateTime(timezone=True), default=utcnow)
     last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    # The platform's current public name, e.g. the PSN Online ID. Display only;
+    # refreshed on every sync because players can rename themselves.
+    display_handle = Column(String, nullable=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    verification_method = Column(String, nullable=True)  # "psn_about_me"; Steam rows: NULL
 
     user = relationship("User", back_populates="linked_accounts")
 
 
 class Game(Base):
-    """A canonical game record, keyed by Steam's app ID.
+    """A canonical game record. Steam games carry steam_appid; games from other
+    stores have it NULL and are found through game_external_ids instead.
+    A PlayStation game is never merged into a Steam game by name.
 
     genres is a comma-separated string for v1 simplicity - worth revisiting
     as a proper many-to-many GameGenre table once genre-based querying
@@ -97,7 +114,7 @@ class Game(Base):
     __tablename__ = "games"
 
     id = Column(Integer, primary_key=True)
-    steam_appid = Column(Integer, unique=True, nullable=False, index=True)
+    steam_appid = Column(Integer, unique=True, nullable=True, index=True)
     name = Column(String, nullable=False)
     genres = Column(String, nullable=True)  # e.g. "Action,Indie,RPG"
     header_image_url = Column(String, nullable=True)
@@ -108,6 +125,28 @@ class Game(Base):
 
     playtime_snapshots = relationship("PlaytimeSnapshot", back_populates="game")
     reviews = relationship("Review", back_populates="game")
+    external_ids = relationship("GameExternalId", back_populates="game")
+
+
+class GameExternalId(Base):
+    """A store's own ID for a Game. One store ID belongs to exactly one Game.
+
+    providers: "psn_concept" (gamelist concept, groups regional and PS4/PS5
+    title IDs), "psn_title" (CUSA.../PPSA... title ID) and "psn_trophy"
+    (NPWR..._00 trophy list). Steam keeps using games.steam_appid.
+    """
+
+    __tablename__ = "game_external_ids"
+    __table_args__ = (UniqueConstraint("provider", "external_id", name="uq_game_external_ids_provider_external_id"),)
+
+    id = Column(Integer, primary_key=True)
+    game_id = Column(Integer, ForeignKey("games.id"), nullable=False, index=True)
+    provider = Column(String, nullable=False)
+    external_id = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    game = relationship("Game", back_populates="external_ids")
 
 
 @event.listens_for(Game, "before_insert")
@@ -127,13 +166,38 @@ class PlaytimeSnapshot(Base):
     """
 
     __tablename__ = "playtime_snapshots"
+    # "Newest snapshot per game for this user" is read by the library, genre
+    # graph, feed and every sync. Leading with user_id and game_id lets those
+    # reads walk one user's rows already grouped by game; see migration 0006.
+    __table_args__ = (
+        Index("ix_playtime_snapshots_user_game_captured", "user_id", "game_id", "captured_at", "id"),
+    )
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
-    playtime_minutes = Column(Integer, default=0)
+    # Which linked account and store produced these numbers. Readers group by
+    # source so Steam and PlayStation minutes are never added together.
+    linked_account_id = Column(Integer, ForeignKey("linked_accounts.id"), nullable=True)
+    source = Column(String, nullable=False, default=SnapshotSource.steam.value,
+                    server_default=SnapshotSource.steam.value)
+    # NULL means unknown (PSN play time hidden or not reported), 0 means a
+    # verified zero. Steam always reports a number. No default: a Python-side
+    # default would silently turn an explicit None (unknown) into 0.
+    playtime_minutes = Column(Integer, nullable=True)
+    # Steam achievements, or for PSN the summed trophy counts, so views that
+    # only know achievements still work.
     achievements_unlocked = Column(Integer, nullable=True)
     achievements_total = Column(Integer, nullable=True)
+    trophies_bronze = Column(Integer, nullable=True)
+    trophies_silver = Column(Integer, nullable=True)
+    trophies_gold = Column(Integer, nullable=True)
+    trophies_platinum = Column(Integer, nullable=True)
+    trophies_bronze_total = Column(Integer, nullable=True)
+    trophies_silver_total = Column(Integer, nullable=True)
+    trophies_gold_total = Column(Integer, nullable=True)
+    trophies_platinum_total = Column(Integer, nullable=True)
+    trophy_progress = Column(Integer, nullable=True)  # Sony's own 0-100 figure
     captured_at = Column(DateTime(timezone=True), default=utcnow)
 
     game = relationship("Game", back_populates="playtime_snapshots")
@@ -146,7 +210,7 @@ class Review(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
+    game_id = Column(Integer, ForeignKey("games.id"), nullable=False, index=True)
     rating = Column(Float, nullable=False)  # 0.5-5.0 stars, Letterboxd-style
     body = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
@@ -157,6 +221,9 @@ class Review(Base):
     # played *at the time they wrote it*, not their current playtime.
     verified_playtime_minutes = Column(Integer, nullable=True)
     verified_achievement_pct = Column(Float, nullable=True)
+    # Which store the verified numbers came from ("steam" or "psn"), so a
+    # review never presents PlayStation trophies as Steam achievements.
+    verified_source = Column(String, nullable=True)
 
     user = relationship("User", back_populates="reviews")
     game = relationship("Game", back_populates="reviews")
@@ -171,7 +238,7 @@ class Comment(Base):
     __tablename__ = "comments"
 
     id = Column(Integer, primary_key=True)
-    review_id = Column(Integer, ForeignKey("reviews.id"), nullable=False)
+    review_id = Column(Integer, ForeignKey("reviews.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     body = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow)

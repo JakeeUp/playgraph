@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     clerk_secret_key: SecretStr = SecretStr("")
     # Optional. Without it the For You page says news isn't set up yet.
     apitube_api_key: SecretStr = SecretStr("")
+    # Optional. The NPSSO of ONE server-owned PlayStation account, used to read
+    # players' public PSN profiles and trophies. Empty turns PlayStation off.
+    # Users never hand PlayGraph their own PSN credentials or tokens.
+    psn_npsso: SecretStr = SecretStr("")
+    # Seconds between Sony requests per process. 3.0 matches PSNAWP's courtesy pace.
+    psn_min_request_interval: float = Field(default=3.0, ge=0.0, le=60.0)
+
+    @property
+    def psn_enabled(self) -> bool:
+        """Safe to show anyone: whether a server NPSSO is set, never its value."""
+        return bool(self.psn_npsso.get_secret_value().strip())
 
     @property
     def clerk_origin(self) -> str:

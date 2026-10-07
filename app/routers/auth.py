@@ -23,7 +23,7 @@ from app.deps import get_current_user
 from app.models import AuthIdentity, LinkedAccount, Platform, User, utcnow
 from app import clerk_auth
 from app.security import (LOGIN_TTL, NONCE_TTL, csrf_token, issue_session, rate_limit,
-                          redis_call, session_cookie_name, state_key)
+                          redis_call, secure_cookies, session_cookie_name, state_key)
 from app.services import steam
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -34,7 +34,7 @@ logger = logging.getLogger("playgraph.security")
 
 
 def cookie_name():
-    return "__Host-playgraph-login" if settings.app_base_url.startswith("https://") else "playgraph-login"
+    return "__Host-playgraph-login" if secure_cookies() else "playgraph-login"
 
 
 CONNECT_CALLBACK = "/auth/steam/connect/callback"
@@ -64,8 +64,14 @@ async def begin_steam(request: Request, callback_path: str, mode: dict, binding_
 
 def with_login_cookie(response: Response, browser_secret: str) -> Response:
     response.set_cookie(cookie_name(), browser_secret, max_age=LOGIN_TTL,
-                        httponly=True, secure=settings.app_base_url.startswith("https://"),
-                        samesite="lax", path="/")
+                        httponly=True, secure=secure_cookies(), samesite="lax", path="/")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def without_login_cookie(response: Response) -> Response:
+    # The browser binding is single use; once a callback finishes, it goes.
+    response.delete_cookie(cookie_name(), path="/", secure=secure_cookies(), httponly=True, samesite="lax")
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -176,17 +182,12 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
     if ui:
         response = RedirectResponse("/app", status_code=303)
         response.set_cookie(session_cookie_name(), token, max_age=settings.session_minutes * 60,
-                            httponly=True, secure=settings.app_base_url.startswith("https://"),
-                            samesite="lax", path="/")
+                            httponly=True, secure=secure_cookies(), samesite="lax", path="/")
     else:
         response = JSONResponse({"access_token": token, "token_type": "bearer",  # nosec B105
                                  "expires_in": settings.session_minutes * 60, "user_id": user.id,
                                  "display_name": user.display_name, "steam_id": steam_id})
-    response.delete_cookie(cookie_name(), path="/", secure=settings.app_base_url.startswith("https://"),
-                           httponly=True, samesite="lax")
-    response.headers["Cache-Control"] = "no-store"
-    return response
-
+    return without_login_cookie(response)
 
 
 def connect_binding(request: Request, user: User) -> str:
@@ -195,11 +196,7 @@ def connect_binding(request: Request, user: User) -> str:
 
 
 def connect_outcome(outcome: str, page: str = "/account") -> RedirectResponse:
-    response = RedirectResponse(f"{page}?steam={outcome}", status_code=303)
-    response.delete_cookie(cookie_name(), path="/", secure=settings.app_base_url.startswith("https://"),
-                           httponly=True, samesite="lax")
-    response.headers["Cache-Control"] = "no-store"
-    return response
+    return without_login_cookie(RedirectResponse(f"{page}?steam={outcome}", status_code=303))
 
 
 @router.post("/steam/connect")
@@ -255,8 +252,11 @@ async def steam_connect_callback(request: Request, user: User = Depends(get_curr
 @router.get("/session")
 async def browser_session(request: Request, user: User = Depends(get_current_user)):
     linked = next((account for account in user.linked_accounts if account.platform == Platform.steam), None)
+    playstation = next((account for account in user.linked_accounts if account.platform == Platform.psn), None)
     return {"user": {"id": user.id, "display_name": user.display_name},
             "auth_provider": request.state.auth_provider, "has_steam": linked is not None,
+            # Whether PlayStation linking is switched on here, never how.
+            "psn_enabled": settings.psn_enabled, "has_psn": playstation is not None,
             "csrf_token": csrf_token(request.state.session_id),
             "expires_at": request.state.session_expires,
             "last_synced_at": linked.last_synced_at if linked else None}
@@ -287,5 +287,5 @@ async def logout(request: Request, user: User = Depends(get_current_user)):
     response.headers["Cache-Control"] = "no-store"
     response.headers["Clear-Site-Data"] = '"cookies", "storage"'
     response.delete_cookie(session_cookie_name(), path="/", httponly=True,
-                           secure=settings.app_base_url.startswith("https://"), samesite="lax")
+                           secure=secure_cookies(), samesite="lax")
     return response

@@ -42,6 +42,28 @@
 .account-steam h3 { font-size:var(--text-md); margin-bottom:var(--space-2); }
 .account-steam p { margin-bottom:var(--space-4); }
 
+/* PlayStation linking: the same quiet panel as Connect Steam. */
+.account-psn {
+  margin:var(--space-5) 0; padding:var(--space-4);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
+}
+.account-psn h3 { font-size:var(--text-md); margin-bottom:var(--space-2); }
+.account-psn .account-status { margin:var(--space-3) 0 0; color:var(--text); }
+.account-psn form { margin-top:var(--space-4); }
+.account-form .account-psn label { display:block; margin:0 0 var(--space-2); color:var(--text); }
+.account-psn input {
+  width:100%; max-width:24ch; height:var(--control-h); padding:0 var(--space-3);
+  font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line-strong); border-radius:var(--radius);
+}
+.account-psn input:focus-visible { border-color:var(--accent); }
+.account-psn .helper { font-size:var(--text-sm); margin:var(--space-2) 0 var(--space-3); }
+.psn-code-row { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-3); margin:var(--space-3) 0; }
+.psn-code {
+  font-family:var(--font-mono); font-size:var(--text-lg); color:var(--text);
+  padding:var(--space-2) var(--space-3); background:var(--bg); border:1px solid var(--line-strong); border-radius:var(--radius);
+  user-select:all; overflow-wrap:anywhere;
+}
+
 .plain-page { padding-top:var(--space-8); padding-bottom:var(--space-8); }
 .not-found { text-align:left; }
 .not-found-content { max-width:600px; }

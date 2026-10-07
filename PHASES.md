@@ -75,6 +75,32 @@ after they are observed. Real Steam and hosted Redis are not used by unit tests.
 
 ## Sprint cadence
 
+### 2026-10-07 increment: PlayStation via verified public profile
+
+Owner decision: a player proves a PSN Online ID with a one-time code in their
+About Me; one server-owned NPSSO (`PSN_NPSSO`) reads that public profile.
+Users' PSN credentials and tokens are never collected. Design and deviations:
+docs/PSN_INTEGRATION.md.
+
+- [x] Implemented: migration 0007 (PSN platform, store-neutral games with
+  `game_external_ids`, source-aware snapshots with trophy counts, review
+  `verified_source`), session-bound link/check/cancel routes, `/me/psn/sync`,
+  arq task `sync_psn_library`, account page PlayStation section, separate PSN
+  library shelf and game-page lines. Steam totals, genres and sync change
+  detection read Steam rows only. Unlink is deliberately not offered until
+  snapshot retention is decided (ACCOUNT_PLAN.md).
+- [x] Automated checks: 305 Python tests passed, 2 skipped; 20 JavaScript tests
+  passed. All PSN tests use a fake PSN client and fake Redis.
+- [ ] Live acceptance with a real `PSN_NPSSO` on a dedicated PSN account:
+  token exchange, Online ID lookup, About Me verification, trophy and
+  gamelist import, title-to-trophy-list mapping.
+- [ ] Private-profile behaviour against real accounts: hidden trophies, hidden
+  play time, and whether a private profile's About Me is readable at all.
+- [ ] Owner's database upgraded through 0006 and 0007 with a verified backup;
+  PostgreSQL migration path run against a real server.
+- [ ] Browser check of the account PlayStation section and the PSN shelf.
+- [ ] Owner decision on unlink and PSN snapshot retention.
+
 ### September 22 increment: library efficiency and Steam beta conversion
 
 - [x] Library refresh derives genre totals from its existing response, eliminating

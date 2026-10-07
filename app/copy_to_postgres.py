@@ -30,14 +30,17 @@ def as_utc(value):
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
-def normalized(table, row):
-    stamps = {column.name for column in table.columns if isinstance(column.type, DateTime)}
+def timestamp_columns(table) -> set[str]:
+    return {column.name for column in table.columns if isinstance(column.type, DateTime)}
+
+
+def normalized(row, stamps: set[str]):
     return tuple(as_utc(value) if name in stamps and value is not None else value
                  for name, value in row._mapping.items())
 
 
 def copy_table(source, target, table):
-    stamps = [column.name for column in table.columns if isinstance(column.type, DateTime)]
+    stamps = timestamp_columns(table)
     texts = [column.name for column in table.columns if column.type.python_type is str]
     result = source.execute(select(table).order_by(*table.primary_key.columns))
     while batch := result.fetchmany(BATCH):
@@ -80,11 +83,12 @@ def verify(source, target):
     counts = {}
     for table in Base.metadata.sorted_tables:
         query = select(table).order_by(*table.primary_key.columns)
+        stamps = timestamp_columns(table)  # once per table, not once per row
         expected, actual = source.execute(query), target.execute(query)
         count = 0
         while True:
             left, right = expected.fetchmany(BATCH), actual.fetchmany(BATCH)
-            if [normalized(table, row) for row in left] != [normalized(table, row) for row in right]:
+            if [normalized(row, stamps) for row in left] != [normalized(row, stamps) for row in right]:
                 raise RuntimeError(f"{table.name} does not match the source after copying. Nothing was committed.")
             if not left:
                 break

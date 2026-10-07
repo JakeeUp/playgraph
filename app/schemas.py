@@ -15,20 +15,43 @@ class GameOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    steam_appid: int
+    # NULL for games from other stores (PlayStation); those have no Steam page or art.
+    steam_appid: int | None
     name: str
     genres: str | None
     header_image_url: str | None
     content_kind: Literal["game", "software"]
 
 
+class TrophyCountsOut(BaseModel):
+    platinum: int
+    gold: int
+    silver: int
+    bronze: int
+
+
+class TrophiesOut(BaseModel):
+    """PlayStation trophies for one game: earned and defined counts per grade."""
+
+    earned: TrophyCountsOut
+    total: TrophyCountsOut
+    progress: int | None  # Sony's own percentage; None when a game has several trophy lists
+
+
 class LibraryEntryOut(BaseModel):
-    """A single game in a user's library, joined with their latest playtime."""
+    """One game from one source in a user's library, with its latest snapshot.
+
+    A game can appear once per source. Steam and PlayStation numbers are never
+    added together; playtime_minutes is None when the source did not report it
+    (PlayStation privacy settings, or a PS3/Vita trophy list).
+    """
 
     game: GameOut
-    playtime_minutes: int
+    source: Literal["steam", "psn"] = "steam"
+    playtime_minutes: int | None
     achievements_unlocked: int | None
     achievements_total: int | None
+    trophies: TrophiesOut | None = None
     captured_at: datetime
 
 
@@ -76,6 +99,9 @@ class ReviewOut(BaseModel):
     created_at: datetime
     verified_playtime_minutes: int | None
     verified_achievement_pct: float | None
+    # "steam" or "psn": which store the verified numbers came from. For PSN the
+    # percentage is trophies earned, not Steam achievements.
+    verified_source: Literal["steam", "psn"] | None = None
 
 
 class CommentCreate(BaseModel):
@@ -99,10 +125,3 @@ class CommentOut(BaseModel):
     author_name: str
     body: str
     created_at: datetime
-
-
-class UserOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    display_name: str
