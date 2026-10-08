@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { splitBySource, playtimeLabel, trophyLine, playStationSummary, reviewVerification, isPlayStationGame,
+import { splitBySource, playtimeLabel, playStationSummary, reviewVerification, isPlayStationGame,
   summarize, hours } from '../app/static/library.js';
 import { privacyNote, failureText } from '../app/static/psn-account.js';
 
@@ -29,8 +29,6 @@ test('unknown PlayStation hours read as not shared, never as zero', () => {
 });
 
 test('trophy summaries count each grade and only the hours PSN shared', () => {
-  assert.equal(trophyLine(psnEntry.trophies), '1 platinum · 1 gold · 2 silver · 3 bronze');
-  assert.equal(trophyLine(null), '');
   assert.deepEqual(playStationSummary([psnEntry, hiddenEntry]), {
     games: 2, minutes: 90, withHours: 1, earned: 7, total: 20, platinum: 1, gold: 1, silver: 2, bronze: 3 });
   assert.equal(isPlayStationGame(psnEntry.game), true);

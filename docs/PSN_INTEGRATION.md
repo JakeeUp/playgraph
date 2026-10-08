@@ -52,7 +52,7 @@ exactly one deployed value.
 
 | Call | Returns | Raises |
 |---|---|---|
-| `resolve_profile(online_id)` / `resolve_account_id(online_id)` | `{"account_id", "online_id"}` / account ID string | `ValueError` (bad ID format, no request), `PSNNotFoundError` |
+| `resolve_profile(online_id)` | `{"account_id", "online_id"}` | `ValueError` (bad ID format, no request), `PSNNotFoundError` |
 | `get_profile(account_id)` / `get_about_me(account_id)` | `{"online_id", "about_me", "avatar_url"}` / text | `PSNNotFoundError`, `PSNPrivateError` |
 | `check_verification(account_id, code)` | bool | as above |
 | `get_trophy_titles(account_id)` | list of `{np_communication_id, np_service_name, name, platforms[], icon_url, earned{bronze,silver,gold,platinum}, defined{...}, progress, trophy_set_version, last_updated}` | `PSNPrivateError` when trophies are hidden |

@@ -142,7 +142,9 @@ export async function initPlayStation(session) {
     try { const job = await call('/me/psn/sync', 'POST'); void poll(job.job_id); }
     catch (error) {
       control.disabled = false;
-      if (error.status === 409) void poll(`sync-psn-user-${session.user.id}`); else say(error.message);
+      // 409: a sync is already running. Its job id comes from the server.
+      if (error.status === 409) void refresh().then((state) => state.job_id && poll(state.job_id));
+      else say(error.message);
     }
   });
 

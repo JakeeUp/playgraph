@@ -35,11 +35,11 @@ export function createGameDialog(state, api, report = () => {}) {
       }
     }
     if (psnEntry) {
-      const trophies = psnEntry.trophies;
-      const earned = trophies ? TROPHY_GRADES.reduce((sum, grade) => sum + trophies.earned[grade], 0) : null;
-      const total = trophies ? TROPHY_GRADES.reduce((sum, grade) => sum + trophies.total[grade], 0) : null;
+      // The server sums the grades into achievements_unlocked/total for PSN rows.
+      const trophyCount = psnEntry.trophies
+        ? `${integer(psnEntry.achievements_unlocked)} / ${integer(psnEntry.achievements_total)}` : 'None';
       for (const [label, value, played] of [['PlayStation hours', playtimeLabel(psnEntry), psnEntry.playtime_minutes > 0],
-        ['Trophies', trophies ? `${integer(earned)} / ${integer(total)}` : 'None', false]]) {
+        ['Trophies', trophyCount, false]]) {
         const cell = el('div'); cell.append(el('dt', '', label), numbered('dd', played ? 'played' : '', value)); stats.append(cell);
       }
     }

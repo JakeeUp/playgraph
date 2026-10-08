@@ -18,7 +18,6 @@ import json
 import logging
 import time
 
-from arq.jobs import Job
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from redis.exceptions import RedisError
@@ -30,7 +29,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import LinkedAccount, Platform, User, utcnow
-from app.queue_codec import QUEUE_NAME, deserialize
+from app.routers.library import enqueue_sync, job_status
 from app.schemas import display_name
 from app.security import rate_limit, redis_call, state_key
 from app.services import psn
@@ -64,6 +63,14 @@ def _psn_link(db: Session, user_id: int) -> LinkedAccount | None:
     return db.query(LinkedAccount).filter_by(user_id=user_id, platform=Platform.psn).first()
 
 
+def _store(request: Request):
+    return getattr(request.app.state, "arq_pool", None)
+
+
+def _account_taken(db: Session, account_id: str) -> bool:
+    return db.query(LinkedAccount).filter_by(platform=Platform.psn, platform_user_id=account_id).first() is not None
+
+
 def _pending_key(request: Request) -> str:
     return state_key("psn-link", request.state.session_id)
 
@@ -81,7 +88,7 @@ def _parse_pending(raw, user: User) -> dict | None:
 
 
 async def _sony_unavailable_if_blocked(request: Request) -> None:
-    if await psn_status.auth_blocked(getattr(request.app.state, "arq_pool", None)):
+    if await psn_status.auth_blocked(_store(request)):
         raise HTTPException(503, "PlayStation is temporarily unavailable. Try again later.")
 
 
@@ -89,9 +96,8 @@ async def _sony_error(request: Request, exc: psn.PSNError, *, missing: str) -> H
     """Map a PSN failure to a response a player can act on. Sony's own error
     text never reaches the browser."""
     if isinstance(exc, psn.PSNAuthError):
-        await psn_status.block_auth(getattr(request.app.state, "arq_pool", None))
-        logger.error("psn_operator_action_needed: Sony rejected the server PSN_NPSSO. Sign in as the server "
-                     "PSN account, set a fresh PSN_NPSSO, then restart the API and worker.")
+        await psn_status.block_auth(_store(request))
+        logger.error("psn_operator_action_needed: Sony rejected the server PSN_NPSSO. %s", psn_status.OPERATOR_HINT)
         return HTTPException(503, "PlayStation is temporarily unavailable. Try again later.")
     if isinstance(exc, psn.PSNRateLimitedError):
         logger.warning("psn_rate_limited")
@@ -116,7 +122,7 @@ async def link_status(request: Request, user: User = Depends(get_current_user), 
         if waiting:
             pending = {"online_id": waiting["online_id"], "code": waiting["code"],
                        "expires_in": max(0, int(waiting.get("expires_at", 0) - time.time()))}
-    store = getattr(request.app.state, "arq_pool", None)
+    store = _store(request)
     return {
         "enabled": True,
         "linked": linked is not None,
@@ -147,7 +153,7 @@ async def start_link(body: LinkStart, request: Request, user: User = Depends(get
             profile = await client.resolve_profile(online_id)
     except psn.PSNError as exc:
         raise await _sony_error(request, exc, missing="No PSN account has that Online ID.") from None
-    if db.query(LinkedAccount).filter_by(platform=Platform.psn, platform_user_id=profile["account_id"]).first():
+    if _account_taken(db, profile["account_id"]):
         raise HTTPException(409, "That PSN account is already linked to a PlayGraph account.")
     code = psn.generate_verification_code()
     pending = {"user_id": user.id, "account_id": profile["account_id"], "online_id": profile["online_id"],
@@ -189,7 +195,7 @@ async def check_link(request: Request, user: User = Depends(get_current_user), d
     consumed = _parse_pending(await redis_call(request, "getdel", key), user)
     if consumed is None or (consumed["account_id"], consumed["code"]) != (pending["account_id"], pending["code"]):
         raise HTTPException(409, "This code expired or was already used. Start again.")
-    if db.query(LinkedAccount).filter_by(platform=Platform.psn, platform_user_id=consumed["account_id"]).first():
+    if _account_taken(db, consumed["account_id"]):
         raise HTTPException(409, "That PSN account is already linked to a PlayGraph account.")
     try:
         db.add(LinkedAccount(user_id=user.id, platform=Platform.psn, platform_user_id=consumed["account_id"],
@@ -217,31 +223,14 @@ async def sync_psn(request: Request, user: User = Depends(get_current_user), db:
         raise HTTPException(400, "No linked PlayStation account")
     await rate_limit(request, "psn-sync", str(user.id), 3, 3600)
     await _sony_unavailable_if_blocked(request)
-    try:
-        job = await request.app.state.arq_pool.enqueue_job("sync_psn_library", user.id, _job_id=job_id_for(user.id))
-    except RedisError:
-        raise HTTPException(503, "Sync service unavailable") from None
-    if job is None:
-        raise HTTPException(409, "A PlayStation sync for this account is already in progress or finished "
-                                 "very recently. Try again in a few minutes.")
-    return {"job_id": job.job_id, "status": "queued"}
+    return await enqueue_sync(request, "sync_psn_library", user.id, job_id_for(user.id),
+                              "A PlayStation sync for this account is already in progress or finished "
+                              "very recently. Try again in a few minutes.")
 
 
 @router.get("/me/psn/sync/status/{job_id}")
 async def sync_psn_status(job_id: str, request: Request, user: User = Depends(get_current_user)):
     if job_id != job_id_for(user.id):
         raise HTTPException(404, "Sync job not found")
-    job = Job(job_id, request.app.state.arq_pool, _queue_name=QUEUE_NAME, _deserializer=deserialize)
-    try:
-        status = await job.status()
-        result = None
-        if status.name == "complete":
-            info = await job.result_info()
-            if info is None or not info.success:
-                return {"job_id": job_id, "status": "failed", "result": None}
-            data = info.result if isinstance(info.result, dict) else {}
-            result = {k: data[k] for k in ("games_synced",) if type(data.get(k)) is int}
-            result.update({k: data[k] for k in ("trophies_visible", "playtime_visible") if type(data.get(k)) is bool})
-        return {"job_id": job_id, "status": status.name, "result": result}
-    except RedisError:
-        raise HTTPException(503, "Sync status unavailable") from None
+    return await job_status(request, job_id, int_keys=("games_synced",),
+                            bool_keys=("trophies_visible", "playtime_visible"))

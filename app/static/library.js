@@ -62,11 +62,6 @@ export function splitBySource(library) {
 }
 /** "12.5 h", or a plain note when PlayStation did not share the hours. */
 export const playtimeLabel = (entry) => entry?.playtime_minutes == null ? 'Hours not shared' : `${hours(entry.playtime_minutes)} h`;
-/** "1 platinum · 3 gold · 10 silver · 40 bronze", earned counts only. */
-export function trophyLine(trophies) {
-  if (!trophies?.earned) return '';
-  return TROPHY_GRADES.map((grade) => `${integer(trophies.earned[grade])} ${grade}`).join(' · ');
-}
 /** Trophy counts across a PlayStation shelf, plus how many hours were shared. */
 export function playStationSummary(entries) {
   const sum = { games: 0, minutes: 0, withHours: 0, earned: 0, total: 0, platinum: 0, gold: 0, silver: 0, bronze: 0 };

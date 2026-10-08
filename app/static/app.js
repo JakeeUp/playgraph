@@ -118,6 +118,7 @@ function renderShell() {
   const software = state.view === 'software';
   const isFeed = state.view === 'feed';
   const isNews = state.view === 'news';
+  const onPsn = psnShelf();
   document.querySelectorAll('[data-view]').forEach((item) => {
     const active = item.dataset.view === state.view; item.classList.toggle('active', active);
     if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
@@ -139,7 +140,7 @@ function renderShell() {
   $('#insights').hidden = !own || software || psnShelf() || !gameLibrary().length;
   $('#collection').hidden = isFeed || isNews || (state.view === 'stats' && Boolean(state.user) && gameLibrary().length > 0);
   $('#feed').hidden = !isFeed; $('#news').hidden = !isNews;
-  $('#sync-button').hidden = !state.user || !state.hasSteam || psnShelf(); $('#filters').hidden = !own;
+  $('#sync-button').hidden = !state.user || !state.hasSteam || onPsn; $('#filters').hidden = !own;
   $('#sort').disabled = !own; $('#sort').value = own ? state.sort : 'name';
   const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
   // The welcome hero has its own headline, so the plain page heading steps aside.
@@ -147,13 +148,13 @@ function renderShell() {
   if ($('#welcome').hidden === false) { buildWall(); void loadFrontReviews(); }
   if (!own) setHero(null);
   $('#page-title').textContent = copy.title;
-  $('#page-subtitle').textContent = psnShelf()
+  $('#page-subtitle').textContent = onPsn
     ? 'Your PlayStation games: trophies, and PS4 and PS5 hours when your PSN privacy settings share them.' : copy.subtitle;
   // An open game page owns the tab title until it closes.
   if (!$('#game-dialog').open) document.title = `${copy.tab} | PlayGraph`;
-  $('#collection-title').textContent = psnShelf() ? 'Your PlayStation games' : own ? shelf.own : shelf.catalog;
-  $('#collection-note').hidden = own && !software && !psnShelf();
-  $('#collection-note').textContent = psnShelf() ? PSN_NOTE : shelf.note;
+  $('#collection-title').textContent = onPsn ? 'Your PlayStation games' : own ? shelf.own : shelf.catalog;
+  $('#collection-note').hidden = own && !software && !onPsn;
+  $('#collection-note').textContent = onPsn ? PSN_NOTE : shelf.note;
   renderPlatformSwitch();
   $('#search').placeholder = copy.search;
   $('#search').setAttribute('aria-label', copy.searchLabel);

@@ -21,6 +21,9 @@ from app.config import settings
 AUTH_FLAG_KEY = "playgraph:psn:auth-failed"
 AUTH_FLAG_SECONDS = 86400  # retry a rejected NPSSO at most daily even if nobody changes it
 STATUS_SECONDS = 90 * 86400
+# What the operator must do once Sony rejects the server NPSSO. Logged by both
+# the API and the worker.
+OPERATOR_HINT = "Sign in as the server PSN account, set a fresh PSN_NPSSO, then restart the API and worker."
 
 
 def status_key(user_id: int) -> str:

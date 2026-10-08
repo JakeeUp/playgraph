@@ -65,6 +65,7 @@ INLINE_RETRY_MAX = 30.0
 TROPHY_PAGE_SIZE = 800  # documented maximum for trophyTitles
 GAMELIST_PAGE_SIZE = 200  # what PSNAWP pages with; larger is unverified
 MAX_PAGES = 100  # backstop against a pager that never ends
+TROPHY_GRADES = ("platinum", "gold", "silver", "bronze")
 PLAYED_CATEGORIES = ("ps4_game", "ps5_native_game")
 CATEGORY_PLATFORM = {"ps4_game": "PS4", "ps5_native_game": "PS5"}
 
@@ -223,7 +224,7 @@ def _secret_value(value) -> str:
 
 def _counts(raw) -> dict[str, int]:
     raw = raw if isinstance(raw, dict) else {}
-    return {grade: int(raw.get(grade) or 0) for grade in ("bronze", "silver", "gold", "platinum")}
+    return {grade: int(raw.get(grade) or 0) for grade in TROPHY_GRADES}
 
 
 def normalize_trophy_title(raw: dict) -> dict:
@@ -505,10 +506,6 @@ class PSNClient:
         raise _error_for(response)
 
     # Reads -------------------------------------------------------------
-
-    async def resolve_account_id(self, online_id: str) -> str:
-        """The numeric accountId for an Online ID. Raises PSNNotFoundError."""
-        return (await self.resolve_profile(online_id))["account_id"]
 
     async def resolve_profile(self, online_id: str) -> dict:
         """{"account_id", "online_id"} with Sony's canonical Online ID spelling."""

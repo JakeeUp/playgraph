@@ -403,12 +403,12 @@ def test_title_lookup_does_not_halve_for_other_errors():
 
 # Lookups ------------------------------------------------------------------
 
-def test_resolve_account_id_uses_the_legacy_profile_lookup():
+def test_resolve_profile_uses_the_legacy_profile_lookup():
     sony = FakeSony()
     sony.routes["/userProfile/v1/users/ikemenzi/profile2"] = httpx.Response(
         200, json={"profile": {"onlineId": "ikemenzi", "accountId": ACCOUNT}})
     client, _ = make_client(sony)
-    assert run(client.resolve_account_id("ikemenzi")) == ACCOUNT
+    assert run(client.resolve_profile("ikemenzi")) == {"account_id": ACCOUNT, "online_id": "ikemenzi"}
     assert sony.calls[-1].url.params["fields"] == "accountId,onlineId,currentOnlineId"
 
 
@@ -420,7 +420,7 @@ def test_unknown_online_id_and_account_id_are_not_found():
         400, json={"error": {"referenceId": "r", "code": 2281473, "message": "Bad Request (path: accountId)"}})
     client, _ = make_client(sony)
     with pytest.raises(PSNNotFoundError):
-        run(client.resolve_account_id("nobody_here"))
+        run(client.resolve_profile("nobody_here"))
     with pytest.raises(PSNNotFoundError) as caught:
         run(client.get_about_me("0000000000000000000"))
     assert caught.value.code == 2281473
@@ -431,7 +431,7 @@ def test_invalid_online_ids_are_rejected_before_any_request(bad):
     sony = FakeSony()
     client, _ = make_client(sony)
     with pytest.raises(ValueError):
-        run(client.resolve_account_id(bad))
+        run(client.resolve_profile(bad))
     assert sony.calls == []
 
 

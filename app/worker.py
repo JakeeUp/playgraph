@@ -309,7 +309,6 @@ async def _sync_owned_games(db, user_id, steam_id, owned_games, client, linked_a
 # sync is a handful of paged calls plus one lookup per five new games.
 
 PSN_CONCEPT, PSN_TITLE, PSN_TROPHY = "psn_concept", "psn_title", "psn_trophy"
-TROPHY_GRADES = ("bronze", "silver", "gold", "platinum")
 MAX_NAME = 200
 
 
@@ -407,7 +406,7 @@ async def _sync_psn_titles(db, linked: LinkedAccount, client: psn.PSNClient) -> 
     played_games: list[tuple[Game, dict]] = []
     for group in groups:
         game = ids.game(PSN_CONCEPT, group["concept_id"]) or next(
-            (ids.game(PSN_TITLE, t) for t in sorted(group["title_ids"]) if ids.game(PSN_TITLE, t)), None)
+            filter(None, (ids.game(PSN_TITLE, t) for t in sorted(group["title_ids"]))), None)
         if game is None:
             first = group["played_title_ids"][0] if group["played_title_ids"] else group["concept_id"]
             game = Game(name=display_name(group["name"], f"PlayStation title {first}", limit=MAX_NAME),
@@ -461,8 +460,8 @@ async def _sync_psn_titles(db, linked: LinkedAccount, client: psn.PSNClient) -> 
         entry = entry_for(game)
         entry["lists"] += 1
         for side in ("earned", "defined"):
-            counts = entry[side] or dict.fromkeys(TROPHY_GRADES, 0)
-            entry[side] = {grade: counts[grade] + title[side][grade] for grade in TROPHY_GRADES}
+            counts = entry[side] or dict.fromkeys(psn.TROPHY_GRADES, 0)
+            entry[side] = {grade: counts[grade] + title[side][grade] for grade in psn.TROPHY_GRADES}
         # Sony's percentage weighs grades by points. With two lists (PS4 and
         # PS5) there is no honest single figure, so leave it to the counts.
         entry["progress"] = title.get("progress") if entry["lists"] == 1 else None
@@ -477,8 +476,8 @@ async def _sync_psn_titles(db, linked: LinkedAccount, client: psn.PSNClient) -> 
             achievements_unlocked=sum(earned.values()) if earned else None,
             achievements_total=sum(defined.values()) if defined else None,
             trophy_progress=entry["progress"],
-            **{f"trophies_{grade}": earned[grade] if earned else None for grade in TROPHY_GRADES},
-            **{f"trophies_{grade}_total": defined[grade] if defined else None for grade in TROPHY_GRADES},
+            **{f"trophies_{grade}": earned[grade] if earned else None for grade in psn.TROPHY_GRADES},
+            **{f"trophies_{grade}_total": defined[grade] if defined else None for grade in psn.TROPHY_GRADES},
         ))
         pending += 1
         if pending >= COMMIT_EVERY:
@@ -496,16 +495,14 @@ def _psn_http_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=15, limits=httpx.Limits(max_connections=4, max_keepalive_connections=4))
 
 
-OPERATOR_HINT = ("Sign in as the server PSN account, set a fresh PSN_NPSSO, then restart the API and worker.")
-
-
 async def sync_psn_library(ctx, user_id: int) -> dict:
     """arq task: import a linked PlayStation account's public trophies and play time."""
     store = ctx.get("redis")
     if not settings.psn_enabled:
         return {"status": "error", "detail": "PlayStation is not enabled"}
     if await psn_status.auth_blocked(store):
-        logger.error("psn sync user=%s not started: Sony rejected PSN_NPSSO earlier. %s", user_id, OPERATOR_HINT)
+        logger.error("psn sync user=%s not started: Sony rejected PSN_NPSSO earlier. %s",
+                     user_id, psn_status.OPERATOR_HINT)
         raise PSNOperatorError("PSN sign-in for the server account is failing; the operator must set PSN_NPSSO")
     db = SessionLocal(expire_on_commit=False)
     try:
@@ -520,7 +517,8 @@ async def sync_psn_library(ctx, user_id: int) -> dict:
             db.rollback()
             await psn_status.block_auth(store)
             # Operator-facing and secret-free: PSN exception texts never hold a token.
-            logger.error("psn sync user=%s failed: Sony rejected the server PSN_NPSSO. %s", user_id, OPERATOR_HINT)
+            logger.error("psn sync user=%s failed: Sony rejected the server PSN_NPSSO. %s",
+                         user_id, psn_status.OPERATOR_HINT)
             raise PSNOperatorError("PSN sign-in for the server account failed; the operator must set PSN_NPSSO") from None
         except psn.PSNRateLimitedError as exc:
             db.rollback()
