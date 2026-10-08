@@ -5,6 +5,7 @@
    ========================================================================== */
 
 .frame { width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto; padding:0 var(--gutter); }
+.account-footer { border-top:1px solid var(--line); padding-top:var(--space-5); padding-bottom:var(--space-6); }
 
 .account-header { position:sticky; top:0; z-index:20; border-bottom:1px solid var(--line); background:var(--bg); }
 .account-header .frame { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); height:var(--space-8); }

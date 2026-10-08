@@ -508,6 +508,8 @@ select:disabled { color:var(--text-muted); cursor:default; }
 }
 .footer-brand { display:flex; align-items:center; gap:var(--space-2); color:var(--text-body); font-weight:500; }
 .footer-brand img { width:16px; height:16px; }
+.legal-notice { flex-basis:100%; margin:0; font-size:var(--text-xs); color:var(--text-muted); }
+.legal-notice a { color:inherit; }
 
 .noscript {
   border:1px solid var(--danger); border-radius:var(--radius);
