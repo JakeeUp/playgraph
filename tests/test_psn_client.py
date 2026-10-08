@@ -265,6 +265,142 @@ def test_requests_are_paced_by_the_minimum_interval():
     assert waits == [3.0, 3.0]  # authorize -> token -> api, each 3s apart
 
 
+def paced_client(sony, clock, **kwargs):
+    waits = []
+
+    async def fake_sleep(seconds):
+        waits.append(seconds)
+        clock.now += seconds
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(sony))
+    client = PSNClient(FAKE_NPSSO, client=http, state=TokenState(clock), sleep=fake_sleep, **kwargs)
+    return client, waits
+
+
+def test_budget_bursts_at_the_min_gap_then_waits_for_the_window_edge():
+    sony, clock = FakeSony(), Clock()
+    profile_route(sony)
+    client, waits = paced_client(sony, clock, min_interval=0.5, budget=5, window=60)
+
+    async def scenario():
+        for _ in range(5):
+            await client.get_about_me(ACCOUNT)
+
+    run(scenario())  # 2 auth requests + 5 API requests = 7 starts
+    assert len(sony.calls) == 7
+    # Starts 2-5 go out at the 0.5s gap; the 6th waits for the first start
+    # (t=1000) to leave the 60s window; the 7th then waits for the second.
+    assert waits[:4] == [0.5] * 4
+    assert waits[4] == pytest.approx(60 - 2.0)
+    assert waits[5] == pytest.approx(0.5)
+
+
+def test_a_spent_budget_fails_fast_when_the_caller_cannot_wait():
+    sony, clock = FakeSony(), Clock()
+    profile_route(sony)
+    client, waits = paced_client(sony, clock, min_interval=0, budget=3, window=60, max_wait=10)
+    run(client.get_about_me(ACCOUNT))  # authorize, token, profile: the whole budget
+    sent = len(sony.calls)
+    with pytest.raises(PSNRateLimitedError) as caught:
+        run(client.get_about_me(ACCOUNT))
+    assert caught.value.retry_after == pytest.approx(60)
+    assert len(sony.calls) == sent and waits == []  # nothing sent, nothing slept
+
+
+def test_config_defaults_and_old_interval_setting_still_apply(monkeypatch):
+    from app.config import Settings, settings
+    fields = Settings.model_fields
+    assert fields["psn_request_budget"].default == 200
+    assert fields["psn_budget_window_seconds"].default == 900.0
+    assert fields["psn_min_request_interval"].default == 0.5
+    monkeypatch.setattr(settings, "psn_min_request_interval", 3.0)  # an owner's existing value
+    client = PSNClient(FAKE_NPSSO, state=TokenState())
+    assert client._min_interval == 3.0 and client._budget == settings.psn_request_budget
+
+
+def test_short_429_is_slept_out_and_retried_once():
+    sony, clock = FakeSony(), Clock()
+    statuses = iter([429, 200])
+    sony.routes[f"/api/userProfile/v1/internal/users/{ACCOUNT}/profiles"] = lambda request: httpx.Response(
+        next(statuses), headers={"Retry-After": "7"}, json={"aboutMe": "ok"})
+    client, waits = paced_client(sony, clock, min_interval=0, budget=1000, window=60)
+    assert run(client.get_about_me(ACCOUNT)) == "ok"
+    assert waits == [7.0]
+
+
+def test_long_429_fails_fast_with_retry_after_and_pauses_later_requests():
+    sony, clock = FakeSony(), Clock()
+    sony.routes[f"/api/userProfile/v1/internal/users/{ACCOUNT}/profiles"] = httpx.Response(
+        429, headers={"Retry-After": "120"}, json={})
+    client, waits = paced_client(sony, clock, min_interval=0, budget=1000, window=60)
+    with pytest.raises(PSNRateLimitedError) as caught:
+        run(client.get_about_me(ACCOUNT))
+    assert caught.value.retry_after == 120
+    sent = len(sony.calls)
+    with pytest.raises(PSNRateLimitedError):
+        run(client.get_about_me(ACCOUNT))
+    assert len(sony.calls) == sent and waits == []  # nothing sent during the pause
+    clock.now += 121
+    sony.routes[f"/api/userProfile/v1/internal/users/{ACCOUNT}/profiles"] = httpx.Response(200, json={"aboutMe": "x"})
+    assert run(client.get_about_me(ACCOUNT)) == "x"
+
+
+def test_429_on_token_exchange_is_rate_limited_not_an_auth_failure():
+    sony = FakeSony()
+    sony.authorize_location = None
+    original = sony.__call__
+
+    def throttled(request):
+        if request.url.path.endswith("/oauth/token"):
+            sony.calls.append(request)
+            return httpx.Response(429, json={})
+        return original(request)
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(throttled))
+    client = PSNClient(FAKE_NPSSO, client=http, state=TokenState(Clock()), min_interval=0)
+    with pytest.raises(PSNRateLimitedError):
+        run(client.access_token())
+
+
+def test_retry_after_parsing():
+    now = datetime(2026, 10, 7, 12, 0, 0, tzinfo=timezone.utc)
+    assert psn.parse_retry_after("30") == 30
+    assert psn.parse_retry_after("Wed, 07 Oct 2026 12:01:00 GMT", now) == 60
+    assert psn.parse_retry_after("99999") == psn.MAX_RETRY_AFTER
+    assert psn.parse_retry_after("soon") is None and psn.parse_retry_after(None) is None
+
+
+def test_title_lookup_halves_the_batch_when_sony_rejects_its_size():
+    sony = FakeSony()
+    seen = []
+
+    def lookup(request):
+        ids = request.url.params["npTitleIds"].split(",")
+        seen.append(len(ids))
+        if len(ids) > 2:  # pretend Sony lowered its limit to 2
+            return httpx.Response(400, json={"error": {"code": psn.ERR_BAD_TITLE_QUERY,
+                                                       "message": "Bad Request (query: npTitleId)"}})
+        return httpx.Response(200, json={"titles": [
+            {"npTitleId": t, "trophyTitles": [{"npCommunicationId": "NPWR" + t[4:9] + "_00"}]} for t in ids]})
+
+    sony.routes[f"/api/trophy/v1/users/{ACCOUNT}/titles/trophyTitles"] = lookup
+    client, state = make_client(sony)
+    titles = [f"CUSA{i:05d}_00" for i in range(1, 7)]
+    found = run(client.get_trophy_lists_for_titles(ACCOUNT, titles))
+    assert sorted(found) == titles
+    assert seen == [5, 2, 2, 2]  # 5 rejected -> halved to 2 for the rest
+    assert state.lookup_batch == 2
+
+
+def test_title_lookup_does_not_halve_for_other_errors():
+    sony = FakeSony()
+    sony.routes[f"/api/trophy/v1/users/{ACCOUNT}/titles/trophyTitles"] = httpx.Response(503, text="down")
+    client, state = make_client(sony)
+    with pytest.raises(PSNError):
+        run(client.get_trophy_lists_for_titles(ACCOUNT, ["CUSA00001_00", "CUSA00002_00"]))
+    assert state.lookup_batch == psn.TITLE_LOOKUP_BATCH
+
+
 # Lookups ------------------------------------------------------------------
 
 def test_resolve_account_id_uses_the_legacy_profile_lookup():
@@ -355,9 +491,10 @@ def test_private_trophy_list_raises_private():
 def test_rate_limit_and_server_errors_are_distinct():
     sony = FakeSony()
     sony.routes[f"/api/trophy/v1/users/{ACCOUNT}/trophyTitles"] = httpx.Response(429, text="slow down")
-    client, _ = make_client(sony)
+    client, state = make_client(sony)
     with pytest.raises(PSNRateLimitedError):
         run(client.get_trophy_titles(ACCOUNT))
+    state.blocked_until = 0.0  # let the 429 pause lapse
     sony.routes[f"/api/trophy/v1/users/{ACCOUNT}/trophyTitles"] = httpx.Response(503, text="down")
     with pytest.raises(PSNError) as caught:
         run(client.get_trophy_titles(ACCOUNT))

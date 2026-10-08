@@ -29,8 +29,10 @@ import hashlib
 import re
 import secrets
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -52,10 +54,14 @@ SCOPE = "psn:mobile.v2.core psn:clientapp"
 # Renew a little before Sony's stated expiry so a request never goes out with
 # a token that dies in flight.
 TOKEN_SKEW_SECONDS = 60
-# PSNAWP self-limits to one request every three seconds (300 per 15 minutes)
-# and warns that bulk use can get the authenticating account banned. That
-# account is the site owner's, so stay at least that polite by default.
-DEFAULT_MIN_INTERVAL = 3.0
+# Request pacing (budget, window, minimum gap) comes from the psn_* settings in
+# app/config.py, which also explain the chosen values.
+# On a 429 without Retry-After, pause this long.
+DEFAULT_RATE_LIMIT_BACKOFF = 600.0
+MAX_RETRY_AFTER = 3600.0
+# A 429 pause up to this long is slept through and the request retried once;
+# a longer one fails fast so a web request never hangs and arq can defer.
+INLINE_RETRY_MAX = 30.0
 TROPHY_PAGE_SIZE = 800  # documented maximum for trophyTitles
 GAMELIST_PAGE_SIZE = 200  # what PSNAWP pages with; larger is unverified
 MAX_PAGES = 100  # backstop against a pager that never ends
@@ -66,6 +72,7 @@ CATEGORY_PLATFORM = {"ps4_game": "PS4", "ps5_native_game": "PS5"}
 ERR_ACCESS_CONTROL = 2240526  # 403 "Not permitted by access control" (private trophies)
 ERR_BAD_ACCOUNT_ID = 2281473  # 400 "Bad Request (path: accountId)" (no such account)
 ERR_USER_NOT_FOUND = 2105356  # 404 "User not found" (legacy profile2 lookup)
+ERR_BAD_TITLE_QUERY = 2240513  # 400 "Bad Request (query: npTitleId)" (too many IDs)
 NPSSO_EXPIRED_CODE = "4165"  # authorize redirect error_code for a bad/expired NPSSO
 
 # Used with fullmatch, so a trailing newline cannot slip past "$". Every
@@ -73,8 +80,9 @@ NPSSO_EXPIRED_CODE = "4165"  # authorize redirect error_code for a bad/expired N
 ONLINE_ID_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]{2,15}")
 ACCOUNT_ID_RE = re.compile(r"[0-9]{1,20}")
 TITLE_ID_RE = re.compile(r"[A-Z]{4}[0-9]{5}_[0-9]{2}")  # e.g. PPSA01506_00, CUSA12057_00
-# Title IDs per titles/trophyTitles lookup. PSNAWP's recording sends three;
-# Sony's maximum is not documented, so stay small.
+# Title IDs per titles/trophyTitles lookup. psn-api documents a limit of 5,
+# and a live check (2026-10) confirmed it: 5 IDs -> 200, 6 IDs -> 400
+# ERR_BAD_TITLE_QUERY. If Sony ever lowers it, the client halves the batch.
 TITLE_LOOKUP_BATCH = 5
 DURATION_RE = re.compile(
     r"^P(?:(?P<days>\d+)D)?(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+(?:\.\d+)?)S)?)?$")
@@ -107,7 +115,40 @@ class PSNPrivateError(PSNError):
 
 
 class PSNRateLimitedError(PSNError):
-    """Sony answered 429. Back off and retry the job later."""
+    """Sony answered 429, a 429 pause is still running, or the request budget
+    is spent. retry_after is the wait in seconds (Sony's Retry-After, or the
+    default backoff), so a job can be deferred by that much."""
+
+    def __init__(self, message: str, *, retry_after: float, status: int | None = 429, code: int | None = None):
+        super().__init__(message, status=status, code=code)
+        self.retry_after = retry_after
+
+
+def parse_retry_after(value: str | None, now: datetime | None = None) -> float | None:
+    """Seconds from a Retry-After header (delta-seconds or an HTTP date),
+    clamped to [0, MAX_RETRY_AFTER]. None when absent or unparseable."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    value = value.strip()
+    try:
+        seconds = float(value)
+    except ValueError:
+        try:
+            when = parsedate_to_datetime(value)
+        except (TypeError, ValueError, IndexError):
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        seconds = (when - (now or datetime.now(timezone.utc))).total_seconds()
+    if seconds != seconds:  # NaN
+        return None
+    return min(max(seconds, 0.0), MAX_RETRY_AFTER)
+
+
+def _retry_after(response: httpx.Response) -> float:
+    """How long a 429 asks us to pause: Retry-After, or the default backoff."""
+    seconds = parse_retry_after(response.headers.get("retry-after"))
+    return DEFAULT_RATE_LIMIT_BACKOFF if seconds is None else seconds
 
 
 def parse_duration_minutes(value: str | None) -> int | None:
@@ -223,17 +264,23 @@ def normalize_played_title(raw: dict) -> dict:
 
 
 class TokenState:
-    """Process-wide token cache and request pacing for the server account.
+    """Process-wide token cache and request budget for the server account.
 
     One instance is shared by every PSNClient by default, so a worker that
     builds a client per job still reuses the access token and refresh token
-    until they near expiry instead of re-running the NPSSO exchange.
+    until they near expiry instead of re-running the NPSSO exchange, and every
+    client in the process draws on one request budget.
+
+    The budget is per process, not per Sony account: the API and the worker
+    each keep their own. See docs/PSN_INTEGRATION.md.
     """
 
     def __init__(self, clock: Callable[[], float] = time.monotonic):
         self.clock = clock
         self.reset()
-        self.last_request_at: float | None = None
+        self.request_starts: deque[float] = deque()  # recent request start times
+        self.blocked_until = 0.0  # set by a 429: no request starts before this
+        self.lookup_batch = TITLE_LOOKUP_BATCH  # shrinks if Sony rejects a batch size
         self._loop = None
         self._token_lock: asyncio.Lock | None = None
         self._pace_lock: asyncio.Lock | None = None
@@ -269,23 +316,30 @@ class PSNClient:
     Use as `async with PSNClient() as psn:`, or pass an existing
     httpx.AsyncClient (which this class will then never close) so a sync job
     can reuse one connection pool across many calls.
+
+    max_wait caps how long a request may wait for the budget. A web request
+    passes one so a spent budget answers at once instead of hanging for up to
+    a whole window; the worker leaves it unset and simply waits.
     """
 
     def __init__(self, npsso=None, *, client: httpx.AsyncClient | None = None,
                  state: TokenState | None = None, min_interval: float | None = None,
+                 budget: int | None = None, window: float | None = None, max_wait: float | None = None,
                  sleep: Callable[[float], Awaitable[None]] = asyncio.sleep, timeout: float = 15):
-        if npsso is None or min_interval is None:
-            from app.config import settings
-            if npsso is None:
-                npsso = getattr(settings, "psn_npsso", None)
-            if min_interval is None:
-                min_interval = getattr(settings, "psn_min_request_interval", DEFAULT_MIN_INTERVAL)
+        from app.config import settings
+        npsso = settings.psn_npsso if npsso is None else npsso
+        min_interval = settings.psn_min_request_interval if min_interval is None else min_interval
+        budget = settings.psn_request_budget if budget is None else budget
+        window = settings.psn_budget_window_seconds if window is None else window
         self._npsso = _secret_value(npsso)
         self._client = client
         self._owns_client = client is None
         self._timeout = timeout
         self._state = state or _shared_state
-        self._min_interval = min_interval
+        self._min_interval = max(float(min_interval), 0.0)
+        self._budget = int(budget)
+        self._window = float(window)
+        self._max_wait = max_wait
         self._sleep = sleep
 
     async def __aenter__(self) -> PSNClient:
@@ -374,27 +428,72 @@ class PSNClient:
 
     # Transport ----------------------------------------------------------
 
+    def _slot_wait(self, now: float) -> float:
+        """Seconds until the next request may start (<= 0 means now)."""
+        state = self._state
+        starts = state.request_starts
+        while starts and starts[0] <= now - self._window:
+            starts.popleft()
+        wait = state.blocked_until - now
+        if len(starts) >= self._budget:
+            # Budget spent: wait until enough of the oldest starts age out.
+            wait = max(wait, starts[-self._budget] + self._window - now)
+        if starts:
+            wait = max(wait, starts[-1] + self._min_interval - now)
+        return wait
+
+    async def _acquire(self) -> None:
+        """Wait for a request slot. Requests burst at min_interval until the
+        rolling-window budget is spent, then wait for the oldest start to age
+        out. Nothing starts during a 429 pause; a pause longer than
+        INLINE_RETRY_MAX fails fast instead of hanging the caller."""
+        state = self._state
+        _, pace_lock = state.locks()
+        async with pace_lock:
+            while True:
+                now = state.clock()
+                paused = state.blocked_until - now
+                if paused > INLINE_RETRY_MAX:
+                    raise PSNRateLimitedError(f"PSN rate limit pause, {paused:.0f}s left", retry_after=paused)
+                wait = self._slot_wait(now)
+                if wait <= 0:
+                    break
+                if self._max_wait is not None and wait > self._max_wait:
+                    raise PSNRateLimitedError(f"PSN request budget spent, {wait:.0f}s until a slot",
+                                              retry_after=wait)
+                await self._sleep(wait)
+            state.request_starts.append(state.clock())
+
     async def _send(self, method: str, url: str, **kwargs) -> httpx.Response:
-        if self._min_interval > 0:
-            _, pace_lock = self._state.locks()
-            async with pace_lock:
-                last = self._state.last_request_at
-                if last is not None:
-                    wait = last + self._min_interval - self._state.clock()
-                    if wait > 0:
-                        await self._sleep(wait)
-                self._state.last_request_at = self._state.clock()
+        await self._acquire()
         try:
-            return await self.http.request(method, url, **kwargs)
+            response = await self.http.request(method, url, **kwargs)
         except httpx.HTTPError as exc:
             raise PSNError(f"PSN request failed: {type(exc).__name__}") from None
+        if response.status_code == 429:
+            # Sony considers the budget spent: pause every request in this
+            # process, then report it. Auth requests land here too, so a
+            # throttled token exchange never reads as a bad NPSSO.
+            error = _error_for(response)
+            state = self._state
+            state.blocked_until = max(state.blocked_until, state.clock() + error.retry_after)
+            raise error
+        return response
 
     async def _get_json(self, url: str, params: dict | None = None) -> dict:
-        for attempt in range(2):
+        renewed = retried = False
+        while True:
             token = await self.access_token()
-            response = await self._send("GET", url, params=params, headers={
-                "Authorization": f"Bearer {token}", "Accept-Language": "en-US"})
-            if response.status_code == 401 and attempt == 0:
+            try:
+                response = await self._send("GET", url, params=params, headers={
+                    "Authorization": f"Bearer {token}", "Accept-Language": "en-US"})
+            except PSNRateLimitedError as exc:
+                if retried or exc.retry_after > INLINE_RETRY_MAX:
+                    raise
+                retried = True  # short pause: _acquire sleeps it out, then retry once
+                continue
+            if response.status_code == 401 and not renewed:
+                renewed = True
                 self.invalidate_access_token()  # revoked early; renew once
                 continue
             break
@@ -466,10 +565,21 @@ class PSNClient:
         account_id = _validate_account_id(account_id)
         wanted = list(dict.fromkeys(t for t in title_ids if isinstance(t, str) and TITLE_ID_RE.fullmatch(t)))
         found: dict[str, list[str]] = {}
-        for start in range(0, len(wanted), TITLE_LOOKUP_BATCH):
-            batch = wanted[start:start + TITLE_LOOKUP_BATCH]
-            body = await self._get_json(f"{TROPHY_BASE}/users/{account_id}/titles/trophyTitles",
-                                        {"npTitleIds": ",".join(batch)})
+        state = self._state
+        start = 0
+        while start < len(wanted):
+            batch = wanted[start:start + max(1, state.lookup_batch)]
+            try:
+                body = await self._get_json(f"{TROPHY_BASE}/users/{account_id}/titles/trophyTitles",
+                                            {"npTitleIds": ",".join(batch)})
+            except PSNError as exc:
+                if len(batch) > 1 and exc.status == 400 and exc.code == ERR_BAD_TITLE_QUERY:
+                    # Sony refused this many IDs: halve the batch for the rest
+                    # of this process's life and retry the same titles.
+                    state.lookup_batch = len(batch) // 2
+                    continue
+                raise
+            start += len(batch)
             for title in body.get("titles") or []:
                 if not isinstance(title, dict) or title.get("npTitleId") not in batch:
                     continue
@@ -509,5 +619,5 @@ def _error_for(response: httpx.Response) -> PSNError:
     if status == 404 or code in (ERR_USER_NOT_FOUND, ERR_BAD_ACCOUNT_ID):
         return PSNNotFoundError(detail, status=status, code=code)
     if status == 429:
-        return PSNRateLimitedError(detail, status=status, code=code)
+        return PSNRateLimitedError(detail, retry_after=_retry_after(response), code=code)
     return PSNError(detail, status=status, code=code)

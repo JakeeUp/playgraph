@@ -230,10 +230,14 @@ async def test_a_rejected_server_token_fails_the_job_and_stops_later_jobs(setup,
 @pytest.mark.asyncio
 async def test_rate_limits_retry_later_and_a_vanished_account_is_reported(setup):
     s = setup
-    s.fake.errors["played"] = psn.PSNRateLimitedError("PSN 429")
+    s.fake.errors["played"] = psn.PSNRateLimitedError("PSN 429", retry_after=psn.DEFAULT_RATE_LIMIT_BACKOFF)
     with pytest.raises(Retry):
         await worker.sync_psn_library(s.ctx, 1)
     assert psn_rows(s.Session) == []
+    s.fake.errors["played"] = psn.PSNRateLimitedError("PSN 429", retry_after=42.0)
+    with pytest.raises(Retry) as caught:
+        await worker.sync_psn_library(s.ctx, 1)
+    assert caught.value.defer_score == 43_000  # Sony's Retry-After, rounded up, in ms
     s.fake.errors = {"profile": psn.PSNNotFoundError("PSN 400")}
     result = await worker.sync_psn_library(s.ctx, 1)
     assert result["status"] == "error"

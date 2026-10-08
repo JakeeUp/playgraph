@@ -304,13 +304,9 @@ async def _sync_owned_games(db, user_id, steam_id, owned_games, client, linked_a
 #
 # One server-owned NPSSO reads each linked player's public trophy list and,
 # where their privacy settings allow it, PS4/PS5 play time. See
-# docs/PSN_INTEGRATION.md. Sony gets one request every few seconds from this
-# process (PSNClient paces itself), so a sync is a handful of paged calls plus
-# a few title lookups the first time a game is seen.
+# docs/PSN_INTEGRATION.md. PSNClient spends a per-process request budget, so a
+# sync is a handful of paged calls plus one lookup per five new games.
 
-# Sony asked us to slow down. Its limits are unpublished; ten minutes is a
-# conservative pause before arq runs the job again.
-PSN_RATE_LIMIT_DEFER = 600
 PSN_CONCEPT, PSN_TITLE, PSN_TROPHY = "psn_concept", "psn_title", "psn_trophy"
 TROPHY_GRADES = ("bronze", "silver", "gold", "platinum")
 MAX_NAME = 200
@@ -531,10 +527,11 @@ async def sync_psn_library(ctx, user_id: int) -> dict:
             # Operator-facing and secret-free: PSN exception texts never hold a token.
             logger.error("psn sync user=%s failed: Sony rejected the server PSN_NPSSO. %s", user_id, OPERATOR_HINT)
             raise PSNOperatorError("PSN sign-in for the server account failed; the operator must set PSN_NPSSO") from None
-        except psn.PSNRateLimitedError:
+        except psn.PSNRateLimitedError as exc:
             db.rollback()
-            logger.warning("psn sync user=%s: Sony rate limited us; retrying in %ss", user_id, PSN_RATE_LIMIT_DEFER)
-            raise Retry(defer=PSN_RATE_LIMIT_DEFER) from None
+            defer = max(5, int(exc.retry_after) + 1)  # Sony's Retry-After, or the client's default pause
+            logger.warning("psn sync user=%s: Sony rate limited us; retrying in %ss", user_id, defer)
+            raise Retry(defer=defer) from None
         except psn.PSNNotFoundError:
             db.rollback()
             await psn_status.write_status(store, user_id, {"problem": "account_not_found",

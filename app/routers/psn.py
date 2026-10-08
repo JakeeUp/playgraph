@@ -38,6 +38,9 @@ logger = logging.getLogger("playgraph.psn")
 LINK_SECONDS = 900
 VERIFICATION_METHOD = "psn_about_me"
 JOB_PREFIX = "sync-psn-user-"
+# Longest a link request waits for a slot in the Sony request budget before
+# answering "busy". The worker has no such cap.
+WEB_MAX_WAIT = 10.0
 
 
 def require_psn_enabled():
@@ -92,7 +95,7 @@ async def _sony_error(request: Request, exc: psn.PSNError, *, missing: str) -> H
     if isinstance(exc, psn.PSNRateLimitedError):
         logger.warning("psn_rate_limited")
         return HTTPException(503, "PlayStation is busy right now. Try again in a few minutes.",
-                             headers={"Retry-After": "600"})
+                             headers={"Retry-After": str(max(1, int(exc.retry_after) + 1))})
     if isinstance(exc, psn.PSNNotFoundError):
         return HTTPException(404, missing)
     if isinstance(exc, psn.PSNPrivateError):
@@ -139,7 +142,7 @@ async def start_link(body: LinkStart, request: Request, user: User = Depends(get
     await rate_limit(request, "psn-link", str(user.id), 5, 600)
     await _sony_unavailable_if_blocked(request)
     try:
-        async with psn.PSNClient() as client:
+        async with psn.PSNClient(max_wait=WEB_MAX_WAIT) as client:
             profile = await client.resolve_profile(online_id)
     except psn.PSNError as exc:
         raise await _sony_error(request, exc, missing="No PSN account has that Online ID.") from None
@@ -171,7 +174,7 @@ async def check_link(request: Request, user: User = Depends(get_current_user), d
         raise HTTPException(409, "No PlayStation link is waiting in this browser, or the code expired. Start again.")
     await _sony_unavailable_if_blocked(request)
     try:
-        async with psn.PSNClient() as client:
+        async with psn.PSNClient(max_wait=WEB_MAX_WAIT) as client:
             found = await client.check_verification(pending["account_id"], pending["code"])
     except psn.PSNError as exc:
         raise await _sony_error(request, exc, missing="That PSN account could not be found. Start again.") from None

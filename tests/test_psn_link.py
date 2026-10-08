@@ -261,8 +261,12 @@ def test_sony_errors_become_clear_responses_without_details(env):
     upstream = browser.start()
     assert upstream.status_code == 502 and "internal detail" not in upstream.text
 
-    env.fake.error = psn.PSNRateLimitedError("PSN 429", status=429)
-    assert browser.start().status_code == 503
+    env.fake.error = psn.PSNRateLimitedError("PSN 429", retry_after=psn.DEFAULT_RATE_LIMIT_BACKOFF)
+    busy = browser.start()
+    assert busy.status_code == 503 and busy.headers["retry-after"] == "601"
+
+    env.fake.error = psn.PSNRateLimitedError("budget spent", retry_after=42.5)
+    assert browser.start().headers["retry-after"] == "43"
 
     env.fake.error = None
     code = browser.start().json()["code"]
@@ -323,3 +327,18 @@ def test_status_reports_the_last_sync_outcome_for_the_linked_account_only(env):
     status = browser.get("/auth/psn").json()
     assert status["sync"]["playtime_visible"] is False and status["job_id"] == "sync-psn-user-1"
     assert env.browser(2).get("/auth/psn").json()["sync"] is None
+
+
+def test_link_routes_never_wait_long_for_the_sony_budget(env, monkeypatch):
+    seen = []
+
+    def client(*args, **kwargs):
+        seen.append(kwargs.get("max_wait"))
+        return env.fake
+
+    monkeypatch.setattr(psn_routes.psn, "PSNClient", client)
+    browser = env.browser()
+    code = browser.start().json()["code"]
+    env.fake.about[ACCOUNT_A] = code
+    assert browser.check().status_code == 200
+    assert seen == [psn_routes.WEB_MAX_WAIT] * 2 and psn_routes.WEB_MAX_WAIT <= 15

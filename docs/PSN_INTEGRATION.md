@@ -32,12 +32,14 @@ psn_npsso: SecretStr = SecretStr("")  # server account NPSSO; empty disables PSN
 Optional, if pacing needs tuning without a deploy:
 
 ```python
-psn_min_request_interval: float = 3.0
+psn_request_budget: int = 200            # requests per rolling window, per process
+psn_budget_window_seconds: float = 900.0 # the rolling window (15 minutes)
+psn_min_request_interval: float = 0.5    # minimum gap between request starts
 ```
 
-Both fields now exist. `settings.psn_enabled` (true when `PSN_NPSSO` is
+These fields exist. `settings.psn_enabled` (true when `PSN_NPSSO` is
 non-empty) is the only thing the frontend sees, via `/auth/session`.
-`PSNClient()` reads `settings.psn_npsso` and `settings.psn_min_request_interval`
+`PSNClient()` reads `settings.psn_npsso` and the three pacing settings
 when they are not passed in. An empty value raises `PSNAuthError` before any
 request. Add `PSN_NPSSO=` (empty) to `.env.example` if one exists; the real
 value goes only in the ignored `.env`. Use a **dedicated PSN account** for the
@@ -68,9 +70,21 @@ Behavior worth knowing:
   shared by all `PSNClient` instances) and renewed 60 s before expiry. A 401
   triggers one renewal and retry. A rejected refresh token falls back to the
   NPSSO. The cache resets if the configured NPSSO changes.
-- Requests are paced to one every 3 s per process by default (PSNAWP's
-  default). The API process and the worker each have their own pace and token
-  cache. If several workers run, move pacing to Redis.
+- Requests run against a budget: at most 200 per rolling 15 minutes per
+  process, starting at least 0.5 s apart. Inside the budget they burst; once
+  it is spent, the next request waits for the oldest one to age out. PSNAWP
+  self-limits to 300 per 15 minutes, and the API and the worker each keep their
+  own budget and token cache, so the two together can reach 400. In practice
+  the API makes only a few calls (link start and check). If several workers
+  run, move the budget to Redis.
+- A 429 pauses every request in the process for Sony's `Retry-After`, or 600 s
+  when Sony gives none. A pause of 30 s or less is slept through and the
+  request retried once. A longer one raises `PSNRateLimitedError` carrying
+  `retry_after`, and the worker defers the job by that much.
+- Title-to-trophy-list lookups send 5 IDs per request. psn-api documents 5,
+  and a live check in October 2026 confirmed it: 5 IDs returned 200, 6 returned
+  400 with code 2240513. If Sony rejects a batch with that code, the client
+  halves the batch size for the rest of the process and retries the same IDs.
 - Pass `client=` a shared `httpx.AsyncClient` to reuse connections within a
   sync. The NPSSO is sent as a per-request `Cookie` header, never put in the
   client's cookie jar.
@@ -223,8 +237,13 @@ per-user write rate limit. Add a router `app/routers/psn.py`, prefix
    needs the unimplemented unlink, so the account page only reports it.
 
 Expected cost per sync: 1 profile + ceil(trophy lists / 800) +
-ceil(played / 200) + mapping lookups. At 3 s pacing a typical user is well
-under a minute. Run PSN syncs on demand plus at most daily.
+ceil(played / 200) + ceil(unmapped played / 5) mapping lookups. Mappings are
+saved, so repeat syncs only look up new games. Measured on the first live sync
+(492 played games, 479 trophy lists): about 105 requests, which took 5 min 17 s
+at the old fixed 3 s pace. Under the budget, the same first sync is about
+105 × 0.5 s ≈ 55 s plus Sony's response time, and a repeat sync is a few
+seconds. A first sync over 200 requests (roughly 950+ played games) waits at
+the window edge for the remainder. Run PSN syncs on demand plus at most daily.
 
 ## Risks
 

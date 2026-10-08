@@ -35,8 +35,13 @@ class Settings(BaseSettings):
     # players' public PSN profiles and trophies. Empty turns PlayStation off.
     # Users never hand PlayGraph their own PSN credentials or tokens.
     psn_npsso: SecretStr = SecretStr("")
-    # Seconds between Sony requests per process. 3.0 matches PSNAWP's courtesy pace.
-    psn_min_request_interval: float = Field(default=3.0, ge=0.0, le=60.0)
+    # Sony request pacing, per process: at most psn_request_budget requests per
+    # rolling psn_budget_window_seconds, each start at least
+    # psn_min_request_interval seconds apart. PSNAWP self-limits to 300/15 min.
+    # An existing PSN_MIN_REQUEST_INTERVAL setting is still honored as the gap.
+    psn_min_request_interval: float = Field(default=0.5, ge=0.0, le=60.0)
+    psn_request_budget: int = Field(default=200, ge=1, le=300)
+    psn_budget_window_seconds: float = Field(default=900.0, ge=60.0, le=3600.0)
 
     @property
     def psn_enabled(self) -> bool:
