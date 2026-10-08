@@ -61,6 +61,7 @@ class SecurityMiddleware:
                         "connect-src 'self'; img-src 'self' https://shared.fastly.steamstatic.com "
                         "https://shared.akamai.steamstatic.com https://cdn.akamai.steamstatic.com "
                         "https://cdn.cloudflare.steamstatic.com https://images.igdb.com "
+                        "https://image.api.playstation.com https://psnobj.prod.dl.playstation.net "
                         f"{NEWS_IMAGES}; font-src 'self'; "
                         "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
                     )

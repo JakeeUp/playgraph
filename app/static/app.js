@@ -1,5 +1,5 @@
 import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown, steamArt,
-  splitBySource, playStationSummary, playtimeLabel } from './library.js';
+  splitBySource, playStationSummary, playtimeLabel, storeArt } from './library.js';
 import { $, el, button, steamLink, cover, wallArt, aborted, numbered, setNumbers, timeLabel } from './dom.js';
 import { starDisplay } from './rating.js';
 import { createGameDialog } from './game-detail.js';
@@ -137,7 +137,7 @@ function renderShell() {
   renderBacklog();
   $('#welcome').hidden = Boolean(state.user) || software || isFeed || isNews;
   $('#summary').hidden = !own || !shelfLibrary().length;
-  $('#insights').hidden = !own || software || psnShelf() || !gameLibrary().length;
+  $('#insights').hidden = !own || software || !(onPsn ? state.psnLibrary : gameLibrary()).length;
   $('#collection').hidden = isFeed || isNews || (state.view === 'stats' && Boolean(state.user) && gameLibrary().length > 0);
   $('#feed').hidden = !isFeed; $('#news').hidden = !isNews;
   $('#sync-button').hidden = !state.user || !state.hasSteam || onPsn; $('#filters').hidden = !own;
@@ -226,11 +226,18 @@ async function loadFrontReviews() {
 // game. The URL comes from the numeric app id, like every other cover.
 function setHero(game) {
   const heading = $('.page-heading'); const appid = game?.steam_appid;
-  if (heading.dataset.hero === String(appid ?? '')) return;
-  heading.dataset.hero = String(appid ?? '');
-  heading.querySelector('.hero-art')?.remove(); heading.classList.toggle('has-hero', Boolean(appid));
-  if (!appid) return;
+  const other = game && appid == null ? storeArt(game) : null;
+  const key = game && (appid != null || other.hero) ? String(game.id) : '';
+  if (heading.dataset.hero === key) return;
+  heading.dataset.hero = key;
+  heading.querySelector('.hero-art')?.remove(); heading.classList.toggle('has-hero', Boolean(key));
+  if (!key) return;
   const art = el('img', 'hero-art'); art.alt = ''; art.decoding = 'async'; art.referrerPolicy = 'no-referrer';
+  if (other) {
+    // Same banner as a Steam game: IGDB artwork, or the cover blurred wide.
+    art.classList.toggle('soft', other.soft); art.addEventListener('error', () => art.remove());
+    art.src = other.hero; heading.prepend(art); return;
+  }
   // Not every game has hero art. The store header, blurred, still gives the color.
   art.addEventListener('error', () => {
     if (art.classList.contains('soft')) { art.remove(); return; }
@@ -268,7 +275,15 @@ function renderInsights() {
       stat('PlayStation hours', hours(ps.minutes), 'hrs', `Shared for ${integer(ps.withHours)} of ${integer(ps.games)} games`),
       stat('Trophies earned', integer(ps.earned), '', `of ${integer(ps.total)} across your trophy lists`),
       stat('Platinum trophies', integer(ps.platinum), '', `${integer(ps.gold)} gold · ${integer(ps.silver)} silver · ${integer(ps.bronze)} bronze`));
-    setHero(null);
+    // The same spotlight and banner as the Steam shelf: the most played game,
+    // or the most trophies when PSN hides every game's hours.
+    const rank = (entry) => [entry.playtime_minutes || 0, entry.achievements_unlocked || 0];
+    const top = [...state.psnLibrary].sort((a, b) => {
+      const [ah, at] = rank(a); const [bh, bt] = rank(b); return bh - ah || bt - at;
+    })[0];
+    setHero(top?.game);
+    const insights = $('#insights'); insights.classList.remove('expanded');
+    insights.replaceChildren(...(top ? [spotlight(top)] : []));
     return;
   }
   const summary = summarize(shelfLibrary());
@@ -294,13 +309,17 @@ function spotlight(entry) {
   const open = button('', 'spotlight-cover', () => gameDialog.open(entry.game));
   open.setAttribute('aria-label', `Open ${entry.game.name}`); open.append(cover(entry.game));
   const copy = el('div', 'spotlight-copy');
-  copy.append(el('h3', '', entry.game.name), numbered('p', 'spotlight-hours', `${hours(entry.playtime_minutes)} h played`));
+  const psn = entry.source === 'psn';
+  const played = psn ? (entry.playtime_minutes == null ? playtimeLabel(entry) : `${playtimeLabel(entry)} played`)
+    : `${hours(entry.playtime_minutes)} h played`;
+  copy.append(el('h3', '', entry.game.name), numbered('p', 'spotlight-hours', played));
   if (achievementPercent(entry) != null) {
-    copy.append(numbered('p', 'spotlight-meta', `${integer(entry.achievements_unlocked)} of ${integer(entry.achievements_total)} achievements unlocked`));
+    const noun = psn ? 'trophies earned' : 'achievements unlocked';
+    copy.append(numbered('p', 'spotlight-meta', `${integer(entry.achievements_unlocked)} of ${integer(entry.achievements_total)} ${noun}`));
   }
   copy.append(button('Open game page', 'text-button', () => gameDialog.open(entry.game)));
   const body = el('div', 'spotlight-body'); body.append(open, copy);
-  card.append(el('h2', '', 'Most played'), body); return card;
+  card.append(el('h2', '', psn && !entry.playtime_minutes ? 'Most trophies' : 'Most played'), body); return card;
 }
 function genreCard() {
   const full = state.view === 'stats';

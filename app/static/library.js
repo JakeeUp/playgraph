@@ -55,6 +55,25 @@ export const steamArt = (appid, file) => `${STEAM_APPS}/${Number(appid)}/${file}
 export const TROPHY_GRADES = ['platinum', 'gold', 'silver', 'bronze'];
 /** A game from another store has no Steam app id, so no Steam art or page. */
 export const isPlayStationGame = (game) => game?.steam_appid == null;
+// Sony's own image for a PlayStation game: the last resort before a title
+// placeholder. Only hosts the /app CSP allows are used.
+const SONY_IMAGE_HOSTS = new Set(['image.api.playstation.com', 'psnobj.prod.dl.playstation.net']);
+export function sonyArt(game) {
+  try {
+    const url = new URL(game?.header_image_url || '');
+    return url.protocol === 'https:' && SONY_IMAGE_HOSTS.has(url.hostname) ? url.href : null;
+  } catch { return null; }
+}
+/**
+ * Art for a game without Steam art: { cover, hero, soft }. IGDB cover and
+ * artwork first, then Sony's image. soft means the hero is a small or
+ * portrait image stretched wide, so it should be shown blurred.
+ */
+export function storeArt(game) {
+  const cover = game?.cover_url || sonyArt(game);
+  if (game?.hero_url) return { cover, hero: game.hero_url, soft: false };
+  return { cover, hero: cover, soft: true };
+}
 export function splitBySource(library) {
   const steam = []; const psn = [];
   for (const entry of library) (entry.source === 'psn' ? psn : steam).push(entry);

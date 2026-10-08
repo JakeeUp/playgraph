@@ -1,4 +1,4 @@
-import { genresFor, hours, integer, achievementPercent, steamArt, isPlayStationGame, playtimeLabel, reviewVerification, TROPHY_GRADES } from './library.js';
+import { genresFor, hours, integer, achievementPercent, steamArt, isPlayStationGame, playtimeLabel, reviewVerification, storeArt, TROPHY_GRADES } from './library.js';
 import { $, el, button, cover, steamLink, timeLabel, formError, numbered } from './dom.js';
 import { createRatingPicker, starDisplay } from './rating.js';
 
@@ -91,8 +91,7 @@ export function createGameDialog(state, api, report = () => {}) {
       }
     })();
     header.append(info); main.append(header); profile.append(aside, main);
-    // Steam art is fetched by app id; a PlayStation game has none, so it keeps the CSS backdrop.
-    if (playstation) content.append(profile); else { content.append(heroBand(game), profile); tint(game, request); }
+    content.append(heroBand(game), profile); tint(game, request);
     const writeSection = el('section', 'write-review');
     if (createdReview && state.user) showOwnReview(createdReview, editRequested);
     else if (state.user) writeSection.append(el('p', 'helper', 'Checking for your review…'));
@@ -204,6 +203,9 @@ export function createGameDialog(state, api, report = () => {}) {
   // Per-game color: average the cover (Steam's CDN allows CORS) on an 8x12 canvas,
   // darken it so it never goes bright, and expose it as --tint. Failure leaves CSS fallbacks.
   function tint(game, request) {
+    // Steam's and IGDB's CDNs allow CORS; Sony's doesn't, so its art can't be read.
+    const source = isPlayStationGame(game) ? game.cover_url : steamArt(game.steam_appid, 'library_600x900.jpg');
+    if (!source) return;
     const img = new Image(); img.crossOrigin = 'anonymous';
     img.onload = () => {
       if (request !== requestId) return;
@@ -221,14 +223,21 @@ export function createGameDialog(state, api, report = () => {}) {
         dialog.style.setProperty('--tint', `rgb(${r},${g},${b})`);
       } catch { /* tainted canvas: keep the CSS fallback */ }
     };
-    img.src = steamArt(game.steam_appid, 'library_600x900.jpg');
+    img.src = source;
   }
   // Backdrop band behind the cover and title. Wide hero art first, then the
   // store header blurred hard (it is too small to show sharp at this width),
-  // then nothing: the CSS gradient underneath carries it.
+  // then nothing: the CSS gradient underneath carries it. Games without Steam
+  // art use IGDB artwork, or their cover blurred.
   function heroBand(game) {
     const band = el('div', 'detail-hero'); band.setAttribute('aria-hidden', 'true');
     const img = el('img'); img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+    if (isPlayStationGame(game)) {
+      const art = storeArt(game);
+      if (!art.hero) return band;
+      band.classList.toggle('soft', art.soft); img.addEventListener('error', () => img.remove());
+      img.src = art.hero; band.append(img); return band;
+    }
     let step = 0; const files = ['library_hero.jpg', 'header.jpg'];
     const load = () => { img.src = steamArt(game.steam_appid, files[step]); };
     img.addEventListener('error', () => {

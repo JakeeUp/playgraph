@@ -60,3 +60,15 @@ test('failures become sentences without inventing server detail', () => {
   assert.equal(failureText(503, null), 'PlayStation is temporarily unavailable. Try again later.');
   assert.equal(failureText(500, { nested: true }), 'That didn’t work. Please try again.');
 });
+
+test('games without Steam art use IGDB art, then Sony art from allowed hosts only', async () => {
+  const { storeArt, sonyArt } = await import('../app/static/library.js');
+  const sony = 'https://image.api.playstation.com/vulcan/ap/rnd/1/2/art.png';
+  assert.deepEqual(storeArt({ cover_url: 'https://images.igdb.com/c.jpg', hero_url: 'https://images.igdb.com/h.jpg' }),
+    { cover: 'https://images.igdb.com/c.jpg', hero: 'https://images.igdb.com/h.jpg', soft: false });
+  assert.deepEqual(storeArt({ cover_url: null, hero_url: null, header_image_url: sony }), { cover: sony, hero: sony, soft: true });
+  assert.equal(sonyArt({ header_image_url: 'https://evil.example/art.png' }), null);
+  assert.equal(sonyArt({ header_image_url: 'http://image.api.playstation.com/art.png' }), null);
+  assert.equal(sonyArt({ header_image_url: 'javascript:alert(1)' }), null);
+  assert.deepEqual(storeArt({}), { cover: null, hero: null, soft: true });
+});

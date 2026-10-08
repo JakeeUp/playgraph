@@ -1,4 +1,4 @@
-import { steamArt, isPlayStationGame } from './library.js';
+import { steamArt, isPlayStationGame, storeArt } from './library.js';
 export const $ = (selector) => document.querySelector(selector);
 export const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -26,13 +26,18 @@ export const steamLink = (text = 'Sign in') => {
 export const aborted = (error) => error.name === 'AbortError';
 export function cover(game) {
   const frame = el('span', 'cover'); frame.append(el('span', 'cover-placeholder', game.name));
-  // PlayStation games have no Steam art, and no other host is allowed to
-  // reach an img src, so they keep the title placeholder.
-  if (isPlayStationGame(game)) return frame;
+  // Games from other stores have no Steam art. They use IGDB's cover, then
+  // Sony's own image, then the title placeholder.
+  const other = isPlayStationGame(game) ? storeArt(game).cover : null;
+  if (isPlayStationGame(game) && !other) return frame;
   const img = el('img');
   // loading is set before src: Firefox ignores lazy loading set after src.
   img.alt = `${game.name} cover art`; img.width = 600; img.height = 900;
   img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+  if (other) {
+    img.src = other; img.addEventListener('error', () => img.remove());
+    frame.append(img); return frame;
+  }
   img.src = steamArt(game.steam_appid, 'library_600x900.jpg');
   // Not every app has portrait library art. The landscape store header exists
   // for nearly all of them, so it is the one fallback before the text placeholder.
