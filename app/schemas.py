@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from datetime import datetime
 from typing import Literal
 
@@ -9,6 +11,25 @@ def storable(value: str) -> str:
     if "\x00" in value:
         raise ValueError("Text contains a character that cannot be saved")
     return value
+
+
+# C0/C1 controls, zero-width marks, bidi embeddings/overrides/isolates, BOM.
+_UNSAFE_NAME_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]")
+DISPLAY_NAME_MAX = 80
+
+
+def display_name(value, fallback: str, limit: int = DISPLAY_NAME_MAX) -> str:
+    """A provider-supplied name made safe to store and show publicly.
+
+    Strips NUL (Postgres rejects it), other control characters and bidi
+    overrides (which can visually reorder text on review cards), collapses
+    whitespace and caps the length. Never raises: an unusable name becomes
+    the fallback, so a strange provider profile cannot block sign-in.
+    """
+    if not isinstance(value, str):
+        return fallback
+    cleaned = _UNSAFE_NAME_CHARS.sub("", " ".join(unicodedata.normalize("NFC", value).split()))
+    return cleaned[:limit].strip() or fallback
 
 
 class GameOut(BaseModel):

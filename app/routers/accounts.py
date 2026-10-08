@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import decode_session, get_current_user
 from app.models import AuthIdentity, LinkedAccount, Platform, User
+from app.schemas import display_name
 from app.security import issue_session, rate_limit, redis_call, session_cookie_name, state_key
 
 router = APIRouter(prefix="/auth", tags=["accounts"])
@@ -132,8 +133,7 @@ async def exchange(request: Request, db: Session = Depends(get_db)):
     identity = db.query(AuthIdentity).filter_by(issuer=settings.clerk_origin, subject=claims["sub"]).first()
     if identity is None:
         # Names are presentation only; matching names/emails never merges users.
-        name = profile.get("username") or profile.get("first_name") or "Player"
-        user = User(display_name=str(name)[:80])
+        user = User(display_name=display_name(profile.get("username") or profile.get("first_name"), "Player"))
         try:
             db.add(user)
             db.flush()

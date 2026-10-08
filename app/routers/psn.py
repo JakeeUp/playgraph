@@ -31,6 +31,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import LinkedAccount, Platform, User, utcnow
 from app.queue_codec import QUEUE_NAME, deserialize
+from app.schemas import display_name
 from app.security import rate_limit, redis_call, state_key
 from app.services import psn
 
@@ -192,8 +193,8 @@ async def check_link(request: Request, user: User = Depends(get_current_user), d
         raise HTTPException(409, "That PSN account is already linked to a PlayGraph account.")
     try:
         db.add(LinkedAccount(user_id=user.id, platform=Platform.psn, platform_user_id=consumed["account_id"],
-                             display_handle=consumed["online_id"], verified_at=utcnow(),
-                             verification_method=VERIFICATION_METHOD))
+                             display_handle=display_name(consumed["online_id"], "", limit=32) or None,
+                             verified_at=utcnow(), verification_method=VERIFICATION_METHOD))
         db.commit()
     except IntegrityError:
         # Another tab or account won the race; the unique constraints refused this one.

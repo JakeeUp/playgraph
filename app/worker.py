@@ -36,6 +36,7 @@ from app.models import (Game, GameExternalId, LinkedAccount, Platform, PlaytimeS
                         utcnow)
 from app.services import psn, steam
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
+from app.schemas import display_name
 
 # Steam has no officially documented per-second rate limit (just a
 # 100,000 calls/day cap per API key), but community consensus is to pace
@@ -316,12 +317,6 @@ class PSNOperatorError(RuntimeError):
     """The server NPSSO was rejected. Raised to fail the job; carries no token."""
 
 
-def _clean_name(value, fallback: str) -> str:
-    # Postgres cannot store NUL in text, and a name is display only.
-    text = str(value or "").replace("\x00", "").strip()
-    return (text or fallback)[:MAX_NAME]
-
-
 class _PsnIds:
     """game_external_ids lookups for one sync: bulk loaded, then extended in memory."""
 
@@ -385,7 +380,7 @@ async def _sync_psn_titles(db, linked: LinkedAccount, client: psn.PSNClient) -> 
     try:
         profile = await client.get_profile(account_id)
         if profile.get("online_id"):
-            linked.display_handle = _clean_name(profile["online_id"], linked.display_handle or "")[:32]
+            linked.display_handle = display_name(profile["online_id"], linked.display_handle or "", limit=32)
     except psn.PSNPrivateError:
         pass  # the handle stays as last seen
     try:
@@ -415,7 +410,7 @@ async def _sync_psn_titles(db, linked: LinkedAccount, client: psn.PSNClient) -> 
             (ids.game(PSN_TITLE, t) for t in sorted(group["title_ids"]) if ids.game(PSN_TITLE, t)), None)
         if game is None:
             first = group["played_title_ids"][0] if group["played_title_ids"] else group["concept_id"]
-            game = Game(name=_clean_name(group["name"], f"PlayStation title {first}"),
+            game = Game(name=display_name(group["name"], f"PlayStation title {first}", limit=MAX_NAME),
                         header_image_url=group["image_url"])
             db.add(game)
             created += 1
@@ -458,7 +453,7 @@ async def _sync_psn_titles(db, linked: LinkedAccount, client: psn.PSNClient) -> 
         if game is None:
             # PS3/Vita lists, or PS4/PS5 lists whose game's play time is hidden:
             # a Game keyed by the trophy list alone. Never matched by name.
-            game = Game(name=_clean_name(title.get("name"), f"PlayStation trophies {np_id}"),
+            game = Game(name=display_name(title.get("name"), f"PlayStation trophies {np_id}", limit=MAX_NAME),
                         header_image_url=title.get("icon_url"))
             db.add(game)
             created += 1

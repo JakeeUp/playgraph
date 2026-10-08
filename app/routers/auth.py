@@ -22,6 +22,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import AuthIdentity, LinkedAccount, Platform, User, utcnow
 from app import clerk_auth
+from app.schemas import display_name
 from app.security import (LOGIN_TTL, NONCE_TTL, csrf_token, issue_session, rate_limit,
                           redis_call, secure_cookies, session_cookie_name, state_key)
 from app.services import steam
@@ -163,7 +164,7 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
         user = linked.user
     else:
         summary = await steam.get_player_summary(steam_id)
-        user = User(display_name=(summary or {}).get("persona_name") or f"Player{steam_id[-6:]}")
+        user = User(display_name=display_name((summary or {}).get("persona_name"), f"Player{steam_id[-6:]}"))
         db.add(user)
         try:
             db.flush()

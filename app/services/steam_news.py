@@ -20,6 +20,10 @@ import httpx
 NEWS_URL = "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/"
 PER_GAME = 3
 CONCURRENCY = 8
+# Bound on a whole refresh. The caller holds the news lock meanwhile, so a slow
+# Steam must cost visitors seconds, not a minute. Games not done by then are
+# dropped from this refresh; if none finished, the refresh counts as failed.
+DEADLINE = 20.0
 # Where Steam serves announcement images; the /app CSP allows this host.
 CLAN_IMAGES = "https://clan.fastly.steamstatic.com/images"
 CLAN_IMAGE = re.compile(r"\{STEAM_CLAN_IMAGE\}/(\d+)/([0-9a-f]+\.(?:jpe?g|png|gif|webp))", re.IGNORECASE)
@@ -65,8 +69,15 @@ async def fetch(games: list[tuple[int, str]]) -> list[dict]:
                     "appid": appid, "count": PER_GAME, "feeds": "steam_community_announcements"})
                 response.raise_for_status()
                 return parse(response.json(), appid, name)
-        results = await asyncio.gather(*(one(appid, name) for appid, name in games), return_exceptions=True)
-    failures = [result for result in results if isinstance(result, BaseException)]
-    if len(failures) == len(results):
-        raise failures[0]
-    return [item for result in results if not isinstance(result, BaseException) for item in result]
+        tasks = [asyncio.create_task(one(appid, name)) for appid, name in games]
+        done, pending = await asyncio.wait(tasks, timeout=DEADLINE)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+    results = [task.result() for task in done if not task.cancelled() and task.exception() is None]
+    if not results:
+        failures = [task.exception() for task in done if not task.cancelled() and task.exception()]
+        if failures:
+            raise failures[0]
+        raise TimeoutError("Steam news refresh passed its deadline")
+    return [item for result in results for item in result]
