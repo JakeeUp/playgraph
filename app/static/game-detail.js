@@ -1,4 +1,4 @@
-import { genresFor, hours, integer, achievementPercent } from './library.js';
+import { genresFor, hours, integer, achievementPercent, steamArt, isPlayStationGame, playtimeLabel, reviewVerification, storeArt, TROPHY_GRADES } from './library.js';
 import { $, el, button, cover, steamLink, timeLabel, formError, numbered } from './dom.js';
 import { createRatingPicker, starDisplay } from './rating.js';
 
@@ -6,12 +6,16 @@ export function createGameDialog(state, api, report = () => {}) {
   let requestId = 0; let pageTitle = document.title;
   const dialog = $('#game-dialog'); const content = $('#detail-content');
   $('#close-dialog').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => { requestId += 1; content.replaceChildren(); document.title = pageTitle; });
+  dialog.addEventListener('close', () => { requestId += 1; dialog.style.removeProperty('--tint'); content.replaceChildren(); document.title = pageTitle; });
   async function open(game, createdReview = null, threadReview = null, editRequested = false) {
-    const request = ++requestId; content.replaceChildren();
+    const request = ++requestId; content.replaceChildren(); dialog.style.removeProperty('--tint');
     if (!dialog.open) pageTitle = document.title;
     document.title = `${game.name} | PlayGraph`;
     const entry = state.library.find((row) => row.game.id === game.id);
+    // PlayStation numbers live on their own entry and are shown on their own
+    // lines; they are never added to Steam hours or achievements.
+    const psnEntry = (state.psnLibrary || []).find((row) => row.game.id === game.id);
+    const playstation = isPlayStationGame(game);
     const profile = el('div', 'game-profile');
     const aside = el('aside', 'game-profile-aside'); aside.append(cover(game));
     const main = el('div', 'game-profile-main');
@@ -19,7 +23,7 @@ export function createGameDialog(state, api, report = () => {}) {
     const software = game.content_kind === 'software';
     const info = el('div', 'detail-info');
     const title = el('h2', '', game.name); title.id = 'detail-title';
-    info.append(el('p', 'detail-eyebrow', [software ? 'Software' : 'Game', 'Steam'].join(' · ')), title);
+    info.append(el('p', 'detail-kicker', [software ? 'Software' : 'Game', playstation ? 'PlayStation' : 'Steam'].join(' · ')), title);
     // Your numbers sit under the art: hours and achievements when the game is
     // in your library, otherwise a plain note.
     const stats = el('dl', 'detail-stats');
@@ -29,21 +33,65 @@ export function createGameDialog(state, api, report = () => {}) {
         ['Achievements', pct == null ? 'None' : `${integer(entry.achievements_unlocked)} / ${integer(entry.achievements_total)}`]]) {
         const cell = el('div'); cell.append(el('dt', '', label), numbered('dd', entry.playtime_minutes > 0 && label !== 'Achievements' ? 'played' : '', value)); stats.append(cell);
       }
-    } else {
-      const cell = el('div'); cell.append(el('dt', '', 'Your library'), el('dd', '', state.user ? 'Not in your Steam library' : 'Sign in to see your hours')); stats.append(cell);
+    }
+    if (psnEntry) {
+      // The server sums the grades into achievements_unlocked/total for PSN rows.
+      const trophyCount = psnEntry.trophies
+        ? `${integer(psnEntry.achievements_unlocked)} / ${integer(psnEntry.achievements_total)}` : 'None';
+      for (const [label, value, played] of [['PlayStation hours', playtimeLabel(psnEntry), psnEntry.playtime_minutes > 0],
+        ['Trophies', trophyCount, false]]) {
+        const cell = el('div'); cell.append(el('dt', '', label), numbered('dd', played ? 'played' : '', value)); stats.append(cell);
+      }
+    }
+    if (!entry && !psnEntry) {
+      const cell = el('div'); cell.append(el('dt', '', 'Your library'), el('dd', '', !state.user ? 'Sign in to see your hours'
+        : playstation ? 'Not in your PlayStation library' : 'Not in your Steam library')); stats.append(cell);
     }
     aside.append(stats);
+    if (psnEntry?.trophies) aside.append(trophyGrades(psnEntry.trophies));
     // Reference sheet: label column, value column, hairline rows.
     const fields = el('dl', 'metadata-table');
-    const platforms = el('ul', 'platform-badges'); platforms.append(el('li', 'platform-badge', 'PC'));
-    for (const [name, value] of [['Genres', genresFor(game).join(', ') || 'Not listed'], ['Category', software ? 'Software' : 'Game'],
-      ['Platforms', platforms], ['Source', 'Steam'], ['Steam app ID', String(game.steam_appid)]]) {
+    const platforms = el('ul', 'platform-badges'); platforms.append(el('li', 'platform-badge', playstation ? 'PlayStation' : 'PC'));
+    const rows = [['Genres', genresFor(game).join(', ') || 'Not listed'], ['Category', software ? 'Software' : 'Game'],
+      ['Platforms', platforms], ['Source', playstation ? 'Public PSN profile' : 'Steam']];
+    if (!playstation) rows.push(['Steam app ID', String(game.steam_appid)]);
+    for (const [name, value] of rows) {
       const dd = el('dd', name === 'Steam app ID' ? 'num' : ''); dd.append(value); fields.append(el('dt', '', name), dd);
     }
     info.append(fields);
+    const about = el('div', 'detail-about'); info.append(about);
     if (entry) { const synced = el('p', 'helper', 'Your numbers are from your Steam sync on '); synced.append(el('span', 'num', timeLabel(entry.captured_at))); info.append(synced); }
-    else info.append(el('p', 'helper', 'Imported from Steam. Release dates, developers and console versions aren’t in this catalog yet.'));
-    header.append(info); main.append(header); profile.append(aside, main); content.append(profile);
+    if (psnEntry) {
+      const synced = el('p', 'helper', 'Your PlayStation numbers are from your public PSN profile, synced on ');
+      synced.append(el('span', 'num', timeLabel(psnEntry.captured_at)), '. Hours appear only for PS4 and PS5 games when your privacy settings share them.');
+      info.append(synced);
+    }
+    if (!entry && !psnEntry) info.append(el('p', 'helper', playstation
+      ? 'Imported from a public PSN profile. PlayStation games are kept separate from Steam games, even with the same name.'
+      : 'Imported from Steam.'));
+    // Summary, release date and platforms come from IGDB on the single-game
+    // endpoint; list responses leave them out. The page works without them.
+    void (async () => {
+      let details;
+      try { details = await api(`/games/${game.id}`); } catch { return; }
+      if (request !== requestId) return;
+      if (details.platforms?.length) {
+        platforms.replaceChildren(...details.platforms.map((p) => el('li', 'platform-badge', p.abbreviation || p.name)));
+      }
+      if (details.first_release_date) {
+        const released = new Date(details.first_release_date).toLocaleDateString(undefined,
+          { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+        fields.append(el('dt', '', 'Released'), el('dd', 'num', released));
+      }
+      if (details.summary) about.append(el('p', 'detail-summary', details.summary));
+      if (details.summary || details.platforms?.length || details.first_release_date) {
+        const credit = el('a', 'text-button detail-credit', 'Game details from IGDB ↗');
+        credit.href = 'https://www.igdb.com/'; credit.target = '_blank'; credit.rel = 'noopener noreferrer';
+        about.append(credit);
+      }
+    })();
+    header.append(info); main.append(header); profile.append(aside, main);
+    content.append(heroBand(game), profile); tint(game, request);
     const writeSection = el('section', 'write-review');
     if (createdReview && state.user) showOwnReview(createdReview, editRequested);
     else if (state.user) writeSection.append(el('p', 'helper', 'Checking for your review…'));
@@ -71,13 +119,16 @@ export function createGameDialog(state, api, report = () => {}) {
     main.append(tabs, ...panels); selectTab(createdReview ? 1 : 0);
     const actions = el('div', 'detail-actions');
     actions.append(button(state.user ? 'Your review' : 'Write a review', 'button primary', () => { selectTab(1); controls[1].focus(); }));
-    const store = el('a', 'text-button', 'View on Steam ↗'); store.href = `https://store.steampowered.com/app/${Number(game.steam_appid)}/`;
-    store.target = '_blank'; store.rel = 'noopener noreferrer';
+    let store = null;
+    if (!playstation) {
+      store = el('a', 'text-button', 'View on Steam ↗'); store.href = `https://store.steampowered.com/app/${Number(game.steam_appid)}/`;
+      store.target = '_blank'; store.rel = 'noopener noreferrer';
+    }
     const share = button('Copy game link', 'text-button', async () => {
       try { await navigator.clipboard.writeText(`${location.origin}/app#game=${game.id}`); share.textContent = 'Link copied'; }
       catch { report(new Error('Could not copy the link. Try again with clipboard access enabled.')); }
     });
-    const links = el('div', 'detail-links'); links.append(store, share);
+    const links = el('div', 'detail-links'); if (store) links.append(store); links.append(share);
     aside.append(actions, links);
     function showOwnReview(own, editing = false) {
       writeSection.replaceChildren();
@@ -136,6 +187,65 @@ export function createGameDialog(state, api, report = () => {}) {
     if (threadReview) list.replaceChildren(reviewCard(threadReview, true));
     await Promise.all([threadReview ? Promise.resolve() : loadReviews(), state.user && !createdReview ? loadOwnReview() : Promise.resolve()]);
   }
+  // Earned of total for each PlayStation trophy grade, best first.
+  function trophyGrades(trophies) {
+    const list = el('dl', 'trophy-grades'); list.setAttribute('aria-label', 'PlayStation trophies by grade');
+    for (const grade of TROPHY_GRADES) {
+      const cell = el('div'); cell.append(el('dt', '', grade[0].toLocaleUpperCase() + grade.slice(1)),
+        numbered('dd', '', `${integer(trophies.earned[grade])} / ${integer(trophies.total[grade])}`));
+      list.append(cell);
+    }
+    if (trophies.progress != null) {
+      const cell = el('div'); cell.append(el('dt', '', 'Progress'), numbered('dd', '', `${trophies.progress}%`)); list.append(cell);
+    }
+    return list;
+  }
+  // Per-game color: average the cover (Steam's CDN allows CORS) on an 8x12 canvas,
+  // darken it so it never goes bright, and expose it as --tint. Failure leaves CSS fallbacks.
+  function tint(game, request) {
+    // Steam's and IGDB's CDNs allow CORS; Sony's doesn't, so its art can't be read.
+    const source = isPlayStationGame(game) ? game.cover_url : steamArt(game.steam_appid, 'library_600x900.jpg');
+    if (!source) return;
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (request !== requestId) return;
+      try {
+        const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 12;
+        const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, 8, 12);
+        // Weight each pixel by its saturation, so the cover's real color wins
+        // over the greys and blacks most box art is mostly made of.
+        const px = ctx.getImageData(0, 0, 8, 12).data; const sum = [0, 0, 0]; let total = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          const weight = Math.max(px[i], px[i + 1], px[i + 2]) - Math.min(px[i], px[i + 1], px[i + 2]) + 8;
+          for (let c = 0; c < 3; c++) sum[c] += px[i + c] * weight; total += weight;
+        }
+        const [r, g, b] = sum.map((v) => Math.round(v / total * 0.55));
+        dialog.style.setProperty('--tint', `rgb(${r},${g},${b})`);
+      } catch { /* tainted canvas: keep the CSS fallback */ }
+    };
+    img.src = source;
+  }
+  // Backdrop band behind the cover and title. Wide hero art first, then the
+  // store header blurred hard (it is too small to show sharp at this width),
+  // then nothing: the CSS gradient underneath carries it. Games without Steam
+  // art use IGDB artwork, or their cover blurred.
+  function heroBand(game) {
+    const band = el('div', 'detail-hero'); band.setAttribute('aria-hidden', 'true');
+    const img = el('img'); img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+    if (isPlayStationGame(game)) {
+      const art = storeArt(game);
+      if (!art.hero) return band;
+      band.classList.toggle('soft', art.soft); img.addEventListener('error', () => img.remove());
+      img.src = art.hero; band.append(img); return band;
+    }
+    let step = 0; const files = ['library_hero.jpg', 'header.jpg'];
+    const load = () => { img.src = steamArt(game.steam_appid, files[step]); };
+    img.addEventListener('error', () => {
+      step += 1;
+      if (step < files.length) { band.classList.add('soft'); load(); } else img.remove();
+    });
+    load(); band.append(img); return band;
+  }
   function reviewForm(game, request, existing = null, cancel = null) {
     const form = el('form', 'review-form'); form.append(el('h3', '', existing ? 'Edit your review' : 'Write a review'));
     const rating = createRatingPicker(existing?.rating ?? 0);
@@ -167,11 +277,9 @@ export function createGameDialog(state, api, report = () => {}) {
     const stars = el('span', 'review-rating'); stars.append(starDisplay(review.rating));
     stars.setAttribute('role', 'img'); stars.setAttribute('aria-label', `${review.rating} out of 5 stars`);
     byline.append(el('strong', 'review-author', author), stars);
-    if (review.verified_playtime_minutes == null) byline.append(el('span', 'verified-label unverified', 'No verified play data'));
-    else {
-      byline.append(el('span', 'platform-badge', 'PC'));
-      byline.append(numbered('span', 'verified-label', `${hours(review.verified_playtime_minutes)} h verified${review.verified_achievement_pct == null ? '' : ` · ${Math.round(review.verified_achievement_pct)}% achievements`}`));
-    }
+    const verified = reviewVerification(review);
+    if (!verified) byline.append(el('span', 'verified-label unverified', 'No verified play data'));
+    else byline.append(el('span', 'platform-badge', verified.badge), numbered('span', 'verified-label', verified.text));
     byline.append(el('span', 'review-date', timeLabel(review.created_at)));
     main.append(byline); if (review.body) main.append(el('p', 'review-body', review.body));
     card.append(el('span', 'avatar', author.slice(0, 1).toLocaleUpperCase()), main);

@@ -173,3 +173,80 @@ def test_two_steam_links_for_one_user_stop_the_upgrade_and_change_nothing(databa
         upgrade_database(database, tmp_path / "backups")
     assert records(database) == before
     assert "alembic_version" not in inspect(database).get_table_names()
+
+
+def test_playstation_migration_keeps_steam_data_and_labels_it(database, tmp_path):
+    from sqlalchemy.exc import IntegrityError
+
+    seed_legacy(database)
+    with database.begin() as connection:
+        # A second user with a snapshot but no Steam link keeps a NULL link.
+        connection.execute(baseline().tables["users"].insert(), [{"id": 18, "display_name": "Unlinked"}])
+        connection.execute(baseline().tables["playtime_snapshots"].insert(),
+                           [{"id": 42, "user_id": 18, "game_id": 29, "playtime_minutes": 5}])
+    before = records(database)
+    upgrade_database(database, tmp_path / "backups")
+    require_current_schema(database)
+    assert records(database) == before
+    with database.connect() as connection:
+        snapshots = connection.exec_driver_sql(
+            "SELECT id, source, linked_account_id, playtime_minutes FROM playtime_snapshots ORDER BY id").all()
+        assert snapshots == [(41, "steam", 31, 120), (42, "steam", None, 5)]
+        assert connection.exec_driver_sql("SELECT verified_source FROM reviews WHERE id = 53").scalar() == "steam"
+        assert connection.exec_driver_sql(
+            "SELECT display_handle, verified_at, verification_method FROM linked_accounts").one() == (None, None, None)
+        inspector = inspect(connection)
+        assert "ix_games_steam_appid" in {i["name"] for i in inspector.get_indexes("games")}
+        assert "ix_playtime_snapshots_user_game_captured" in {
+            i["name"] for i in inspector.get_indexes("playtime_snapshots")}
+        assert connection.exec_driver_sql(
+            "SELECT sql FROM sqlite_master WHERE name = 'reviews'").scalar().count("AUTOINCREMENT") == 1
+    with Session(database) as db:
+        # Games without a Steam app ID, a PSN link and store-ID mappings now fit.
+        first, second = Game(name="PS game one"), Game(name="PS game two")
+        db.add_all([first, second])
+        db.add(LinkedAccount(user_id=17, platform=Platform.psn, platform_user_id="123456789"))
+        db.flush()
+        from app.models import GameExternalId
+        db.add(GameExternalId(game_id=first.id, provider="psn_concept", external_id="100"))
+        db.add(PlaytimeSnapshot(user_id=17, game_id=first.id, source="psn", playtime_minutes=None))
+        db.commit()
+        assert first.content_kind == "game" and first.steam_appid is None
+        assert db.query(PlaytimeSnapshot).filter_by(source="psn").one().playtime_minutes is None
+        db.add(GameExternalId(game_id=second.id, provider="psn_concept", external_id="100"))
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()
+        db.add(Game(name="Duplicate Steam app", steam_appid=123))
+        with pytest.raises(IntegrityError):
+            db.commit()  # steam_appid is still unique
+
+
+def test_upgrade_from_the_previous_revision_preserves_rows_written_by_it(database, tmp_path):
+    from alembic import command
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0006_snapshot_lookup_index")
+    seed = baseline().tables
+    with database.begin() as connection:
+        connection.execute(seed["users"].insert(), [{"id": 5, "display_name": "Existing"}])
+        connection.execute(seed["games"].insert(), [{"id": 7, "steam_appid": 620, "name": "Portal 2"},
+                                                    {"id": 8, "steam_appid": 431960, "name": "Wallpaper Engine"}])
+        connection.execute(seed["linked_accounts"].insert(),
+                           [{"id": 9, "user_id": 5, "platform": "steam", "platform_user_id": "765"}])
+        connection.execute(seed["playtime_snapshots"].insert(),
+                           [{"id": 11, "user_id": 5, "game_id": 7, "playtime_minutes": 0},
+                            {"id": 12, "user_id": 5, "game_id": 8, "playtime_minutes": 33}])
+        connection.exec_driver_sql("UPDATE games SET content_kind = 'software' WHERE id = 8")
+    before = records(database)
+    backup = upgrade_database(database, tmp_path / "backups")
+    assert backup is not None and backup.is_file()
+    assert records(database) == before
+    with database.connect() as connection:
+        assert connection.exec_driver_sql("SELECT id, content_kind FROM games ORDER BY id").all() == [
+            (7, "game"), (8, "software")]
+        assert connection.exec_driver_sql(
+            "SELECT id, linked_account_id, source FROM playtime_snapshots ORDER BY id").all() == [
+            (11, 9, "steam"), (12, 9, "steam")]
+        assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []

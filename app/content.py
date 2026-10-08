@@ -21,6 +21,7 @@ def normalize_genre(value: str) -> str:
     return value.lower().translate(str.maketrans("", "", " \t\r\n"))
 
 
-def content_kind(appid: int, genres: str | None) -> str:
+def content_kind(appid: int | None, genres: str | None) -> str:
+    # appid is None for games from other stores (PlayStation); genres decide alone.
     tokens = {normalize_genre(token) for token in (genres or "").split(",")}
     return "software" if appid in SOFTWARE_APP_IDS or tokens & SOFTWARE_GENRES else "game"

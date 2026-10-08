@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import json
 import logging
 import secrets
 from datetime import timedelta
@@ -20,8 +21,13 @@ NONCE_TTL = 1200
 logger = logging.getLogger("playgraph.security")
 
 
+def secure_cookies() -> bool:
+    """HTTPS deployments get Secure, __Host- prefixed cookies; local HTTP cannot use either."""
+    return settings.app_base_url.startswith("https://")
+
+
 def session_cookie_name() -> str:
-    return "__Host-playgraph-session" if settings.app_base_url.startswith("https://") else "playgraph-session"
+    return "__Host-playgraph-session" if secure_cookies() else "playgraph-session"
 
 
 def csrf_token(session_id: str) -> str:
@@ -59,7 +65,6 @@ async def issue_session(request: Request, user_id: int, *, provider: dict | None
         settings.jwt_secret.get_secret_value(), algorithm="HS256",
     )
     if provider:
-        import json
         await redis_call(request, "set", state_key("provider-session", session_id),
                          json.dumps(provider), ex=seconds)
     await redis_call(request, "set", state_key("session", session_id), str(user_id), ex=seconds)

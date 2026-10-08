@@ -5,8 +5,9 @@
    ========================================================================== */
 
 .frame { width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto; padding:0 var(--gutter); }
+.account-footer { border-top:1px solid var(--line); padding-top:var(--space-5); padding-bottom:var(--space-6); }
 
-.account-header { border-bottom:1px solid var(--line); }
+.account-header { position:sticky; top:0; z-index:20; border-bottom:1px solid var(--line); background:var(--bg); }
 .account-header .frame { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); height:var(--space-8); }
 .account-header .brand { padding:0; }
 
@@ -14,8 +15,12 @@
   display:grid; grid-template-columns:minmax(0,1fr) minmax(0,400px); gap:var(--space-8);
   padding-top:var(--space-8); padding-bottom:var(--space-8);
 }
-.account-intro h1, .plain-page h1 { font-size:var(--text-3xl); }
-.account-intro > p { color:var(--text-muted); font-size:var(--text-lg); max-width:44ch; margin:var(--space-5) 0; }
+.account-intro { display:flex; flex-direction:column; }
+.account-hero { flex:1; }
+.account-intro h1 { font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:800; font-size:var(--text-3xl); line-height:var(--leading-tight); margin-bottom:var(--space-5); }
+.plain-page h1 { font-size:var(--text-hero); margin-bottom:var(--space-5); }
+.account-lede { color:var(--text-body); font-size:var(--text-lg); max-width:40ch; margin:var(--space-4) 0 var(--space-6); }
+.account-intro > p { color:var(--text-muted); font-size:var(--text-lg); max-width:44ch; margin:0; }
 .account-intro .account-note {
   font-size:var(--text-ui); padding-top:var(--space-5); border-top:1px solid var(--line);
 }
@@ -38,14 +43,45 @@
 .account-steam h3 { font-size:var(--text-md); margin-bottom:var(--space-2); }
 .account-steam p { margin-bottom:var(--space-4); }
 
+/* PlayStation linking: the same quiet panel as Connect Steam. */
+.account-psn {
+  margin:var(--space-5) 0; padding:var(--space-4);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
+}
+.account-psn h3 { font-size:var(--text-md); margin-bottom:var(--space-2); }
+.account-psn .account-status { margin:var(--space-3) 0 0; color:var(--text); }
+.account-psn form { margin-top:var(--space-4); }
+.account-form .account-psn label { display:block; margin:0 0 var(--space-2); color:var(--text); }
+.account-psn input {
+  width:100%; max-width:24ch; height:var(--control-h); padding:0 var(--space-3);
+  font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line-strong); border-radius:var(--radius);
+}
+.account-psn input:focus-visible { border-color:var(--accent); }
+.account-psn .helper { font-size:var(--text-sm); margin:var(--space-2) 0 var(--space-3); }
+.psn-code-row { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-3); margin:var(--space-3) 0; }
+.psn-code {
+  font-family:var(--font-mono); font-size:var(--text-lg); color:var(--text);
+  padding:var(--space-2) var(--space-3); background:var(--bg); border:1px solid var(--line-strong); border-radius:var(--radius);
+  user-select:all; overflow-wrap:anywhere;
+}
+
 .plain-page { padding-top:var(--space-8); padding-bottom:var(--space-8); }
-.plain-page p { color:var(--text-muted); font-size:var(--text-lg); max-width:48ch; margin:var(--space-4) 0 var(--space-5); }
+.not-found { text-align:left; }
+.not-found-content { max-width:600px; }
+.not-found-number { display:block; font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:900; font-size:clamp(96px,18vw,180px); color:var(--text); margin:0 0 var(--space-3); line-height:0.9; }
+.plain-page h1.not-found-title { font-size:var(--text-2xl); margin-bottom:var(--space-4); }
+.plain-page p { color:var(--text-muted); font-size:var(--text-lg); max-width:48ch; margin:var(--space-3) 0 var(--space-6); }
+.plain-page .button { margin-top:var(--space-2); }
 .plain-page .num { color:var(--text-muted); font-size:var(--text-md); display:block; margin-bottom:var(--space-3); }
 
 @media (max-width:760px) {
   :root { --gutter:var(--space-4); }
   .account-layout { grid-template-columns:minmax(0,1fr); gap:var(--space-6); padding-top:var(--space-6); padding-bottom:var(--space-6); }
-  .account-intro h1, .plain-page h1 { font-size:var(--text-2xl); }
-  .account-intro > p { font-size:var(--text-md); margin:var(--space-4) 0; }
+  .account-intro h1 { font-size:var(--text-2xl); }
+  .account-intro > p { font-size:var(--text-md); margin:0; }
   .account-intro .account-note { padding-top:var(--space-4); }
+  .plain-page { padding-top:var(--space-6); padding-bottom:var(--space-6); }
+  .plain-page h1 { font-size:var(--text-2xl); }
+  .not-found-number { font-size:clamp(96px,24vw,140px); }
+  .plain-page p { font-size:var(--text-md); margin:var(--space-3) 0 var(--space-6); }
 }

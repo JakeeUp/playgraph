@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.cache import REVIEWS, cached
 from app.database import get_db
@@ -26,10 +26,17 @@ def _utc(moment: datetime) -> datetime:
 
 
 def _query(db: Session, q: str):
-    query = db.query(Review).join(Game).filter(Game.content_kind == "game")
-    if q.strip():
-        query = query.filter(Game.name.icontains(q.strip(), autoescape=True))
-    return query.options(joinedload(Review.user), joinedload(Review.game))
+    # The join that filters on the game also fills Review.game; joinedload
+    # would join games a second time just to load the same row.
+    query = db.query(Review).join(Review.game).filter(Game.content_kind == "game")
+    if q := q.strip():
+        query = query.filter(Game.name.icontains(q, autoescape=True))
+    return query.options(joinedload(Review.user), contains_eager(Review.game))
+
+
+def _anchor(db: Session, before: int | None) -> int:
+    """Pin pagination to the newest review now, so new posts cannot shift later pages."""
+    return before if before is not None else (db.query(func.max(Review.id)).scalar() or 0)
 
 
 def _items(db: Session, rows, reasons):
@@ -45,7 +52,7 @@ async def recent_reviews(request: Request, limit: int = Query(20, ge=1, le=50),
                          offset: int = Query(0, ge=0, le=MAX_OFFSET), q: str = Query("", max_length=120),
                          before: int | None = Query(None, ge=0, le=MAX_RESOURCE_ID), db: Session = Depends(get_db)):
     def load():
-        anchor = before if before is not None else (db.query(func.max(Review.id)).scalar() or 0)
+        anchor = _anchor(db, before)
         query = _query(db, q).filter(Review.id <= anchor)
         total = query.count()
         rows = query.order_by(Review.created_at.desc(), Review.id.desc()).offset(offset).limit(limit).all()
@@ -59,7 +66,7 @@ def for_you(limit: int = Query(20, ge=1, le=50), offset: int = Query(0, ge=0, le
             q: str = Query("", max_length=120), before: int | None = Query(None, ge=0, le=MAX_RESOURCE_ID),
             library_before: int | None = Query(None, ge=0, le=MAX_RESOURCE_ID),
             user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    anchor = before if before is not None else (db.query(func.max(Review.id)).scalar() or 0)
+    anchor = _anchor(db, before)
     library_anchor = library_before if library_before is not None else (
         db.query(func.max(PlaytimeSnapshot.id)).filter(PlaytimeSnapshot.user_id == user.id).scalar() or 0
     )
@@ -72,7 +79,8 @@ def for_you(limit: int = Query(20, ge=1, le=50), offset: int = Query(0, ge=0, le
             continue
         owned.add(game.id)
         for genre in (game.genres or "").split(","):
-            if genre.strip() and snapshot.playtime_minutes > 0:
+            # NULL is unknown PlayStation play time; it adds no preference weight.
+            if genre.strip() and (snapshot.playtime_minutes or 0) > 0:
                 preferences[genre.strip()] += snapshot.playtime_minutes
     favorite_genres = {genre for genre, _ in preferences.most_common(5)}
     reasons, scores = {}, {}

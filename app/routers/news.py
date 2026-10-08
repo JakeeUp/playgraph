@@ -38,6 +38,8 @@ REFRESH = {"apitube": 2 * 60 * 60, "steam": 30 * 60}
 RETRY = 15 * 60  # after a failure, wait this long before trying that source again
 KEEP = 3 * 24 * 60 * 60  # how long a saved copy stays servable when refreshes fail
 MAX_AGE = 30 * 24 * 60 * 60
+# Outer bound on any one refresh, so a hung source can never hold its lock.
+FETCH_DEADLINE = 30.0
 STEAM_GAMES = 30
 PAGE = 12
 
@@ -74,8 +76,9 @@ async def _latest(store, name: str, fetch: Callable[[], Awaitable[list]]) -> lis
         saved, now = await _read(store, key), time.time()
         if now - saved.get("fetched_at", 0) >= REFRESH[name] and now - saved.get("failed_at", 0) >= RETRY:
             try:
-                saved = {"items": await fetch(), "fetched_at": now}
-            except (httpx.HTTPError, ValueError, SQLAlchemyError) as error:
+                async with asyncio.timeout(FETCH_DEADLINE):
+                    saved = {"items": await fetch(), "fetched_at": now}
+            except (httpx.HTTPError, ValueError, SQLAlchemyError, TimeoutError) as error:
                 # Type only: APITube's key travels in a header, never the URL.
                 logger.warning("News source %s failed: %s", name, type(error).__name__)
                 saved = {**saved, "failed_at": now}
@@ -88,7 +91,7 @@ def _most_played(limit: int) -> list[tuple[int, str]]:
     with SessionLocal() as db:
         rows = (db.query(Game.steam_appid, Game.name)
                 .join(PlaytimeSnapshot, PlaytimeSnapshot.game_id == Game.id)
-                .filter(Game.content_kind == "game")
+                .filter(Game.content_kind == "game", Game.steam_appid.is_not(None))
                 .group_by(Game.id, Game.steam_appid, Game.name)
                 .order_by(func.count(func.distinct(PlaytimeSnapshot.user_id)).desc(),
                           func.max(PlaytimeSnapshot.playtime_minutes).desc(), Game.id)

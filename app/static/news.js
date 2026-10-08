@@ -19,7 +19,7 @@ function newsImage(item) {
   if (!src) return null;
   const link = el('a', 'news-image'); link.href = item.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
   link.tabIndex = -1; link.setAttribute('aria-hidden', 'true');
-  const img = el('img'); img.src = src; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+  const img = el('img'); img.alt = ''; img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer'; img.src = src;
   img.addEventListener('error', () => link.remove(), { once: true });
   link.append(img); return link;
 }

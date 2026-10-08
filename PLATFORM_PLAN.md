@@ -1,6 +1,8 @@
 # Catalog coverage and platform integrations
 
-Research status: 2026-09-08. **Only Steam is currently implemented.**
+Research status: 2026-09-08; PlayStation row updated 2026-10-07. **Steam is
+implemented; PlayStation is implemented for public profile data and awaits
+live acceptance** (see docs/PSN_INTEGRATION.md).
 Catalog coverage, identity linking and imported play data are separate capabilities.
 A login button does not prove that a provider exposes libraries, hours or achievements.
 
@@ -43,7 +45,7 @@ implementing. Source: [IGDB external games](https://api-docs.igdb.com/#external-
 | Xbox | Website OAuth/token flow and current-user achievement services are documented | Evaluate next. App registration, scopes and end-to-end access are needed. Full library and universal playtime coverage are not established by sign-in alone; title history is incomplete. |
 | Battle.net | Consumer OAuth and selected game profile/achievement APIs | Feasible for supported games. No verified whole-launcher library or universal playtime import; do not promise one. |
 | Epic Games | Epic Account Services and product/sandbox APIs for commerce and achievements | Evaluate with a registered product. These docs do not establish access to every owned Epic title, all achievements or lifetime hours. |
-| PlayStation | Official partner/developer programs exist | Public self-service third-party consumer library/trophy/hour access is unverified. Confirm approval and supported scope before implementation. |
+| PlayStation | Official partner/developer programs exist; no public consumer API for libraries, trophies or play time | Owner decision (2026-10-07): verified public profile. The player proves an Online ID with a one-time code in their About Me; one server-owned NPSSO then reads that public profile's trophies and, when privacy allows, PS4/PS5 play time. Users' PSN credentials and tokens are never collected. Uses Sony's undocumented PlayStation App APIs: unofficial, can break or be blocked, likely outside Sony's terms, and heavy use risks the server account. Implemented with mocked tests; live acceptance pending. |
 | Nintendo | Official developer registration and platform development programs exist | Public consumer library/achievement/hour export access is unverified. Do not equate developer access with permission to read arbitrary player accounts. |
 
 Primary sources: [Steam authentication](https://partner.steamgames.com/doc/features/auth#website),
@@ -60,6 +62,15 @@ or launcher refresh tokens copied by users. Unofficial scraping can break,
 violate provider rules and create a much larger credential-theft risk. Lack of
 documented access should lead to an honest unavailable/manual mode, not a hidden
 scraper presented as a supported connection.
+
+PlayStation is the one deliberate exception to "unofficial", decided by the
+owner on 2026-10-07, and it still collects nothing from users: the only PSN
+credential is the site's own server-owned NPSSO (`PSN_NPSSO`, a dedicated
+account, never a user's), and users prove ownership with public profile text.
+The UI says plainly that this is public PSN profile data read through Sony's
+unofficial app interface, not a Sony-approved connection. The risks stand:
+Sony can change or block these endpoints or sanction the server account at
+any time, and the release gates in PHASES.md apply before any public use.
 
 ## Concrete implementation order
 

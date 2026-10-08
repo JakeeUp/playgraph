@@ -17,6 +17,8 @@ together, with your play history alongside them.
 
 - Steam sign-in, plus PlayGraph accounts through Clerk
 - Full library sync in the background, including achievements
+- PlayStation trophies and PS4/PS5 hours from your public PSN profile, kept on their own shelf
+- Cover art, summaries, release dates and platforms from IGDB
 - Playtime by genre, with apps like Wallpaper Engine kept out of your game stats
 - Drag half-star ratings, plus verified hours and achievements when available
 - Comments, a public feed, and a For You feed ranked by your library and genres
@@ -31,6 +33,8 @@ together, with your play history alongside them.
 | Where the hours went, by genre and by game | Verified hours on reviews, when Steam has them |
 | ![The catalog on the Explore page](docs/screenshots/explore.webp) | ![Game news on the For you page](docs/screenshots/for-you.webp) |
 | Every game imported into PlayGraph so far | Game news from Steam and the big gaming sites |
+| ![The PlayStation shelf with hours, trophies and most played](docs/screenshots/psn-library.webp) | ![A PlayStation game page with hours, trophies and IGDB details](docs/screenshots/psn-game.webp) |
+| Your PlayStation games, hours and trophies, never mixed with Steam | Trophy breakdown and game details from IGDB |
 
 Sign-in runs through Clerk. Once you're in, the account page lets you connect
 Steam. This is the development build; the email address is obscured in the

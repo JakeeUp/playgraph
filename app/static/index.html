@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#121212">
+  <meta name="theme-color" content="#0d1117">
   <meta name="color-scheme" content="dark">
   <meta name="description" content="A game library with reviews. Connect Steam and each review shows how long you actually played.">
   <title>Games | PlayGraph</title>
@@ -11,7 +11,7 @@
   <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
   <link rel="preload" href="/assets/fonts/plex-sans-400.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/assets/fonts/space-grotesk-700.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/assets/styles.css">
   <link rel="stylesheet" href="/assets/details.css">
   <link rel="stylesheet" href="/assets/social.css">
@@ -46,7 +46,21 @@
     <main id="main" tabindex="-1">
       <div id="notice" class="notice" role="status" hidden></div>
       <section class="page-heading"><div><h1 id="page-title">Games on PlayGraph</h1><p id="page-subtitle" class="subtitle">Everything imported so far. Open a game to read its reviews.</p></div><button id="sync-button" class="button secondary" hidden>Sync Steam</button></section>
-      <section id="welcome" class="welcome"><div><h2>Reviews with the hours behind them</h2><p>Make an account to rate games and write reviews. Connect Steam and each review shows how long you actually played.</p><a href="/account" class="button primary">Create an account</a><span class="helper">On the old Steam beta? That sign-in is on the account page.</span></div><div class="welcome-art"><img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1145360/library_600x900.jpg" alt="Hades cover art" width="600" height="900"><img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1245620/library_600x900.jpg" alt="Elden Ring cover art" width="600" height="900"><img src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1086940/library_600x900.jpg" alt="Baldur's Gate 3 cover art" width="600" height="900"></div></section>
+      <section id="welcome" class="welcome" aria-labelledby="welcome-title">
+        <div class="welcome-hero">
+          <div class="welcome-wall" aria-hidden="true"></div>
+          <div class="welcome-copy">
+            <h2 id="welcome-title">Reviews that show the hours.</h2>
+            <p>Every review on PlayGraph comes with the reviewer&rsquo;s real Steam playtime. Two hundred hours in, or twenty minutes before a refund? Now you can tell.</p>
+            <div class="welcome-actions"><a href="/account" class="button primary large">Create an account</a><a href="#collection">Browse the catalog</a></div>
+            <span class="helper">On the old Steam beta? That sign-in is on the account page.</span>
+          </div>
+        </div>
+        <section id="front-reviews" class="front-reviews" aria-labelledby="front-reviews-title" hidden>
+          <div class="section-heading"><h2 id="front-reviews-title">Latest reviews</h2><div class="display-controls"><button class="text-button" data-view="feed">All reviews</button></div></div>
+          <ol id="front-reviews-list"></ol>
+        </section>
+      </section>
       <section id="summary" class="summary" aria-label="Your library at a glance" hidden></section>
       <section id="insights" class="insights" hidden></section>
       <section id="news" class="news" hidden aria-label="Gaming news">
@@ -67,13 +81,14 @@
         <div class="load-more"><button id="more-feed" class="button secondary" hidden>More reviews</button></div>
       </section>
       <section id="collection" aria-labelledby="collection-title">
-        <div class="section-heading"><div class="heading-with-count"><h2 id="collection-title">Games in the catalog</h2><span id="result-count" class="count-label"></span></div><div class="display-controls"><div class="platform-switch" role="group" aria-label="Platform"><button class="chip selected" aria-pressed="true">PC</button><button class="chip in-dev" aria-disabled="true" aria-describedby="platform-note">PS5 <span class="dev-tag">In development</span></button><button class="chip in-dev" aria-disabled="true" aria-describedby="platform-note">Switch <span class="dev-tag">In development</span></button><span id="platform-note" class="sr-only">Console libraries are in development. Only Steam games can be imported for now.</span></div><div class="kind-switch" role="group" aria-label="Library content"><button class="nav-item active" data-view="library">Games</button><button class="nav-item" data-view="software">Software</button></div><label class="sort-label"><span class="sr-only">Sort games</span><select id="sort"><option value="name">Title: A to Z</option><option value="playtime">Most played</option><option value="achievements">Achievement progress</option></select></label><div class="view-toggle" aria-label="Display style"><button id="grid-view" aria-label="Cover grid" aria-pressed="true">▦</button><button id="list-view" aria-label="Compact list" aria-pressed="false">☰</button></div></div></div>
+        <div class="section-heading"><div class="heading-with-count"><h2 id="collection-title">Games in the catalog</h2><span id="result-count" class="count-label"></span></div><div class="display-controls"><div class="platform-switch" role="group" aria-label="Platform"><button id="platform-pc" class="chip selected" aria-pressed="true">PC</button><button id="platform-psn" class="chip in-dev" aria-disabled="true" aria-describedby="platform-note">PS5 <span class="dev-tag">In development</span></button><button class="chip in-dev" aria-disabled="true" aria-describedby="platform-note">Switch <span class="dev-tag">In development</span></button><span id="platform-note" class="sr-only">Console libraries are in development. Only Steam games can be imported for now.</span></div><div class="kind-switch" role="group" aria-label="Library content"><button class="nav-item active" data-view="library">Games</button><button class="nav-item" data-view="software">Software</button></div><label class="sort-label"><span class="sr-only">Sort games</span><select id="sort"><option value="name">Title: A to Z</option><option value="playtime">Most played</option><option value="achievements">Achievement progress</option></select></label><div class="view-toggle" aria-label="Display style"><button id="grid-view" aria-label="Cover grid" aria-pressed="true">▦</button><button id="list-view" aria-label="Compact list" aria-pressed="false">☰</button></div></div></div>
         <div id="filters" class="filters" hidden><div id="play-filters" class="filter-chips" aria-label="Play status"><button data-filter="all" class="chip selected" aria-pressed="true">All games</button><button data-filter="played" class="chip" aria-pressed="false">Played</button><button data-filter="unplayed" class="chip" aria-pressed="false">Yet to play</button></div><label><span class="sr-only">Filter by genre</span><select id="genre"><option value="">All genres</option></select></label></div>
         <p id="collection-note" class="collection-note">Games in the PlayGraph catalog. Connect Steam to see your own collection.</p>
         <div id="games" class="game-grid" aria-live="polite"><p class="empty-message">Loading games…</p></div>
         <div class="load-more"><button id="load-more" class="button secondary" hidden>Show more games</button><span id="shown-count" class="helper"></span></div>
       </section>
-      <footer><span>PlayGraph beta</span><span>Game art and playtime come from Steam</span></footer>
+      <footer><span class="footer-brand"><img src="/assets/mark.svg" alt="" width="18" height="18">PlayGraph beta</span><span>Playtime comes from your linked Steam and PlayStation accounts</span>
+        <p class="legal-notice">Game details and art from <a href="https://www.igdb.com/" target="_blank" rel="noopener noreferrer">IGDB.com</a>, Steam and PlayStation. PlayGraph is not affiliated with or endorsed by Valve, Sony Interactive Entertainment, Twitch or IGDB. Steam is a trademark of Valve Corporation. PlayStation and PSN are trademarks of Sony Interactive Entertainment Inc.</p></footer>
     </main>
   </div>
   </div>

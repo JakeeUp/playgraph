@@ -31,6 +31,30 @@ class Settings(BaseSettings):
     clerk_secret_key: SecretStr = SecretStr("")
     # Optional. Without it the For You page says news isn't set up yet.
     apitube_api_key: SecretStr = SecretStr("")
+    # Optional. The NPSSO of ONE server-owned PlayStation account, used to read
+    # players' public PSN profiles and trophies. Empty turns PlayStation off.
+    # Users never hand PlayGraph their own PSN credentials or tokens.
+    psn_npsso: SecretStr = SecretStr("")
+    # Sony request pacing, per process: at most psn_request_budget requests per
+    # rolling psn_budget_window_seconds, each start at least
+    # psn_min_request_interval seconds apart. PSNAWP self-limits to 300/15 min.
+    # An existing PSN_MIN_REQUEST_INTERVAL setting is still honored as the gap.
+    psn_min_request_interval: float = Field(default=0.5, ge=0.0, le=60.0)
+    psn_request_budget: int = Field(default=200, ge=1, le=300)
+    psn_budget_window_seconds: float = Field(default=900.0, ge=60.0, le=3600.0)
+    # Optional. A Twitch developer application's Client ID and Secret, used for
+    # IGDB game metadata and search. Both empty turns IGDB off.
+    igdb_client_id: str = Field(default="", repr=False)
+    igdb_client_secret: SecretStr = SecretStr("")
+
+    @property
+    def igdb_enabled(self) -> bool:
+        return bool(self.igdb_client_id.strip() and self.igdb_client_secret.get_secret_value().strip())
+
+    @property
+    def psn_enabled(self) -> bool:
+        """Safe to show anyone: whether a server NPSSO is set, never its value."""
+        return bool(self.psn_npsso.get_secret_value().strip())
 
     @property
     def clerk_origin(self) -> str:

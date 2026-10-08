@@ -7,7 +7,8 @@ import os
 os.environ.update(STEAM_API_KEY="test-key", JWT_SECRET="test-only-signing-key-at-least-32-bytes",
                   DATABASE_URL="sqlite://", REDIS_URL="redis://localhost:6379/0",
                   APP_BASE_URL="http://localhost:8000", ENVIRONMENT="development",
-                  CLERK_ENABLED="false", CLERK_PUBLISHABLE_KEY="", CLERK_SECRET_KEY="")
+                  CLERK_ENABLED="false", CLERK_PUBLISHABLE_KEY="", CLERK_SECRET_KEY="",
+                  PSN_NPSSO="", PSN_MIN_REQUEST_INTERVAL="3.0", IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
 
 import pytest
 from sqlalchemy import create_engine, text

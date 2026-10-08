@@ -8,34 +8,34 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="base.css">
 <!-- After base.css so these faces win over its /assets/fonts paths. -->
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@400;500;600&family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com/3.4.16"></script>
 <script>
   // Same object as tailwind.config.js.
   tailwind.config = {
     theme: {
-      boxShadow: { none: "none" },
-      borderRadius: { none: "0", sm: "2px", DEFAULT: "3px", md: "4px", full: "9999px" },
+      boxShadow: { none: "none", cover: "0 1px 2px rgba(0,0,0,0.4), 0 8px 18px -10px rgba(0,0,0,0.7)", float: "0 24px 60px -20px rgba(0,0,0,0.85)" },
+      borderRadius: { none: "0", sm: "2px", DEFAULT: "3px", md: "4px", lg: "6px", full: "9999px" },
       extend: {
         colors: { game: {
-          bg: "#101418", surface: "#182026", raised: "#222c36",
-          line: "rgba(255,255,255,0.06)", "line-strong": "rgba(255,255,255,0.12)",
-          text: "#ffffff", body: "#9bb0c1", muted: "#6e889d",
+          bg: "#0f1317", surface: "#171d23", raised: "#20282f",
+          line: "rgba(255,255,255,0.08)", "line-strong": "rgba(255,255,255,0.16)",
+          text: "#ffffff", body: "#a3b4c2", muted: "#728a9c",
           accent: "#ff7a00", "accent-hover": "#ff9433",
-          playing: "#00b4d8", done: "#00e054", fave: "#ff3366" } },
+          playing: "#00b4d8", done: "#00e054", "done-ink": "#04210f", fave: "#ff3366" } },
         fontFamily: {
-          display: ['"Space Grotesk"', '"IBM Plex Sans"', "system-ui", "sans-serif"],
+          display: ['"Archivo"', '"IBM Plex Sans"', "system-ui", "sans-serif"],
           sans: ['"IBM Plex Sans"', "system-ui", "sans-serif"],
           mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"] },
         fontSize: {
           tag: ["10px", "14px"], meta: ["11px", "16px"], body: ["13px", "19px"],
-          ui: ["14px", "20px"], title: ["17px", "22px"], head: ["22px", "26px"], hero: ["34px", "38px"] },
-        letterSpacing: { head: "-0.02em" },
+          ui: ["14px", "20px"], title: ["18px", "22px"], head: ["24px", "26px"], hero: ["42px", "44px"], display: ["76px", "72px"] },
+        letterSpacing: { head: "-0.01em" },
         spacing: { "0.5": "2px", "1.5": "6px", "2.5": "10px", "3.5": "14px",
           grid: "14px", row: "12px", avatar: "32px", "avatar-sm": "24px", thumb: "36px" },
         aspectRatio: { cover: "2 / 3", cart: "4 / 3" },
         maxWidth: { page: "1280px" },
-        transitionDuration: { fast: "120ms" },
+        transitionDuration: { fast: "140ms" },
       },
     },
   };
@@ -52,7 +52,7 @@
   <div class="mx-auto max-w-page px-4 pt-2 md:pt-0 md:h-12 flex flex-wrap items-center gap-x-5 gap-y-2">
     <a href="#" class="link-plain flex items-center gap-1.5 shrink-0" aria-label="PlayGraph home">
       <span class="block w-3.5 h-3.5 rounded-sm bg-game-accent"></span>
-      <span class="font-display font-bold text-title tracking-head text-game-text">PlayGraph</span>
+      <span class="font-display font-extrabold text-title tracking-head text-game-text">PlayGraph</span>
     </a>
 
     <nav aria-label="Main" class="order-last basis-full md:order-none md:basis-auto overflow-x-auto pb-2 md:pb-0">
@@ -90,7 +90,7 @@
      ===================================================================== -->
 <section aria-labelledby="lib-h" class="pt-6">
   <div class="flex flex-wrap items-end gap-x-4 gap-y-2 pb-3 border-b border-game-line">
-    <h1 id="lib-h" class="font-display font-bold tracking-head text-head">Your library</h1>
+    <h1 id="lib-h" class="font-display font-extrabold tracking-head text-head">Your library</h1>
     <p class="text-meta text-game-muted"><span class="num">326</span> games · <span class="num">1,904</span> h logged</p>
 
     <div class="ml-auto flex items-center gap-1.5 text-meta">
@@ -195,7 +195,7 @@
 
   <div class="min-w-0">
     <p class="text-meta text-game-muted"><span class="num">2020</span> · Supergiant Games</p>
-    <h2 id="game-h" class="font-display font-bold tracking-head text-hero mt-0.5">Hades</h2>
+    <h2 id="game-h" class="font-display font-extrabold tracking-head text-hero mt-0.5">Hades</h2>
     <p class="mt-2 max-w-[62ch] text-ui text-game-body">Battle out of the Underworld in a rogue-like dungeon crawler. Every escape attempt is short; the story moves forward each time you die.</p>
 
     <!-- Reference-manual block: label column, value column, tight rows. -->
@@ -240,7 +240,7 @@
               <a href="#" class="font-medium link-plain text-game-text hover:text-game-accent">mkowalski</a>
               <span class="stars" style="--pct:100%" role="img" aria-label="5 out of 5"></span>
               <span class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">Switch</span>
-              <span class="text-game-muted"><span class="num">104</span> h · completed</span>
+              <span class="text-game-muted"><span class="num px-1.5 rounded bg-game-done text-game-done-ink font-medium">104 h</span> · completed</span>
               <time datetime="2026-09-30" class="ml-auto text-game-muted">2d</time>
             </p>
             <p class="mt-1 text-body text-game-body">Finished the true ending on a train. Zagreus' dialogue still hadn't repeated at hour ninety, which is a thing I didn't think a roguelike could do.</p>
@@ -259,7 +259,7 @@
               <a href="#" class="font-medium link-plain text-game-text hover:text-game-accent">rosa.a</a>
               <span class="stars" style="--pct:70%" role="img" aria-label="3.5 out of 5"></span>
               <span class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">PC</span>
-              <span class="text-game-muted"><span class="num">22</span> h · playing</span>
+              <span class="text-game-muted"><span class="num px-1.5 rounded bg-game-done text-game-done-ink font-medium">22 h</span> · playing</span>
               <time datetime="2026-09-28" class="ml-auto text-game-muted">4d</time>
             </p>
             <p class="mt-1 text-body text-game-body">Combat is great. The meta grind for Darkness started to feel like chores around clear six; I'm putting the heat up instead of farming.</p>
@@ -278,7 +278,7 @@
               <a href="#" class="font-medium link-plain text-game-text hover:text-game-accent">dtran</a>
               <span class="stars" style="--pct:90%" role="img" aria-label="4.5 out of 5"></span>
               <span class="px-1.5 rounded-sm bg-game-raised text-tag font-medium text-game-text">PS5</span>
-              <span class="text-game-muted"><span class="num">61</span> h · 100%</span>
+              <span class="text-game-muted"><span class="num px-1.5 rounded bg-game-done text-game-done-ink font-medium">61 h</span> · 100%</span>
               <time datetime="2026-09-21" class="ml-auto text-game-muted">11d</time>
             </p>
             <p class="mt-1 text-body text-game-body">Platinum. Fishing achievement was the last one and I regret nothing.</p>

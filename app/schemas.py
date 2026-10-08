@@ -1,7 +1,11 @@
+import re
+import unicodedata
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.services.igdb import cover_url
 
 
 def storable(value: str) -> str:
@@ -11,24 +15,98 @@ def storable(value: str) -> str:
     return value
 
 
+# C0/C1 controls, zero-width marks, bidi embeddings/overrides/isolates, BOM.
+_UNSAFE_NAME_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]")
+DISPLAY_NAME_MAX = 80
+
+
+def display_name(value, fallback: str, limit: int = DISPLAY_NAME_MAX) -> str:
+    """A provider-supplied name made safe to store and show publicly.
+
+    Strips NUL (Postgres rejects it), other control characters and bidi
+    overrides (which can visually reorder text on review cards), collapses
+    whitespace and caps the length. Never raises: an unusable name becomes
+    the fallback, so a strange provider profile cannot block sign-in.
+    """
+    if not isinstance(value, str):
+        return fallback
+    cleaned = _UNSAFE_NAME_CHARS.sub("", " ".join(unicodedata.normalize("NFC", value).split()))
+    return cleaned[:limit].strip() or fallback
+
+
 class GameOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    steam_appid: int
+    # NULL for games from other stores (PlayStation); those have no Steam page or art.
+    steam_appid: int | None
     name: str
     genres: str | None
     header_image_url: str | None
     content_kind: Literal["game", "software"]
+    first_release_date: datetime | None = None
+    # IGDB cover art; the frontend uses it when a game has no Steam art. Built
+    # from the stored image ID, which itself is never sent.
+    cover_url: str | None = None
+    cover_image_id: str | None = Field(default=None, exclude=True)
+    # Wide IGDB art for banners, used when a game has no Steam hero art.
+    hero_url: str | None = None
+    hero_image_id: str | None = Field(default=None, exclude=True)
+
+    @model_validator(mode="after")
+    def build_image_urls(self):
+        if self.cover_url is None:
+            self.cover_url = cover_url(self.cover_image_id)
+        if self.hero_url is None:
+            self.hero_url = cover_url(self.hero_image_id, "t_1080p")
+        return self
+
+
+class PlatformOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    slug: str
+    name: str
+    abbreviation: str | None
+
+
+class GameDetailOut(GameOut):
+    """One game's page. Summary and platforms stay off list responses, which
+    can carry thousands of games."""
+
+    summary: str | None = None
+    platforms: list[PlatformOut] = []
+
+
+class TrophyCountsOut(BaseModel):
+    platinum: int
+    gold: int
+    silver: int
+    bronze: int
+
+
+class TrophiesOut(BaseModel):
+    """PlayStation trophies for one game: earned and defined counts per grade."""
+
+    earned: TrophyCountsOut
+    total: TrophyCountsOut
+    progress: int | None  # Sony's own percentage; None when a game has several trophy lists
 
 
 class LibraryEntryOut(BaseModel):
-    """A single game in a user's library, joined with their latest playtime."""
+    """One game from one source in a user's library, with its latest snapshot.
+
+    A game can appear once per source. Steam and PlayStation numbers are never
+    added together; playtime_minutes is None when the source did not report it
+    (PlayStation privacy settings, or a PS3/Vita trophy list).
+    """
 
     game: GameOut
-    playtime_minutes: int
+    source: Literal["steam", "psn"] = "steam"
+    playtime_minutes: int | None
     achievements_unlocked: int | None
     achievements_total: int | None
+    trophies: TrophiesOut | None = None
     captured_at: datetime
 
 
@@ -76,6 +154,9 @@ class ReviewOut(BaseModel):
     created_at: datetime
     verified_playtime_minutes: int | None
     verified_achievement_pct: float | None
+    # "steam" or "psn": which store the verified numbers came from. For PSN the
+    # percentage is trophies earned, not Steam achievements.
+    verified_source: Literal["steam", "psn"] | None = None
 
 
 class CommentCreate(BaseModel):
@@ -99,10 +180,3 @@ class CommentOut(BaseModel):
     author_name: str
     body: str
     created_at: datetime
-
-
-class UserOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    display_name: str

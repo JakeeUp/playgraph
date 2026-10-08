@@ -8,11 +8,44 @@ from sqlalchemy.orm import Session, joinedload
 from app.cache import REVIEWS, cached, invalidate_from_route
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Comment, Game, PlaytimeSnapshot, Review, User, utcnow
+from app.models import Comment, Game, PlaytimeSnapshot, Review, SnapshotSource, User, utcnow
 from app.routers.parameters import MAX_OFFSET, ResourceId
 from app.schemas import CommentCreate, CommentOut, ReviewCreate, ReviewOut
 
 router = APIRouter(tags=["reviews"])
+
+
+def _require_game(db: Session, game_id: int) -> None:
+    if db.get(Game, game_id) is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+
+def _already_reviewed(db: Session, user_id: int, game_id: int) -> bool:
+    return db.query(Review.id).filter_by(user_id=user_id, game_id=game_id).first() is not None
+
+
+# Which store's numbers a review is verified against, in order of preference.
+VERIFICATION_SOURCES = (SnapshotSource.steam.value, SnapshotSource.psn.value)
+
+
+def _verification_snapshot(db: Session, user_id: int, game_id: int) -> PlaytimeSnapshot | None:
+    """The newest snapshot for this game from ONE source, never a blend.
+
+    PlayStation games are separate Game rows from Steam ones, so a game
+    normally has one source. If it ever has both, Steam wins: it always
+    reports minutes, while PSN minutes can be hidden. The review stores which
+    source it used, so trophies are never shown as Steam achievements.
+    """
+    for source in VERIFICATION_SOURCES:
+        snapshot = (
+            db.query(PlaytimeSnapshot)
+            .filter_by(user_id=user_id, game_id=game_id, source=source)
+            .order_by(PlaytimeSnapshot.captured_at.desc(), PlaytimeSnapshot.id.desc())
+            .first()
+        )
+        if snapshot is not None:
+            return snapshot
+    return None
 
 
 @router.get("/me/games/{game_id}/review", response_model=ReviewOut | None)
@@ -21,8 +54,7 @@ def own_review(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if db.get(Game, game_id) is None:
-        raise HTTPException(status_code=404, detail="Game not found")
+    _require_game(db, game_id)
     return (
         db.query(Review).options(joinedload(Review.user))
         .filter_by(game_id=game_id, user_id=user.id).first()
@@ -37,31 +69,29 @@ def create_review(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if db.get(Game, game_id) is None:
-        raise HTTPException(status_code=404, detail="Game not found")
-    if db.query(Review).filter_by(user_id=user.id, game_id=game_id).first():
+    _require_game(db, game_id)
+    if _already_reviewed(db, user.id, game_id):
         raise HTTPException(status_code=409, detail="You've already reviewed this game")
-    snapshot = (
-        db.query(PlaytimeSnapshot)
-        .filter_by(user_id=user.id, game_id=game_id)
-        .order_by(PlaytimeSnapshot.captured_at.desc(), PlaytimeSnapshot.id.desc())
-        .first()
-    )
+    snapshot = _verification_snapshot(db, user.id, game_id)
     row = Review(user_id=user.id, game_id=game_id, **review.model_dump())
-    # Missing snapshots stay unverified. Zero minutes is still a verified value.
+    # Missing snapshots stay unverified. Zero minutes is still a verified value;
+    # NULL minutes (PlayStation play time hidden) stay unverified hours.
     if snapshot is not None:
         row.verified_playtime_minutes = snapshot.playtime_minutes
         if snapshot.achievements_total and snapshot.achievements_unlocked is not None:
+            # For PlayStation these are summed trophy counts across grades.
             row.verified_achievement_pct = (
                 100 * snapshot.achievements_unlocked / snapshot.achievements_total
             )
+        if row.verified_playtime_minutes is not None or row.verified_achievement_pct is not None:
+            row.verified_source = snapshot.source
     db.add(row)
     try:
         db.commit()
     except IntegrityError:
         # The unique constraint also covers two requests arriving together.
         db.rollback()
-        if db.query(Review).filter_by(user_id=user.id, game_id=game_id).first():
+        if _already_reviewed(db, user.id, game_id):
             raise HTTPException(status_code=409, detail="You've already reviewed this game")
         raise
     invalidate_from_route(request, REVIEWS)
@@ -119,8 +149,7 @@ async def list_reviews(
     db: Session = Depends(get_db),
 ):
     def load():
-        if db.get(Game, game_id) is None:
-            raise HTTPException(status_code=404, detail="Game not found")
+        _require_game(db, game_id)
         rows = (
             db.query(Review).options(joinedload(Review.user))
             .filter_by(game_id=game_id)

@@ -1,4 +1,5 @@
 import { $ } from './dom.js';
+import { initPlayStation } from './psn-account.js';
 
 const status = $('#account-status');
 const signIn = $('#clerk-sign-in');
@@ -75,6 +76,12 @@ function loadScript(src, publishableKey) {
   });
 }
 
+function preloadScript(src) {
+  const link = document.createElement('link');
+  link.rel = 'preload'; link.as = 'script'; link.crossOrigin = 'anonymous'; link.href = src;
+  document.head.append(link);
+}
+
 function renderProviderSession() {
   const signedIn = Boolean(clerk.isSignedIn && clerk.session);
   document.title = signedIn ? 'Your account | PlayGraph' : 'Sign in | PlayGraph';
@@ -100,6 +107,12 @@ function renderProviderSession() {
 }
 
 async function start() {
+  // The settings and the session do not depend on each other, so ask for both
+  // at once. A session failure is only reported if sign-in is enabled.
+  const sessionRequest = currentSession();
+  sessionRequest.catch(() => {});
+  // PlayStation linking works for any signed-in account, with or without Clerk.
+  sessionRequest.then((session) => { if (session) void initPlayStation(session); }, () => {});
   const response = await fetch('/auth/config', { credentials: 'same-origin', cache: 'no-store' });
   if (!response.ok) throw new Error('Sign-in settings could not load. Please try again.');
   const config = await response.json();
@@ -107,7 +120,7 @@ async function start() {
     report('PlayGraph account sign-in is not enabled on this installation yet. Your Steam beta account is still available.');
     return;
   }
-  const session = await currentSession();
+  const session = await sessionRequest;
   playgraph = session;
   if (isSteam(session)) {
     const pending = await fetch('/auth/clerk/link', { credentials: 'same-origin', cache: 'no-store' });
@@ -124,8 +137,11 @@ async function start() {
   if (api.protocol !== 'https:' || api.origin !== config.frontend_api || !config.publishable_key) {
     throw new Error('Account sign-in is not configured correctly.');
   }
+  const clerkScript = `${api.origin}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`;
+  // Download the second script while the first loads; they still run in order.
+  preloadScript(clerkScript);
   await loadScript(`${api.origin}/npm/@clerk/ui@1/dist/ui.browser.js`);
-  await loadScript(`${api.origin}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`, config.publishable_key);
+  await loadScript(clerkScript, config.publishable_key);
   clerk = window.Clerk;
   await clerk.load({
     ui: { ClerkUI: window.__internal_ClerkUICtor }, telemetry: false,

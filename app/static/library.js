@@ -18,7 +18,7 @@ export function selectLibrary(library, { query = '', filter = 'all', genre = '',
     });
 }
 export function summarize(library) {
-  return library.reduce((sum, entry) => ({ games: sum.games + 1, minutes: sum.minutes + entry.playtime_minutes,
+  return library.reduce((sum, entry) => ({ games: sum.games + 1, minutes: sum.minutes + (entry.playtime_minutes || 0),
     played: sum.played + Number(entry.playtime_minutes > 0), unlocked: sum.unlocked + (entry.achievements_unlocked || 0),
     achievementGames: sum.achievementGames + Number(entry.achievements_unlocked != null && entry.achievements_total > 0),
   }), { games: 0, minutes: 0, played: 0, unlocked: 0, achievementGames: 0 });
@@ -48,3 +48,63 @@ const STEAM_APPS = 'https://shared.fastly.steamstatic.com/store_item_assets/stea
  * @returns {string}
  */
 export const steamArt = (appid, file) => `${STEAM_APPS}/${Number(appid)}/${file}`;
+
+// PlayStation ---------------------------------------------------------------
+// Library entries carry a source. Steam and PlayStation numbers are never
+// added together: each source has its own shelf, totals and labels.
+export const TROPHY_GRADES = ['platinum', 'gold', 'silver', 'bronze'];
+/** A game from another store has no Steam app id, so no Steam art or page. */
+export const isPlayStationGame = (game) => game?.steam_appid == null;
+// Sony's own image for a PlayStation game: the last resort before a title
+// placeholder. Only hosts the /app CSP allows are used.
+const SONY_IMAGE_HOSTS = new Set(['image.api.playstation.com', 'psnobj.prod.dl.playstation.net']);
+export function sonyArt(game) {
+  try {
+    const url = new URL(game?.header_image_url || '');
+    return url.protocol === 'https:' && SONY_IMAGE_HOSTS.has(url.hostname) ? url.href : null;
+  } catch { return null; }
+}
+/**
+ * Art for a game without Steam art: { cover, hero, soft }. IGDB cover and
+ * artwork first, then Sony's image. soft means the hero is a small or
+ * portrait image stretched wide, so it should be shown blurred.
+ */
+export function storeArt(game) {
+  const cover = game?.cover_url || sonyArt(game);
+  if (game?.hero_url) return { cover, hero: game.hero_url, soft: false };
+  return { cover, hero: cover, soft: true };
+}
+export function splitBySource(library) {
+  const steam = []; const psn = [];
+  for (const entry of library) (entry.source === 'psn' ? psn : steam).push(entry);
+  return { steam, psn };
+}
+/** "12.5 h", or a plain note when PlayStation did not share the hours. */
+export const playtimeLabel = (entry) => entry?.playtime_minutes == null ? 'Hours not shared' : `${hours(entry.playtime_minutes)} h`;
+/** Trophy counts across a PlayStation shelf, plus how many hours were shared. */
+export function playStationSummary(entries) {
+  const sum = { games: 0, minutes: 0, withHours: 0, earned: 0, total: 0, platinum: 0, gold: 0, silver: 0, bronze: 0 };
+  for (const entry of entries) {
+    sum.games += 1;
+    if (entry.playtime_minutes != null) { sum.minutes += entry.playtime_minutes; sum.withHours += 1; }
+    for (const grade of TROPHY_GRADES) {
+      const earned = entry.trophies?.earned?.[grade] || 0;
+      sum[grade] += earned; sum.earned += earned; sum.total += entry.trophies?.total?.[grade] || 0;
+    }
+  }
+  return sum;
+}
+/**
+ * How a review's verified numbers read, labelled by the store they came from.
+ * Reviews written before sources were recorded came from Steam.
+ * @returns {{badge: string, text: string} | null} null when nothing was verified
+ */
+export function reviewVerification(review) {
+  const minutes = review?.verified_playtime_minutes; const pct = review?.verified_achievement_pct;
+  if (minutes == null && pct == null) return null;
+  const psn = review.verified_source === 'psn';
+  const parts = [];
+  if (minutes != null) parts.push(`${hours(minutes)} h verified`);
+  if (pct != null) parts.push(`${Math.round(pct)}% ${psn ? 'trophies' : 'achievements'}`);
+  return { badge: psn ? 'PlayStation' : 'PC', text: parts.join(' · ') };
+}

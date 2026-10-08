@@ -21,11 +21,50 @@ Phase 2B Clerk integration; account status above reflects the current code.
 | 1A. Usable local app | Responsive UI, covers, library, stats, Steam login, reviews and comments | Implemented; owner screenshot shows signed-in imported data | Finish baseline acceptance checks |
 | 1B. Better ratings and discovery | Drag half-stars, Software shelf, For You/latest feeds, shareable review discussions | Desktop checks passed; device and real Steam checks carried forward | Finish real-phone touch/layout and fresh Steam login/sync acceptance |
 | 2. Account and data foundations | Alembic, PlayGraph identity, password/email-link/passkey choices, MFA, secure Steam linking, contribution editing | **2C in progress: Clerk accounts and Steam beta conversion implemented; provider acceptance and new-account platform linking remain** | Existing IDs/data survive; account linking and MFA cannot be bypassed |
-| 3. Cross-console catalog and connections | Canonical titles, IGDB metadata, platform/source mappings; supported provider adapters | Research recorded; credentials/access not configured | Cross-console games browse without account linking; imports preserve source and distinguish verified/manual data |
+| 3. Cross-console catalog and connections | Canonical titles, IGDB metadata, platform/source mappings; supported provider adapters | **3A running against live IGDB (2026-10-07): 663 of 891 games mapped by exact store ID; browser check of the game page still open.** PlayStation public-profile import implemented. See the Phase 3 plan below | Cross-console games browse without account linking; imports preserve source and distinguish verified/manual data |
 | 4. Personal tracking | Want to play, playing, completed, paused, dropped; diary, favorites and lists | Planned | Manual organization survives resyncs |
 | 5. Privacy and account control | Visibility defaults, export, deletion and retention policy | Planned | Verify boundaries with two accounts and test deletion |
 | 6. Social participation and moderation | Profiles, follows, richer feeds, blocking, reporting and moderator tools | Basic review feed exists; remaining controls planned | Privacy/blocking rules hold in feeds and direct URLs |
-| 7. Hosted beta | HTTPS, secrets, backups, monitoring, load tests and independent security review | Planned | Real staging acceptance and restore rehearsal before invites |
+| 7. Hosted beta | HTTPS, secrets, backups, monitoring, load tests and independent security review | Planned | Real staging acceptance and restore rehearsal before invites. **Commercial launch: an IGDB partnership agreement and visible IGDB attribution are required first** (owner decision 2026-10-07: PlayGraph is intended to be commercial). Also gated by LEGAL_REVIEW_2026-10-07.md: PlayStation launch decision, privacy policy and terms, DMCA agent, APITube terms |
+
+## Phase 3 plan (owner decisions 2026-10-07)
+
+Decisions: the same game on two stores gets **one game page**, but only on an
+exact IGDB ID match; name-only guesses go to a review list and are never
+merged automatically. Per-source stats stay separate and are never summed.
+The first round covers enrichment, search for any game, and platform filters.
+
+- **3A, foundation (code in place, live acceptance open).** IGDB client
+  (`app/services/igdb.py`: app token, 4 requests/s, 8 open, query escaping),
+  migration 0008 (game summary, release date, IGDB cover, `game_platforms`,
+  `igdb_match_candidates`), and the `refresh_igdb_catalog` job
+  (`app/igdb_catalog.py`). The job maps Steam games by exact app ID only,
+  records a merge proposal when the IGDB game already belongs to another
+  record, and refreshes metadata every 30 days. It is queued after each sync,
+  or by hand with `python -m app.igdb_catalog`. The game page shows the
+  summary, release date and platforms with IGDB credit; games without Steam
+  art use the IGDB cover.
+  First live run, 2026-10-07: 307 Steam and 356 PlayStation games mapped,
+  663 with cover and metadata, 2,802 platform rows, 63 merge proposals, 26
+  Steam games IGDB doesn't know. Observed through the API; the game page
+  still needs a browser check.
+- **3B, merging.** PlayStation matching turned out exact: IGDB's
+  "Playstation Store US" uids are Sony concept IDs, the same IDs the PSN
+  gamelist returns (296 of 300 sampled matched), so it shipped in 3A.
+  Remaining: the owner review list and the merge itself. The live proposals
+  show an exact IGDB match is not always the same game to merge: Steam lists
+  betas, playtests and separate multiplayer apps under their own app IDs that
+  IGDB folds into the main game ("Black Ops II - Multiplayer", "Street
+  Fighter 6 - Open Beta"). Cross-store pairs (a Steam game and its
+  PlayStation copy) are the merge case; same-store pairs need the owner.
+  Some PSN concepts point at an edition (Spider-Man maps to its Game of the
+  Year Edition), so resolve IGDB `version_parent` before merging. Merge:
+  verified backup first, move snapshots, external IDs and reviews to the
+  surviving game, and decide what happens when one user reviewed both copies.
+- **3C, search and platform filters.** Search IGDB from the catalog (cached,
+  rate limited per user), import a game when someone opens or reviews it, and
+  filter the catalog by platform through `game_platforms`.
+- **Then:** Xbox and Battle.net feasibility proofs (PLATFORM_PLAN.md step 4).
 
 ## Phase 1 test checklist
 
@@ -74,6 +113,32 @@ No phase is complete just because its code exists. Mark acceptance checks only
 after they are observed. Real Steam and hosted Redis are not used by unit tests.
 
 ## Sprint cadence
+
+### 2026-10-07 increment: PlayStation via verified public profile
+
+Owner decision: a player proves a PSN Online ID with a one-time code in their
+About Me; one server-owned NPSSO (`PSN_NPSSO`) reads that public profile.
+Users' PSN credentials and tokens are never collected. Design and deviations:
+docs/PSN_INTEGRATION.md.
+
+- [x] Implemented: migration 0007 (PSN platform, store-neutral games with
+  `game_external_ids`, source-aware snapshots with trophy counts, review
+  `verified_source`), session-bound link/check/cancel routes, `/me/psn/sync`,
+  arq task `sync_psn_library`, account page PlayStation section, separate PSN
+  library shelf and game-page lines. Steam totals, genres and sync change
+  detection read Steam rows only. Unlink is deliberately not offered until
+  snapshot retention is decided (ACCOUNT_PLAN.md).
+- [x] Automated checks: 305 Python tests passed, 2 skipped; 20 JavaScript tests
+  passed. All PSN tests use a fake PSN client and fake Redis.
+- [ ] Live acceptance with a real `PSN_NPSSO` on a dedicated PSN account:
+  token exchange, Online ID lookup, About Me verification, trophy and
+  gamelist import, title-to-trophy-list mapping.
+- [ ] Private-profile behaviour against real accounts: hidden trophies, hidden
+  play time, and whether a private profile's About Me is readable at all.
+- [ ] Owner's database upgraded through 0006 and 0007 with a verified backup;
+  PostgreSQL migration path run against a real server.
+- [ ] Browser check of the account PlayStation section and the PSN shelf.
+- [ ] Owner decision on unlink and PSN snapshot retention.
 
 ### September 22 increment: library efficiency and Steam beta conversion
 
