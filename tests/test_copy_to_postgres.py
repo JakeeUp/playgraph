@@ -71,6 +71,7 @@ def test_copy_into_postgres_keeps_ids_and_times_and_only_fills_an_empty_database
 
         counts = copy_database(source, target_url)
         assert counts == {"users": 1, "auth_identities": 0, "linked_accounts": 0, "games": 2, "game_external_ids": 0,
+                          "game_platforms": 0, "igdb_match_candidates": 0,
                           "playtime_snapshots": 0, "reviews": 1, "comments": 0}
         with check.connect() as connection:
             # Review 2 was deleted in SQLite, so its ID is never handed out again.
