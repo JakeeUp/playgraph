@@ -59,6 +59,7 @@ export function createGameDialog(state, api, report = () => {}) {
       const dd = el('dd', name === 'Steam app ID' ? 'num' : ''); dd.append(value); fields.append(el('dt', '', name), dd);
     }
     info.append(fields);
+    const about = el('div', 'detail-about'); info.append(about);
     if (entry) { const synced = el('p', 'helper', 'Your numbers are from your Steam sync on '); synced.append(el('span', 'num', timeLabel(entry.captured_at))); info.append(synced); }
     if (psnEntry) {
       const synced = el('p', 'helper', 'Your PlayStation numbers are from your public PSN profile, synced on ');
@@ -67,7 +68,28 @@ export function createGameDialog(state, api, report = () => {}) {
     }
     if (!entry && !psnEntry) info.append(el('p', 'helper', playstation
       ? 'Imported from a public PSN profile. PlayStation games are kept separate from Steam games, even with the same name.'
-      : 'Imported from Steam. Release dates, developers and console versions aren’t in this catalog yet.'));
+      : 'Imported from Steam.'));
+    // Summary, release date and platforms come from IGDB on the single-game
+    // endpoint; list responses leave them out. The page works without them.
+    void (async () => {
+      let details;
+      try { details = await api(`/games/${game.id}`); } catch { return; }
+      if (request !== requestId) return;
+      if (details.platforms?.length) {
+        platforms.replaceChildren(...details.platforms.map((p) => el('li', 'platform-badge', p.abbreviation || p.name)));
+      }
+      if (details.first_release_date) {
+        const released = new Date(details.first_release_date).toLocaleDateString(undefined,
+          { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+        fields.append(el('dt', '', 'Released'), el('dd', 'num', released));
+      }
+      if (details.summary) about.append(el('p', 'detail-summary', details.summary));
+      if (details.summary || details.platforms?.length || details.first_release_date) {
+        const credit = el('a', 'text-button detail-credit', 'Game details from IGDB ↗');
+        credit.href = 'https://www.igdb.com/'; credit.target = '_blank'; credit.rel = 'noopener noreferrer';
+        about.append(credit);
+      }
+    })();
     header.append(info); main.append(header); profile.append(aside, main);
     // Steam art is fetched by app id; a PlayStation game has none, so it keeps the CSS backdrop.
     if (playstation) content.append(profile); else { content.append(heroBand(game), profile); tint(game, request); }

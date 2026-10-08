@@ -54,6 +54,8 @@ dialog::backdrop { background:var(--scrim); }
 .detail-kicker { font-size:var(--text-sm); color:var(--text-muted); }
 .detail-info h2 { font-family:var(--font-display); font-stretch:var(--display-stretch); font-size:var(--text-3xl); font-weight:800; line-height:var(--leading-tight); letter-spacing:var(--tracking-tight); margin:2px 0 var(--space-4); overflow-wrap:anywhere; }
 .detail-info .helper { margin-top:var(--space-2); }
+.detail-summary { margin:var(--space-4) 0 var(--space-1); max-width:68ch; color:var(--text); line-height:var(--leading); white-space:pre-line; }
+.detail-credit { font-size:var(--text-xs); }
 
 /* Hardware capsules, here and on review rows. */
 .platform-badges { display:flex; flex-wrap:wrap; gap:var(--space-1); list-style:none; margin:0; padding:0; }
