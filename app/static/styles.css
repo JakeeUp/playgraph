@@ -99,6 +99,24 @@
 
 *, *::before, *::after { box-sizing:border-box; }
 
+/* Scrollbars: a slim orange pill floating on the page instead of the
+   browser's grey default. Chromium and Safari use the ::-webkit-scrollbar
+   rules, which allow the gradient; the transparent border insets the thumb so
+   it floats, and the track shows whatever surface is behind it, page or
+   dialog. Firefox has no such pseudo-elements and gets the standard
+   properties instead (Chromium would let those override the rules above). */
+::-webkit-scrollbar { width:12px; height:12px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background:transparent; }
+::-webkit-scrollbar-thumb {
+  background:linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000)) padding-box;
+  border:3px solid transparent; border-radius:999px; min-height:48px;
+}
+::-webkit-scrollbar-thumb:hover { background:linear-gradient(180deg, var(--accent-hover), var(--accent)) padding-box; border-width:2px; }
+::-webkit-scrollbar-thumb:active { background:var(--accent-hover) padding-box; border-width:2px; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width:thin; scrollbar-color:var(--accent) transparent; }
+}
+
 body {
   margin:0;
   background:var(--bg);
