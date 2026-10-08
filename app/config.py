@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     psn_min_request_interval: float = Field(default=0.5, ge=0.0, le=60.0)
     psn_request_budget: int = Field(default=200, ge=1, le=300)
     psn_budget_window_seconds: float = Field(default=900.0, ge=60.0, le=3600.0)
+    # Optional. A Twitch developer application's Client ID and Secret, used for
+    # IGDB game metadata and search. Both empty turns IGDB off.
+    igdb_client_id: str = Field(default="", repr=False)
+    igdb_client_secret: SecretStr = SecretStr("")
+
+    @property
+    def igdb_enabled(self) -> bool:
+        return bool(self.igdb_client_id.strip() and self.igdb_client_secret.get_secret_value().strip())
 
     @property
     def psn_enabled(self) -> bool:

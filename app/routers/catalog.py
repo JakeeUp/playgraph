@@ -9,19 +9,19 @@ from app.cache import CATALOG, cached
 from app.database import get_db
 from app.models import Game
 from app.routers.parameters import MAX_OFFSET, ResourceId
-from app.schemas import GameOut
+from app.schemas import GameDetailOut, GameOut
 
 router = APIRouter(tags=["games"])
 
 
-@router.get("/games/{game_id}", response_model=GameOut)
+@router.get("/games/{game_id}", response_model=GameDetailOut)
 async def game_details(game_id: ResourceId, request: Request, db: Session = Depends(get_db)):
     def load():
         game = db.get(Game, game_id)
         if game is None:
             raise HTTPException(status_code=404, detail="Game not found")
-        return GameOut.model_validate(game)
-    return await cached(request, CATALOG, ("game", game_id), 300, load)
+        return GameDetailOut.model_validate(game)
+    return await cached(request, CATALOG, ("game-detail", game_id), 300, load)
 
 
 @router.get("/games")

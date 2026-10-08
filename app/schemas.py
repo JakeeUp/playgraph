@@ -3,7 +3,9 @@ import unicodedata
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.services.igdb import cover_url
 
 
 def storable(value: str) -> str:
@@ -42,6 +44,38 @@ class GameOut(BaseModel):
     genres: str | None
     header_image_url: str | None
     content_kind: Literal["game", "software"]
+    first_release_date: datetime | None = None
+    # IGDB cover art; the frontend uses it when a game has no Steam art. Built
+    # from the stored image ID, which itself is never sent.
+    cover_url: str | None = None
+    cover_image_id: str | None = Field(default=None, exclude=True)
+    # Wide IGDB art for banners, used when a game has no Steam hero art.
+    hero_url: str | None = None
+    hero_image_id: str | None = Field(default=None, exclude=True)
+
+    @model_validator(mode="after")
+    def build_image_urls(self):
+        if self.cover_url is None:
+            self.cover_url = cover_url(self.cover_image_id)
+        if self.hero_url is None:
+            self.hero_url = cover_url(self.hero_image_id, "t_1080p")
+        return self
+
+
+class PlatformOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    slug: str
+    name: str
+    abbreviation: str | None
+
+
+class GameDetailOut(GameOut):
+    """One game's page. Summary and platforms stay off list responses, which
+    can carry thousands of games."""
+
+    summary: str | None = None
+    platforms: list[PlatformOut] = []
 
 
 class TrophyCountsOut(BaseModel):

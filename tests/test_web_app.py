@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.database import get_db
 from app.main import app
-from app.models import Game, User
+from app.models import Game, GamePlatform, User
 from tests.security_helpers import MemoryRedis, auth_headers
 
 
@@ -48,7 +48,8 @@ def test_public_catalog_bounds_search_and_no_private_fields(web, db):
     result = web.get("/games", params={"limit": 2, "offset": 1}).json()
     assert result["total"] == 3
     assert [game["name"] for game in result["games"]] == ["A Game", "B Game"]
-    assert set(result["games"][0]) == {"id", "steam_appid", "name", "genres", "header_image_url", "content_kind"}
+    assert set(result["games"][0]) == {"id", "steam_appid", "name", "genres", "header_image_url", "content_kind",
+                                       "first_release_date", "cover_url", "hero_url"}
     assert web.get("/games", params={"q": "%"}).json()["total"] == 1
     assert web.get("/games", params={"q": "a game"}).json()["total"] == 1
     assert web.get("/games", params={"offset": 100}).json()["games"] == []
@@ -64,12 +65,19 @@ def test_browser_callback_failure_returns_to_app_without_assertion(web):
 
 
 def test_single_game_link_returns_only_public_metadata(web, db):
-    db.add(Game(id=23, name="Linkable game", steam_appid=100))
+    game = Game(id=23, name="Linkable game", steam_appid=100, summary="A short summary.",
+                cover_image_id="co1abc", hero_image_id="ar1abc")
+    game.platforms.append(GamePlatform(slug="win", name="PC (Microsoft Windows)", abbreviation="PC"))
+    db.add(game)
     db.commit()
     response = web.get("/games/23")
     assert response.status_code == 200
-    assert response.json() == {"id": 23, "name": "Linkable game", "steam_appid": 100,
-                               "genres": None, "header_image_url": None, "content_kind": "game"}
+    assert response.json() == {
+        "id": 23, "name": "Linkable game", "steam_appid": 100, "genres": None, "header_image_url": None,
+        "content_kind": "game", "first_release_date": None, "summary": "A short summary.",
+        "cover_url": "https://images.igdb.com/igdb/image/upload/t_cover_big/co1abc.jpg",
+        "hero_url": "https://images.igdb.com/igdb/image/upload/t_1080p/ar1abc.jpg",
+        "platforms": [{"slug": "win", "name": "PC (Microsoft Windows)", "abbreviation": "PC"}]}
     assert web.get("/games/9999").status_code == 404
     assert web.get("/games/99999999999999999").status_code == 422
 

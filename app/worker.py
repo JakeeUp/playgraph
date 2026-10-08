@@ -32,6 +32,7 @@ from app.config import settings
 from app.database import SessionLocal, engine
 from app.migrations import require_current_schema
 from app import psn_status
+from app.igdb_catalog import queue_refresh, refresh_igdb_catalog
 from app.models import (Game, GameExternalId, LinkedAccount, Platform, PlaytimeSnapshot, SnapshotSource,
                         utcnow)
 from app.services import psn, steam
@@ -163,6 +164,7 @@ async def sync_steam_library(ctx, user_id: int) -> dict:
         # the feed shows game data too. Retire both caches once the rows are in.
         await invalidate(ctx.get("redis"), CATALOG)
         await invalidate(ctx.get("redis"), REVIEWS)
+        await queue_refresh(ctx.get("redis"))
 
         logger.info(
             "sync user=%s complete: %d games, %d achievement calls, %d genre lookups, %d failed calls",
@@ -539,6 +541,7 @@ async def sync_psn_library(ctx, user_id: int) -> dict:
             "playtime_visible": stats["playtime_visible"], "checked_at": utcnow().isoformat()})
         await invalidate(store, CATALOG)
         await invalidate(store, REVIEWS)
+        await queue_refresh(store)
         logger.info("psn sync user=%s complete: %d games (%d new), %d trophy lists, %d played titles, "
                     "%d mapping lookups, trophies %s, play time %s", user_id, stats["games_synced"],
                     stats["games_created"], stats["trophy_lists"], stats["played_titles"],
@@ -555,7 +558,7 @@ async def check_database_schema(ctx):
 
 class WorkerSettings:
     on_startup = check_database_schema
-    functions = [sync_steam_library, sync_psn_library]
+    functions = [sync_steam_library, sync_psn_library, refresh_igdb_catalog]
     queue_name = QUEUE_NAME
     job_serializer = staticmethod(serialize)
     job_deserializer = staticmethod(deserialize)

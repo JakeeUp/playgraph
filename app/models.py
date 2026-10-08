@@ -103,7 +103,13 @@ class LinkedAccount(Base):
 class Game(Base):
     """A canonical game record. Steam games carry steam_appid; games from other
     stores have it NULL and are found through game_external_ids instead.
-    A PlayStation game is never merged into a Steam game by name.
+    A PlayStation game is never merged into a Steam game by name; only an exact
+    store-ID match through IGDB (provider 'igdb' in game_external_ids) can make
+    two store records the same game.
+
+    summary, first_release_date and cover_image_id come from IGDB and stay
+    NULL until an IGDB refresh. genres keeps the store's own tags when it has
+    them; IGDB genres only fill it when it is empty.
 
     genres is a comma-separated string for v1 simplicity - worth revisiting
     as a proper many-to-many GameGenre table once genre-based querying
@@ -122,18 +128,58 @@ class Game(Base):
     # catalog and feed filter on it for every row. The listener below keeps it
     # in step with steam_appid and genres on every insert and update.
     content_kind = Column(String, nullable=False, default="game", server_default="game", index=True)
+    summary = Column(Text, nullable=True)
+    first_release_date = Column(DateTime(timezone=True), nullable=True)
+    cover_image_id = Column(String, nullable=True)  # IGDB image ID, never a URL
+    hero_image_id = Column(String, nullable=True)  # IGDB artwork/screenshot ID for banners
+    igdb_refreshed_at = Column(DateTime(timezone=True), nullable=True)
 
     playtime_snapshots = relationship("PlaytimeSnapshot", back_populates="game")
     reviews = relationship("Review", back_populates="game")
     external_ids = relationship("GameExternalId", back_populates="game")
+    platforms = relationship("GamePlatform", back_populates="game", cascade="all, delete-orphan")
+
+
+class GamePlatform(Base):
+    """A platform a game was released on, by IGDB platform slug (e.g. "ps5")."""
+
+    __tablename__ = "game_platforms"
+    __table_args__ = (UniqueConstraint("game_id", "slug", name="uq_game_platforms_game_slug"),)
+
+    id = Column(Integer, primary_key=True)
+    game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
+    slug = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    abbreviation = Column(String, nullable=True)
+
+    game = relationship("Game", back_populates="platforms")
+
+
+class IgdbMatchCandidate(Base):
+    """An IGDB match too uncertain to apply automatically, kept for the owner
+    to accept or reject. reason: "name" (title match only) or "igdb_taken"
+    (an exact store-ID match whose IGDB game already belongs to another
+    PlayGraph game, i.e. a merge proposal). status: pending, accepted, rejected.
+    """
+
+    __tablename__ = "igdb_match_candidates"
+    __table_args__ = (UniqueConstraint("game_id", "igdb_id", name="uq_igdb_match_candidates_game_igdb"),)
+
+    id = Column(Integer, primary_key=True)
+    game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
+    igdb_id = Column(Integer, nullable=False)
+    reason = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending", server_default="pending", index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
 
 
 class GameExternalId(Base):
     """A store's own ID for a Game. One store ID belongs to exactly one Game.
 
     providers: "psn_concept" (gamelist concept, groups regional and PS4/PS5
-    title IDs), "psn_title" (CUSA.../PPSA... title ID) and "psn_trophy"
-    (NPWR..._00 trophy list). Steam keeps using games.steam_appid.
+    title IDs), "psn_title" (CUSA.../PPSA... title ID), "psn_trophy"
+    (NPWR..._00 trophy list) and "igdb" (IGDB game ID). Steam keeps using
+    games.steam_appid.
     """
 
     __tablename__ = "game_external_ids"
