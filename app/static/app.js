@@ -214,9 +214,9 @@ async function loadFrontReviews() {
       const body = el('div'); const head = el('div', 'front-review-head');
       head.append(button(game.name, 'front-review-title', () => gameDialog.open(game)), starDisplay(review.rating),
         el('span', 'sr-only', `Rated ${review.rating} out of 5.`));
-      if (review.verified_playtime_minutes != null) head.append(el('span', 'hours-block', `${hours(review.verified_playtime_minutes)} h played`));
+      if (review.verified_playtime_minutes != null) head.append(numbered('span', 'hours-block', `${hours(review.verified_playtime_minutes)} h played`));
       else head.append(el('span', 'helper', 'No Steam hours'));
-      const by = el('p', 'front-review-by', `${review.author_name} · `); by.append(el('span', 'num', timeLabel(review.created_at)));
+      const by = el('p', 'front-review-by', `${review.author_name} · `); by.append(el('span', 'date', timeLabel(review.created_at)));
       body.append(head, el('p', 'front-review-body', review.body), by); row.append(art, body); return row;
     }));
     $('#front-reviews').hidden = false;
@@ -374,8 +374,8 @@ function renderCollection() {
     const meta = el('span', 'game-meta');
     if (psn) meta.append(el('span', 'platform-badge', 'PlayStation'));
     else meta.append(el('span', 'genre-text', genresFor(game)[0] || 'Steam'));
-    if (own && psn) meta.append(el('span', entry.playtime_minutes > 0 ? 'num played' : 'num', playtimeLabel(entry)));
-    else if (own) meta.append(el('span', entry.playtime_minutes > 0 ? 'num played' : 'num', `${hours(entry.playtime_minutes)} h`));
+    if (own && psn) meta.append(numbered('span', entry.playtime_minutes > 0 ? 'hours played' : 'hours', playtimeLabel(entry)));
+    else if (own) meta.append(numbered('span', entry.playtime_minutes > 0 ? 'hours played' : 'hours', `${hours(entry.playtime_minutes)} h`));
     open.append(art, el('h3', 'game-name', game.name), meta); card.append(open); grid.append(card);
   }
   if (!visible.length) {
@@ -396,7 +396,7 @@ function renderCollection() {
 async function loadCatalog(append = false) {
   const request = ++state.catalogRequest; const generation = state.generation; const offset = append ? state.catalog.length : 0;
   $('#load-more').disabled = true;
-  if (!append) { state.catalog = []; state.total = 0; $('#games').replaceChildren(el('p', 'empty-message', 'Loading games…')); }
+  if (!append) { state.catalog = []; state.total = 0; $('#result-count').textContent = ''; $('#games').replaceChildren(el('p', 'empty-message', 'Loading games…')); }
   try {
     const data = await api(`/games?kind=${state.view === 'software' ? 'software' : 'game'}&limit=48&offset=${offset}&q=${encodeURIComponent(state.query)}`);
     if (request !== state.catalogRequest || generation !== state.generation || privateView()) return;
