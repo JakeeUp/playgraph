@@ -10,8 +10,9 @@ export const button = (text, className, action) => {
   const node = el('button', className, text); node.type = 'button';
   node.addEventListener('click', action); return node;
 };
-// A number in running text, with its h or % unit, so it can be set in the mono face.
-const NUMBER = /\d(?:[\d.,\u00a0\u202f]*\d)?(?:\s?(?:h|%))?(?![\p{L}\d])/gu;
+// The digits of a number in running text, so they can be set in the mono face.
+// Units (h, %) stay in the text face, so "96.4 h" keeps a normal word space.
+const NUMBER = /\d(?:[\d.,\u00a0\u202f]*\d)?(?![\p{L}\d])/gu;
 export function setNumbers(node, text) {
   node.replaceChildren(); let last = 0;
   for (const match of text.matchAll(NUMBER)) {

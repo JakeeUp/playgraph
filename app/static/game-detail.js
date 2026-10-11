@@ -60,10 +60,10 @@ export function createGameDialog(state, api, report = () => {}) {
     }
     info.append(fields);
     const about = el('div', 'detail-about'); info.append(about);
-    if (entry) { const synced = el('p', 'helper', 'Your numbers are from your Steam sync on '); synced.append(el('span', 'num', timeLabel(entry.captured_at))); info.append(synced); }
+    if (entry) { const synced = el('p', 'helper', 'Your numbers are from your Steam sync on '); synced.append(el('span', 'date', timeLabel(entry.captured_at))); info.append(synced); }
     if (psnEntry) {
       const synced = el('p', 'helper', 'Your PlayStation numbers are from your public PSN profile, synced on ');
-      synced.append(el('span', 'num', timeLabel(psnEntry.captured_at)), '. Hours appear only for PS4 and PS5 games when your privacy settings share them.');
+      synced.append(el('span', 'date', timeLabel(psnEntry.captured_at)), '. Hours appear only for PS4 and PS5 games when your privacy settings share them.');
       info.append(synced);
     }
     if (!entry && !psnEntry) info.append(el('p', 'helper', playstation
@@ -81,7 +81,7 @@ export function createGameDialog(state, api, report = () => {}) {
       if (details.first_release_date) {
         const released = new Date(details.first_release_date).toLocaleDateString(undefined,
           { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
-        fields.append(el('dt', '', 'Released'), el('dd', 'num', released));
+        fields.append(el('dt', '', 'Released'), el('dd', 'date', released));
       }
       if (details.summary) about.append(el('p', 'detail-summary', details.summary));
       if (details.summary || details.platforms?.length || details.first_release_date) {

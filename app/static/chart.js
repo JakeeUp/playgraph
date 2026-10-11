@@ -1,4 +1,4 @@
-import { el } from './dom.js';
+import { el, numbered } from './dom.js';
 
 /**
  * Bar length as a fraction of the largest value in its set. Every bar in a
@@ -17,7 +17,7 @@ function showTip(anchor, row) {
   // The same numbers are already visible in the row and in its accessible
   // name, so the tooltip is a visual extra that assistive tech can skip.
   tip.setAttribute('aria-hidden', 'true');
-  tip.replaceChildren(el('strong', '', row.text), el('span', '', row.detail));
+  tip.replaceChildren(numbered('strong', '', row.text), el('span', '', row.detail));
   tip.hidden = false;
   const box = anchor.getBoundingClientRect();
   const width = tip.offsetWidth;
@@ -48,7 +48,7 @@ export function barList(rows) {
     const track = el('span', 'bar-track');
     const bar = el('span', 'bar');
     bar.style.setProperty('--fraction', String(barFraction(row.value, max)));
-    track.append(bar, el('span', 'bar-value', row.text));
+    track.append(bar, numbered('span', 'bar-value', row.text));
     if (row.lead) hit.append(row.lead);
     hit.append(el('span', 'bar-label', row.label), track);
     for (const [event, action] of [['pointerenter', () => showTip(hit, row)], ['focus', () => showTip(hit, row)],

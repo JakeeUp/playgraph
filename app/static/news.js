@@ -28,7 +28,7 @@ function newsCard(item) {
   const row = el('article', 'news-row');
   const meta = el('p', 'news-meta'); meta.append(el('span', 'news-source', item.source));
   if (item.appid) meta.append(el('span', 'news-tag', 'Steam update'));
-  meta.append(el('span', 'num', ageLabel(item.published_at)));
+  meta.append(el('span', 'date', ageLabel(item.published_at)));
   // Links leave PlayGraph, so they open in a new tab and send no referrer.
   const link = el('a', 'news-title', item.title); link.href = item.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
   const heading = el('h3', 'news-heading'); heading.append(link);
