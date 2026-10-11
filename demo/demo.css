@@ -1,0 +1,10 @@
+/* The demo banner. Uses only the tokens defined in styles.css. */
+.demo-banner { background:var(--surface); border-bottom:1px solid var(--line); font-size:var(--text-sm); color:var(--text-body); }
+.demo-banner-inner {
+  display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-4);
+  width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto; padding:var(--space-2) var(--gutter);
+}
+.demo-banner strong { color:var(--accent); font-weight:600; }
+.demo-banner .text-button, .demo-banner a { font-size:var(--text-sm); }
+.demo-banner .demo-links { display:flex; gap:var(--space-4); margin-left:auto; }
+@media (max-width:640px) { .demo-banner .demo-links { margin-left:0; } }

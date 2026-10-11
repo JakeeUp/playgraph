@@ -37,3 +37,6 @@ Thumbs.db
 
 # Local helper scripts, not part of the project
 /push.bat
+
+# Demo site build output (demo/build.py)
+/_site/

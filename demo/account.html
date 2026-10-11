@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Sign-in is off in the PlayGraph demo. Browse as the sample player instead.">
+  <title>Demo account | PlayGraph</title>
+  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/account.css">
+  <script src="assets/demo-data.js"></script>
+  <script src="assets/demo-api.js"></script>
+</head>
+<body class="account-page">
+  <a class="skip-link" href="#account-main">Skip to content</a>
+  <header class="account-header">
+    <div class="frame">
+      <a class="brand" href="./"><img src="assets/mark.svg" alt="" width="24" height="24">PlayGraph</a>
+      <a href="./">Browse games</a>
+    </div>
+  </header>
+  <main id="account-main" class="account-layout frame" tabindex="-1">
+    <section class="account-intro" aria-labelledby="account-title">
+      <div class="account-hero">
+        <h1 id="account-title">Sign-in is off in the demo</h1>
+        <p class="account-lede">In the real app you sign in with email or Google, then connect Steam or PlayStation and your games come in with their hours and achievements.</p>
+      </div>
+      <p class="account-note">Everything here runs in your browser on sample data. Nothing you post is sent anywhere, and it all resets when you close the tab.</p>
+    </section>
+    <section class="account-form" aria-label="Demo player">
+      <h2>Browse as Jacob</h2>
+      <p>A sample library under Jacob&rsquo;s name: made-up hours, a few reviews and some comments. You can rate games, write and delete reviews, comment and run a sync.</p>
+      <div class="account-actions">
+        <button id="demo-sign-in" type="button" class="button primary">Browse as Jacob</button>
+        <a id="demo-sign-out" href="./">Look around signed out</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
