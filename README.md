@@ -8,6 +8,11 @@ Connect Steam and PlayGraph imports your playtime and achievements. When that
 data is available, your review keeps a snapshot of it. Two hundred hours or
 twenty minutes, there's some context behind the take.
 
+**[Try the demo](https://jakeeup.github.io/playgraph/).** It's the real front
+end running on sample data in your browser, so click around, rate things and
+write reviews. Nothing you do there is saved or sent anywhere. Sign-in, Steam
+sync and the news feed are stand-ins.
+
 I'm building it around that idea: a place to keep your games and reviews
 together, with your play history alongside them.
 
@@ -136,6 +141,18 @@ PlayGraph accounts are optional. To turn them on, put your Clerk development key
 in `.env.clerk` as `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`, and set
 `CLERK_ENABLED=true` in `.env`. Restart the API, then open `/account`.
 Keep both environment files out of Git.
+
+### The demo site
+
+The demo is built from `app/static` with a stand-in API and sample data from
+`demo/sample_data.py`. It needs nothing beyond Python:
+
+```bash
+python demo/build.py _site
+python -m http.server -d _site 8800
+```
+
+GitHub Pages publishes it from `main` through `.github/workflows/demo.yml`.
 
 ## Tests
 
