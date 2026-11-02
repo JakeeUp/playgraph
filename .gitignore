@@ -14,9 +14,12 @@ venv/
 *.key
 .audit-venv/
 
-# Local planning and session notes
-/ROADMAP.md
-/HANDOFF.md
+# Notes, plans and reviews stay local. Only the README is published.
+*.md
+!/README.md
+/docs/design-system/
+/audit/
+/playgraph-handoff.json
 
 # Local dev database (SQLite, including its WAL sidecar files)
 *.db

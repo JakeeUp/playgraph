@@ -3,7 +3,7 @@
 The player types their PSN Online ID, PlayGraph shows a one-time code, the
 player puts it in their PSN "About Me", and PlayGraph reads that profile with
 the one server-owned NPSSO. Players never give PlayGraph a PSN password,
-cookie or token. See docs/PSN_INTEGRATION.md.
+cookie or token.
 
 Security shape, mirroring app/routers/accounts.py:
 - Every route needs the cookie session; get_current_user enforces Origin and

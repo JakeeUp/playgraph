@@ -134,8 +134,9 @@ In a second terminal, activate the same environment and start the sync worker:
 python -m arq app.worker.WorkerSettings
 ```
 
-Open [localhost:8000/app](http://localhost:8000/app). On Windows, `dev.bat`
-starts both processes. Stop each with Ctrl+C in its terminal before migrating.
+Open [localhost:8000/app](http://localhost:8000/app). On Windows,
+`scripts\dev.bat` starts both processes. Stop each with Ctrl+C in its terminal
+before migrating.
 
 PlayGraph accounts are optional. To turn them on, put your Clerk development keys
 in `.env.clerk` as `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`, and set
@@ -172,11 +173,6 @@ Personal project, actively being built, not deployed yet.
 
 Next up is finishing account-linking acceptance, Steam connections for new
 PlayGraph accounts, and recovery controls. After that: a cross-platform catalog through IGDB, want-to-play and
-diary tracking, privacy controls, then public profiles. The full map is in
-[PHASES.md](PHASES.md).
-
-More detail: [SECURITY.md](SECURITY.md) for the security review,
-[MIGRATIONS.md](MIGRATIONS.md) for upgrades and recovery, and
-[PLATFORM_PLAN.md](PLATFORM_PLAN.md) for why Steam comes first.
+diary tracking, privacy controls, then public profiles.
 
 No license yet, so all rights reserved for now.

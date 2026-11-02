@@ -35,7 +35,7 @@ def utcnow() -> datetime:
 
 class Platform(str, enum.Enum):
     steam = "steam"
-    # PlayStation via a verified public profile; see docs/PSN_INTEGRATION.md.
+    # PlayStation via a verified public profile.
     psn = "psn"
 
 

@@ -273,7 +273,7 @@ class TokenState:
     client in the process draws on one request budget.
 
     The budget is per process, not per Sony account: the API and the worker
-    each keep their own. See docs/PSN_INTEGRATION.md.
+    each keep their own.
     """
 
     def __init__(self, clock: Callable[[], float] = time.monotonic):
