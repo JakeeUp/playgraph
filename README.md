@@ -134,8 +134,9 @@ In a second terminal, activate the same environment and start the sync worker:
 python -m arq app.worker.WorkerSettings
 ```
 
-Open [localhost:8000/app](http://localhost:8000/app). On Windows, `dev.bat`
-starts both processes. Stop each with Ctrl+C in its terminal before migrating.
+Open [localhost:8000/app](http://localhost:8000/app). On Windows,
+`scripts\dev.bat` starts both processes. Stop each with Ctrl+C in its terminal
+before migrating.
 
 PlayGraph accounts are optional. To turn them on, put your Clerk development keys
 in `.env.clerk` as `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`, and set
