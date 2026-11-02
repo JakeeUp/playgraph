@@ -172,11 +172,6 @@ Personal project, actively being built, not deployed yet.
 
 Next up is finishing account-linking acceptance, Steam connections for new
 PlayGraph accounts, and recovery controls. After that: a cross-platform catalog through IGDB, want-to-play and
-diary tracking, privacy controls, then public profiles. The full map is in
-[PHASES.md](PHASES.md).
-
-More detail: [SECURITY.md](SECURITY.md) for the security review,
-[MIGRATIONS.md](MIGRATIONS.md) for upgrades and recovery, and
-[PLATFORM_PLAN.md](PLATFORM_PLAN.md) for why Steam comes first.
+diary tracking, privacy controls, then public profiles.
 
 No license yet, so all rights reserved for now.
