@@ -10,7 +10,7 @@ an app access token (client credentials grant). Users never touch it. Every
 request is POST https://api.igdb.com/v4/<endpoint> with an Apicalypse query as
 the body. IGDB allows 4 requests per second and 8 open requests; the client
 stays inside both. Free for non-commercial use; a commercial launch needs an
-IGDB partnership and visible attribution (PHASES.md release gates).
+IGDB partnership and visible attribution.
 
 Schema notes, checked 2026-10-07 against the types generated from the IGDB
 docs: external_games.category is deprecated in favour of

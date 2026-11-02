@@ -306,9 +306,9 @@ async def _sync_owned_games(db, user_id, steam_id, owned_games, client, linked_a
 # PlayStation ---------------------------------------------------------------
 #
 # One server-owned NPSSO reads each linked player's public trophy list and,
-# where their privacy settings allow it, PS4/PS5 play time. See
-# docs/PSN_INTEGRATION.md. PSNClient spends a per-process request budget, so a
-# sync is a handful of paged calls plus one lookup per five new games.
+# where their privacy settings allow it, PS4/PS5 play time. PSNClient spends a
+# per-process request budget, so a sync is a handful of paged calls plus one
+# lookup per five new games.
 
 PSN_CONCEPT, PSN_TITLE, PSN_TROPHY = "psn_concept", "psn_title", "psn_trophy"
 MAX_NAME = 200
