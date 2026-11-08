@@ -31,10 +31,11 @@
   --badge:rgba(10,13,16,0.86);
 
   /* Text. White for titles and values, slate for running text, dusk for
-     metadata. Muted is 5:1 on --bg, 4.6:1 on --surface. */
+     metadata. Muted is 7.1:1 on --bg, 6.4:1 on --surface, 5.7:1 on --surface-2
+     and 4.7:1 on --surface-3, so it passes AA (4.5:1) on every surface. */
   --text:#ffffff;
   --text-body:#a3b4c2;
-  --text-muted:#728a9c;
+  --text-muted:#8da2b3;
 
   /* Orange: primary actions, links, the active tab, rating stars. 7.4:1 on --bg. */
   --accent:#ff7a00;
@@ -47,12 +48,28 @@
   --verified-ink:#04210f;       /* text on a solid green hours block */
   --verified-line:rgba(0,224,84,0.4);
   --danger:#ff5c7a;
+  --warn:#f5b73b;               /* demo banner: 10.4:1 on --bg */
+  --warn-soft:rgba(245,183,59,0.12);
   --series:#00b4d8;
   --series-hover:#3cc8e6;
 
   /* Only things that really float get a shadow: covers, dialogs, menus. */
   --shadow-cover:0 1px 2px rgba(0,0,0,0.4),0 8px 18px -10px rgba(0,0,0,0.7);
   --shadow-float:0 24px 60px -20px rgba(0,0,0,0.85);
+  --shadow-cover-hover:0 2px 4px rgba(0,0,0,0.45),0 16px 28px -12px rgba(0,0,0,0.8);
+
+  /* One focus ring for every control. */
+  --ring:var(--accent);
+  --ring-width:2px;
+  --ring-offset:2px;
+
+  --skeleton-base:var(--surface);
+  --skeleton-shine:var(--surface-3);
+
+  --z-cover-overlay:3;
+  --z-sticky:20;
+  --z-tabbar:40;
+  --z-skip:100;
 
   --font-display:"Archivo","IBM Plex Sans",system-ui,sans-serif;
   --display-stretch:84%;        /* narrow headings: more words per line, more punch */
@@ -82,6 +99,7 @@
   --gutter:var(--space-5);
   --content-max:1200px;
   --header-h:56px;
+  --header-h-compact:52px;
 
   /* One control: every button, chip, select and toggle is this tall. */
   --control-h:34px;
@@ -89,10 +107,15 @@
   --radius:4px;      /* buttons, inputs, chips */
   --radius-lg:6px;   /* panels, dialogs */
   --radius-sm:3px;   /* covers, badges, chart bars */
+  --radius-full:999px;
   --grid-gap:16px;
 
+  --dur-fast:90ms;
   --dur:140ms;
-  --ease:ease-out;
+  --dur-slow:240ms;
+  --dur-skeleton:1400ms;
+  --ease:cubic-bezier(0.2,0.7,0.2,1);
+  --ease-in-out:cubic-bezier(0.4,0,0.2,1);
 
   color-scheme:dark;
 }
@@ -109,7 +132,7 @@
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background:transparent; }
 ::-webkit-scrollbar-thumb {
   background:var(--surface-3) padding-box;
-  border:3px solid transparent; border-radius:999px; min-height:48px;
+  border:3px solid transparent; border-radius:var(--radius-full); min-height:48px;
 }
 ::-webkit-scrollbar-thumb:hover { background:var(--text-muted) padding-box; border-width:2px; }
 ::-webkit-scrollbar-thumb:active { background:var(--text-body) padding-box; border-width:2px; }
@@ -165,14 +188,15 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
 .skip-link {
-  position:absolute; left:var(--space-2); top:calc(var(--space-8) * -1); z-index:100;
+  position:absolute; left:var(--space-2); top:calc(var(--space-8) * -1); z-index:var(--z-skip);
   display:inline-flex; align-items:center; height:var(--control-h); padding:0 var(--control-pad);
   background:var(--accent); color:var(--on-accent); font-size:var(--text-ui); font-weight:600;
   border-radius:var(--radius);
 }
 .skip-link:focus { top:var(--space-2); }
 
-:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+:focus-visible { outline:var(--ring-width) solid var(--ring); outline-offset:var(--ring-offset); }
+@media (forced-colors:active) { :focus-visible { outline:2px solid Highlight; } .cover::after { outline-color:CanvasText; } }
 
 /* ============================ HEADER ============================ */
 /* One row: brand, sections, search, your counts, account. The active
@@ -180,7 +204,7 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 
 .workspace { min-width:0; display:flex; flex-direction:column; }
 
-.topbar { border-bottom:1px solid var(--line); background:var(--bg); position:sticky; top:0; z-index:20; }
+.topbar { border-bottom:1px solid var(--line); background:var(--bg); position:sticky; top:0; z-index:var(--z-sticky); }
 .topbar-inner {
   display:flex; align-items:center; gap:var(--space-5);
   width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto;
@@ -228,7 +252,7 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 }
 .search:hover { border-color:var(--line-strong); }
 /* The input drops its own outline; the whole field shows focus instead. */
-.search:focus-within { border-color:var(--accent); outline:1px solid var(--accent); }
+.search:focus-within { border-color:var(--ring); box-shadow:0 0 0 3px var(--accent-soft); }
 .search svg { width:16px; height:16px; stroke:var(--text-muted); fill:none; stroke-width:2; flex:none; }
 .search input {
   flex:1; min-width:0; height:100%; background:none; border:0; outline:none; padding:0;
@@ -268,6 +292,7 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 .button.large { --control-h:44px; padding:0 var(--space-5); font-size:var(--text-md); }
 .button.secondary { background:transparent; }
 .button.secondary:hover { background:var(--surface-2); }
+.button:active:not(:disabled) { transform:translateY(1px); }
 .button:disabled { opacity:0.6; cursor:default; }
 
 /* Actions that read as links: same color and hover as an <a>. */
@@ -287,11 +312,18 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
   display:flex; flex-direction:column; gap:var(--space-7); min-width:0;
 }
 
+.demo-banner {
+  display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:var(--space-1) var(--space-2);
+  min-height:28px; padding:2px var(--gutter);
+  background:var(--warn-soft); color:var(--warn); border-bottom:1px solid color-mix(in srgb,var(--warn) 35%,transparent);
+  font-size:var(--text-sm); font-weight:500; text-align:center;
+}
+.demo-dot { width:6px; height:6px; border-radius:var(--radius-full); background:currentColor; flex:none; }
 .notice {
-  border:1px solid var(--line); border-left:3px solid var(--accent); background:var(--surface);
+  border:1px solid var(--line); border-left:3px solid var(--accent); background:var(--accent-soft);
   border-radius:var(--radius); padding:var(--space-3) var(--space-4); font-size:var(--text-ui);
 }
-.notice.error { border-color:var(--line); border-left-color:var(--danger); color:var(--danger); }
+.notice.error { border-color:var(--line); border-left-color:var(--danger); color:var(--danger); background:color-mix(in srgb,var(--danger) 12%,transparent); }
 
 /* ---- page heading ---- */
 .page-heading { position:relative; display:flex; align-items:flex-end; gap:var(--space-4); flex-wrap:wrap; }
@@ -302,8 +334,8 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 /* Your most played game's wide art behind the heading. It fades to the
    canvas on the left and the bottom, so the title sits on calm, dark color. */
 .page-heading.has-hero {
-  isolation:isolate; overflow:hidden; min-height:240px;
-  padding:var(--space-7) var(--space-6) var(--space-5); border-radius:var(--radius-lg); background:var(--surface);
+  isolation:isolate; overflow:hidden; min-height:176px;
+  padding:var(--space-6) var(--space-6) var(--space-5); border-radius:var(--radius-lg); background:var(--surface);
 }
 .page-heading.has-hero .subtitle { color:var(--text); opacity:0.8; }
 .hero-art { position:absolute; inset:0; z-index:-2; width:100%; height:100%; object-fit:cover; object-position:center 30%; }
@@ -352,6 +384,8 @@ a:hover { text-decoration:underline; text-underline-offset:3px; }
 }
 .chip:hover { color:var(--text); border-color:var(--line-strong); }
 .chip.selected { background:var(--text); border-color:var(--text); color:var(--bg); }
+.chip:active:not(:disabled) { background:var(--surface-2); }
+.chip.selected:active:not(:disabled) { background:var(--text); }
 .chip:disabled { opacity:0.6; cursor:default; }
 
 /* Platforms. PC is the only source today; the consoles say so instead of
@@ -410,25 +444,51 @@ select:disabled { color:var(--text-muted); cursor:default; }
   position:relative; display:block; aspect-ratio:2/3;
   border-radius:var(--radius-sm); overflow:hidden; background:var(--surface);
   box-shadow:var(--shadow-cover);
-  transition:transform var(--dur) var(--ease);
+  transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
-.game-card > button:hover .cover, .game-card > button:focus-visible .cover { transform:translateY(-3px); }
+/* Hover lift only where hover exists, so touch screens do not keep a lifted card. */
+@media (hover:hover) {
+  .game-card > button:hover .cover { transform:translateY(-3px); box-shadow:var(--shadow-cover-hover); }
+  .game-card > button:hover .cover img { filter:brightness(1.1); }
+  .game-card > button:hover .cover-meta { opacity:1; transform:none; }
+}
+.game-card > button:focus-visible .cover { transform:translateY(-3px); box-shadow:var(--shadow-cover-hover); }
+.game-card > button:active .cover { transform:translateY(-1px) scale(0.99); }
 .game-card > button:focus-visible { outline:none; }
-.game-card > button:focus-visible .cover { outline:2px solid var(--accent); outline-offset:2px; }
+.game-card > button:focus-visible .cover { outline:var(--ring-width) solid var(--ring); outline-offset:var(--ring-offset); }
 /* A faint keyline drawn over the art so dark covers keep their edge. */
 .cover::after { content:""; position:absolute; inset:0; z-index:2; border-radius:inherit; outline:1px solid var(--line); outline-offset:-1px; pointer-events:none; }
 .cover img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; transition:filter var(--dur) var(--ease); }
-.game-card > button:hover .cover img, .game-card > button:focus-visible .cover img { filter:brightness(1.1); }
+.game-card > button:focus-visible .cover img { filter:brightness(1.1); }
 .cover img.header-fallback { object-position:center; }
-/* No art at all: the title, set like a plain box spine. */
-.cover-placeholder {
-  position:absolute; inset:0; display:flex; align-items:flex-end;
-  padding:var(--space-3); border-top:3px solid var(--surface-3);
-  font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:800; font-size:var(--text-md); line-height:var(--leading-tight); color:var(--text);
-  background:var(--surface-2); overflow-wrap:anywhere;
+/* Rating and hours rise over the art on hover and keyboard focus, and stay
+   visible where there is no hover. */
+.cover-meta {
+  position:absolute; inset:auto 0 0; z-index:var(--z-cover-overlay);
+  padding:var(--space-6) var(--space-2) var(--space-2);
+  background:linear-gradient(0deg,rgba(0,0,0,0.85),transparent);
+  font-size:var(--text-xs); line-height:1.2; color:#fff;
+  opacity:0; transform:translateY(4px);
+  transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+  pointer-events:none;
 }
+.game-card > button:focus-visible .cover-meta { opacity:1; transform:none; }
+@media (hover:none) { .cover-meta { opacity:1; transform:none; } }
+/* No art at all: a gradient picked from the title, hairlines, and its initial.
+   Text is white on colors held to 4.5:1 (see covers.js); the name sits below. */
+.cover-placeholder {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:800;
+  font-size:3.25rem; line-height:1; color:rgba(255,255,255,0.9);
+  background:
+    repeating-linear-gradient(135deg,rgba(255,255,255,0.06) 0 1px,transparent 1px 10px),
+    linear-gradient(var(--ph-angle,150deg),var(--ph-from,#3d4f66),var(--ph-to,#1b2531));
+  user-select:none;
+}
+.feed-cover .cover-placeholder, .spotlight-cover .cover-placeholder, .front-review .cover-placeholder { font-size:2rem; }
+.bar-lead .cover-placeholder { font-size:0.95rem; }
 .cover-badge {
-  position:absolute; top:var(--space-2); left:var(--space-2); z-index:3;
+  position:absolute; top:var(--space-2); left:var(--space-2); z-index:var(--z-cover-overlay);
   font-family:var(--font-mono); font-size:var(--text-xs); font-weight:500; line-height:1;
   padding:3px 5px; border-radius:var(--radius-sm);
   background:var(--badge); color:var(--text);
@@ -454,19 +514,40 @@ select:disabled { color:var(--text-muted); cursor:default; }
 .game-list .game-card { border-bottom:1px solid var(--line); }
 .game-list .game-card > button { flex-direction:row; align-items:center; gap:var(--space-3); padding:var(--space-2) var(--space-1); border-radius:0; }
 .game-list .game-card > button:hover { background:var(--surface); }
-.game-list .game-card > button:hover .cover { transform:none; }
+.game-list .game-card > button:hover .cover, .game-list .game-card > button:focus-visible .cover { transform:none; box-shadow:var(--shadow-cover); }
+.game-list .cover-meta { display:none; }
 .game-list .cover { width:40px; flex:none; }
-.game-list .cover-badge, .game-list .cover-placeholder { display:none; }
+.game-list .cover-badge { display:none; }
+.game-list .cover-placeholder { font-size:1.25rem; }
 .game-list .game-name { font-size:var(--text-md); -webkit-line-clamp:1; flex:1; min-height:0; }
 .game-list .game-meta { flex:none; gap:var(--space-4); }
 
 /* ---- empty + load more ---- */
 .empty-message {
-  grid-column:1/-1; display:flex; flex-direction:column; align-items:flex-start; gap:var(--space-2);
-  border-block:1px solid var(--line); padding:var(--space-6) 0; color:var(--text-muted); font-size:var(--text-md);
+  grid-column:1/-1; display:flex; flex-direction:column; align-items:center; text-align:center; gap:var(--space-2);
+  border:1px dashed var(--line-strong); border-radius:var(--radius-lg); background:var(--surface);
+  padding:var(--space-7) var(--space-4); color:var(--text-muted); font-size:var(--text-md);
 }
 .empty-message strong { font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:800; font-size:var(--text-xl); color:var(--text); }
 .empty-message .button { margin-top:var(--space-2); }
+.empty-icon { width:40px; height:40px; stroke:var(--text-muted); fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; margin-bottom:var(--space-1); }
+.empty-message.is-error strong { color:var(--danger); }
+.empty-message.is-error .empty-icon { stroke:var(--danger); }
+
+/* ---- loading skeletons: same footprint as the real cards, so nothing jumps ---- */
+.skeleton {
+  background:linear-gradient(90deg,var(--skeleton-base) 0%,var(--skeleton-shine) 50%,var(--skeleton-base) 100%);
+  background-size:200% 100%; animation:skeleton var(--dur-skeleton) var(--ease-in-out) infinite;
+  border-radius:var(--radius-sm);
+}
+@keyframes skeleton { from { background-position:200% 0; } to { background-position:-200% 0; } }
+.skeleton-card { min-width:0; display:flex; flex-direction:column; gap:var(--space-2); }
+.skeleton-card .cover { box-shadow:none; }
+.skeleton-line { height:12px; }
+.skeleton-line.name { height:calc(var(--text-ui) * 1.2 * 2); }
+.skeleton-line.short { width:55%; }
+.skeleton-feed .skeleton-cover { display:block; width:100%; aspect-ratio:2/3; }
+.skeleton-feed .skeleton-lines { display:flex; flex-direction:column; gap:var(--space-2); padding-top:var(--space-1); }
 .load-more { display:flex; align-items:center; gap:var(--space-3); margin-top:var(--space-5); }
 .helper { font-size:var(--text-sm); color:var(--text-muted); }
 .muted { color:var(--text-muted); }
@@ -549,9 +630,10 @@ select:disabled { color:var(--text-muted); cursor:default; }
   :root { --gutter:var(--space-4); }
   .topnav, .beta { display:none; }
   .topbar-inner { gap:var(--space-3); }
-  .brand { font-size:0; gap:0; }
+  .brand-text { display:none; }
+  .brand { gap:0; }
   .workspace > main { padding-bottom:calc(var(--space-8) + var(--space-7) + env(safe-area-inset-bottom,0px)); gap:var(--space-6); }
-  .search { max-width:none; margin-left:0; }
+  .search { max-width:none; margin-left:0; flex:1 1 0; min-width:0; }
   .search kbd { display:none; }
   .account-name { display:none; }
   .game-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-4) var(--space-2); }
@@ -567,16 +649,25 @@ select:disabled { color:var(--text-muted); cursor:default; }
   .display-controls { width:100%; margin-left:0; }
 
   .tabbar {
-    display:flex; position:fixed; left:0; right:0; bottom:0; z-index:40;
-    border-top:1px solid var(--line); background:var(--bg);
+    display:flex; position:fixed; left:0; right:0; bottom:0; z-index:var(--z-tabbar);
+    border-top:1px solid var(--line); background:rgba(var(--bg-rgb),0.92);
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
     padding:0 var(--space-2) env(safe-area-inset-bottom,0px);
   }
   .tabbar .nav-item {
-    flex:1; justify-content:center; height:var(--space-7); border-radius:0;
-    border-left:0; border-top:2px solid transparent;
-    font-size:var(--text-sm); text-align:center;
+    flex:1; min-width:0; flex-direction:column; justify-content:center; gap:2px; height:56px; border-radius:0;
+    font-size:var(--text-xs); text-align:center;
   }
-  .tabbar .nav-item.active { color:var(--text); border-top-color:var(--accent); }
+  .tabbar .nav-icon { width:44px; height:26px; display:grid; place-items:center; border-radius:var(--radius-full); transition:background-color var(--dur) var(--ease); }
+  .tabbar .nav-icon svg { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .tabbar .nav-item.active, .tabbar .nav-item[aria-current="page"] { color:var(--accent); }
+  .tabbar .nav-item.active .nav-icon, .tabbar .nav-item[aria-current="page"] .nav-icon { background:var(--accent-soft); }
+}
+
+@media (max-width:540px) {
+  .game-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .game-meta { font-size:var(--text-sm); }
+  .topbar-inner { height:var(--header-h-compact); }
 }
 
 @media (max-width:420px) {
@@ -585,5 +676,6 @@ select:disabled { color:var(--text-muted); cursor:default; }
 }
 
 @media (prefers-reduced-motion:reduce) {
+  :root { --dur-fast:0ms; --dur:0ms; --dur-slow:0ms; --dur-skeleton:0ms; }
   *, *::before, *::after { transition:none !important; animation:none !important; scroll-behavior:auto !important; }
 }

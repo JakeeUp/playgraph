@@ -22,7 +22,7 @@
 .feed-title:hover { color:var(--accent-hover); }
 .feed-reason { font-size:var(--text-sm); color:var(--text-muted); }
 .feed-card .review-author { font-size:var(--text-ui); }
-.feed-card .review-body { font-size:var(--text-md); color:var(--text-body); margin-top:var(--space-2); }
+.feed-card .review-body { font-size:var(--text-md); color:var(--text-body); margin-top:var(--space-2); line-height:1.55; }
 .feed-count { margin-top:var(--space-3); font-size:var(--text-sm); color:var(--text-muted); }
 
 /* ==========================================================================
@@ -66,7 +66,8 @@
   opacity:0; margin:0; padding:0; cursor:pointer;
   -webkit-appearance:none; appearance:none; background:none; border:0;
 }
-.rating-track:focus-within .rating-stars { outline:2px solid var(--accent); outline-offset:3px; border-radius:var(--radius); }
+.rating-track:focus-within .rating-stars { outline:var(--ring-width) solid var(--ring); outline-offset:3px; border-radius:var(--radius); }
+@media (pointer:coarse) { .rating-track { padding-block:var(--space-2); } }
 
 .rating-value { font-weight:500; font-size:var(--text-md); min-width:9ch; color:var(--text-muted); }
 .rating-value.num { color:var(--text); }
