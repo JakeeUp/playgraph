@@ -286,6 +286,17 @@ def test_responses_report_the_per_address_budget(client):
     assert 1 <= int(second.headers["ratelimit-reset"]) <= 60
 
 
+def test_static_assets_do_not_spend_the_request_budget(client):
+    before = client.get("/games/1/reviews")
+    for _ in range(REQUESTS_PER_MINUTE + 5):
+        asset = client.get("/assets/styles.css")
+        assert "ratelimit-limit" not in asset.headers
+    after = client.get("/games/1/reviews")
+    assert int(before.headers["ratelimit-remaining"]) - int(after.headers["ratelimit-remaining"]) == 1
+    # Writes to an asset path still count.
+    assert "ratelimit-limit" in client.post("/assets/styles.css").headers
+
+
 def test_each_account_has_its_own_private_read_budget(client):
     headers = auth_headers(client.app.state.arq_pool)
     for _ in range(90):

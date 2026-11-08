@@ -116,7 +116,10 @@ class SecurityMiddleware:
                     raise HTTPException(400, "Invalid content length")
                 if len(length) > 10 or int(length) > MAX_BODY_BYTES:
                     raise HTTPException(413, "Request body too large")
-            if request.url.path != "/health":
+            # Static files are public and fixed, and one page load pulls in dozens of
+            # them, so counting them would 429 a visitor's stylesheets on a reload.
+            static = request.method in ("GET", "HEAD") and request.url.path.startswith("/assets/")
+            if request.url.path != "/health" and not static:
                 # Proxy headers are only meaningful when the ASGI server trusts the proxy.
                 # Never parse X-Forwarded-For here: a direct client can forge it.
                 address = request.client.host if request.client else "unknown"
