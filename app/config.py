@@ -17,7 +17,8 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=(".env.clerk", ".env"), extra="ignore", hide_input_in_errors=True)
 
-    steam_api_key: SecretStr
+    # Required, except in demo mode where no Steam call is ever made.
+    steam_api_key: SecretStr = SecretStr("")
     app_base_url: str = "http://localhost:8000"
     jwt_secret: SecretStr
     # Deployed connection URLs carry passwords, so they get the same masking as
@@ -26,6 +27,9 @@ class Settings(BaseSettings):
     redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
     environment: Literal["development", "production"] = "development"
     session_minutes: int = Field(default=30, ge=5, le=60)
+    # A read-only instance holding only synthetic data. Real sign-in, linking,
+    # external provider calls, writes, Redis and the worker are all off.
+    demo_mode: bool = False
     clerk_enabled: bool = False
     clerk_publishable_key: str = Field(default="", repr=False)
     clerk_secret_key: SecretStr = SecretStr("")
@@ -49,12 +53,12 @@ class Settings(BaseSettings):
 
     @property
     def igdb_enabled(self) -> bool:
-        return bool(self.igdb_client_id.strip() and self.igdb_client_secret.get_secret_value().strip())
+        return not self.demo_mode and bool(self.igdb_client_id.strip() and self.igdb_client_secret.get_secret_value().strip())
 
     @property
     def psn_enabled(self) -> bool:
         """Safe to show anyone: whether a server NPSSO is set, never its value."""
-        return bool(self.psn_npsso.get_secret_value().strip())
+        return not self.demo_mode and bool(self.psn_npsso.get_secret_value().strip())
 
     @property
     def clerk_origin(self) -> str:
@@ -70,6 +74,22 @@ class Settings(BaseSettings):
         if not host.endswith("$") or not re.fullmatch(r"[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}\$", host):
             raise ValueError("Invalid Clerk frontend domain")
         return "https://" + host[:-1]
+
+    @model_validator(mode="after")
+    def demo_configuration(self):
+        """Demo mode drops every provider credential, even one inherited from a .env file."""
+        if self.demo_mode:
+            self.clerk_enabled = False
+            self.clerk_publishable_key = ""
+            self.clerk_secret_key = SecretStr("")
+            self.psn_npsso = SecretStr("")
+            self.igdb_client_id = ""
+            self.igdb_client_secret = SecretStr("")
+            self.apitube_api_key = SecretStr("")
+            self.steam_api_key = SecretStr("")
+        elif not self.steam_api_key.get_secret_value():
+            raise ValueError("STEAM_API_KEY is required")
+        return self
 
     @model_validator(mode="after")
     def clerk_configuration(self):
@@ -113,8 +133,12 @@ class Settings(BaseSettings):
             if not self.app_base_url.startswith("https://"):
                 raise ValueError("Production APP_BASE_URL requires HTTPS")
             redis = urlsplit(self.redis_url.get_secret_value())
+            if self.demo_mode:
+                return self  # The demo keeps its short-lived state in memory, no Redis.
             if redis.scheme != "rediss" or not redis.password:
                 raise ValueError("Production Redis requires TLS and authentication")
+        elif self.app_base_url.startswith("https://"):
+            raise ValueError("An HTTPS APP_BASE_URL requires ENVIRONMENT=production")
         return self
 
 

@@ -95,7 +95,7 @@ async def complete_link(request: Request, user: User = Depends(get_current_user)
 
 @router.get("/config")
 def configuration():
-    return {"enabled": settings.clerk_enabled,
+    return {**({"demo": True} if settings.demo_mode else {}), "enabled": settings.clerk_enabled,
             "publishable_key": settings.clerk_publishable_key if settings.clerk_enabled else None,
             "frontend_api": settings.clerk_origin if settings.clerk_enabled else None}
 

@@ -15,7 +15,9 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.config import settings
 from app.database import engine
 from app.migrations import require_current_schema
-from app.routers import accounts, auth, catalog, feed, library, news, psn, reviews
+from app.demo import DemoGuard
+from app.memory_store import MemoryStore
+from app.routers import accounts, auth, catalog, demo, feed, library, news, psn, reviews
 from app.middleware import SecurityMiddleware
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
 from app.security_logging import configure_access_logging
@@ -30,10 +32,14 @@ async def lifespan(app: FastAPI):
     # enqueue jobs (like the Steam sync) from request handlers. Created here
     # instead of per-request so we're not opening a new Redis connection on
     # every single API call.
-    app.state.arq_pool = await create_pool(
-        RedisSettings.from_dsn(settings.redis_url.get_secret_value()), job_serializer=serialize,
-        job_deserializer=deserialize, default_queue_name=QUEUE_NAME,
-    )
+    if settings.demo_mode:
+        # No Redis, no worker: sessions and limits live in this one process.
+        app.state.arq_pool = MemoryStore()
+    else:
+        app.state.arq_pool = await create_pool(
+            RedisSettings.from_dsn(settings.redis_url.get_secret_value()), job_serializer=serialize,
+            job_deserializer=deserialize, default_queue_name=QUEUE_NAME,
+        )
     try:
         yield
     finally:
@@ -76,6 +82,7 @@ class CompressionMiddleware:
 # Added first so it runs innermost: the security middleware still sees and sets
 # headers on the final, compressed response.
 app.add_middleware(CompressionMiddleware)
+app.add_middleware(DemoGuard)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=[urlsplit(settings.app_base_url).hostname],
                    www_redirect=False)
 app.add_middleware(SecurityMiddleware)
@@ -103,6 +110,7 @@ app.include_router(catalog.router)
 app.include_router(feed.router)
 app.include_router(news.router)
 app.include_router(psn.router)
+app.include_router(demo.router)
 
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
