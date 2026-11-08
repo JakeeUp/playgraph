@@ -161,7 +161,7 @@ Node.js is needed for the browser-module checks.
 
 ```bash
 python -m pytest -q
-node --test tests/test_library_ui.mjs
+node --test tests/*.mjs
 ```
 
 CI runs both, plus `pip-audit` and `bandit`, on every push. There's also a
