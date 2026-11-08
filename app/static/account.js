@@ -139,9 +139,9 @@ async function start() {
     signInUrl: '/account', signUpUrl: '/account',
     signInForceRedirectUrl: '/account', signUpForceRedirectUrl: '/account',
     appearance: { variables: {
-      colorPrimary: token('--accent'), colorPrimaryForeground: token('--on-accent'), colorBackground: token('--surface'),
-      colorForeground: token('--text'), colorMutedForeground: token('--text-muted'), colorInput: token('--bg'),
-      colorInputForeground: token('--text'), colorBorder: token('--line'), colorDanger: token('--danger'),
+      colorPrimary: token('--ink'), colorPrimaryForeground: token('--paper'), colorBackground: token('--surface'),
+      colorForeground: token('--ink'), colorMutedForeground: token('--muted'), colorInput: token('--surface'),
+      colorInputForeground: token('--ink'), colorBorder: token('--rule'), colorDanger: token('--danger'),
       colorShadow: 'transparent', fontFamily: token('--font-sans'), borderRadius: token('--radius'),
     } },
   });

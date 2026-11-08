@@ -1,27 +1,32 @@
-// Placeholder covers for games without artwork. Pure functions, no DOM: the
-// same title always gets the same colors, and every pair keeps white text at
-// 4.5:1 or better, pattern and all.
-export const INK = [255, 255, 255];
-// Hue pairs [light end, dark end]. Dark, slightly desaturated, picked to sit
-// next to the slate surfaces and the orange accent without fighting them.
+// Generated covers for games without artwork. Pure functions, no DOM: the
+// same title always gets the same cover. Each one is a flat poster: one
+// solid fill, one solid shape in a second colour, and the title set in the
+// top-left corner in white or ink, whichever reads better on the fill. No
+// gradients, no texture, no transparency, so the text contrast is exactly
+// the fill's contrast with the ink.
+export const WHITE = [255, 255, 255];
+export const INK = [17, 17, 17];
+
+// Twelve fills, each with two partner colours for its shape: one from the
+// set and the paper tone, picked by the title.
+export const PAPER = '#F6F6F3';
 export const PALETTE = [
-  ['#14566b', '#0b2a38'], // teal
-  ['#34388a', '#181a48'], // indigo
-  ['#6a2f7a', '#2f1238'], // plum
-  ['#7d2740', '#3a1020'], // wine
-  ['#1f6240', '#0f301f'], // forest
-  ['#80420f', '#40210a'], // rust
-  ['#2f5584', '#162844'], // steel blue
-  ['#5a5a16', '#2b2c0b'], // olive
-  ['#0f6458', '#0a2f2b'], // sea green
-  ['#5b3a8c', '#241643'], // violet
-  ['#8a3224', '#42150f'], // brick
-  ['#3d4f66', '#1b2531'], // slate
+  { fill: '#2B4C7E', partner: '#D9A441' },
+  { fill: '#C0392B', partner: '#1B2A49' },
+  { fill: '#1F7A5A', partner: '#D9A441' },
+  { fill: '#D9A441', partner: '#1B2A49' },
+  { fill: '#6B3FA0', partner: '#D9A441' },
+  { fill: '#E4572E', partner: '#1B2A49' },
+  { fill: '#17A2B8', partner: '#1B2A49' },
+  { fill: '#3D3D3A', partner: '#E4572E' },
+  { fill: '#8C5A2B', partner: '#D9A441' },
+  { fill: '#A4BF3C', partner: '#1F7A5A' },
+  { fill: '#D64F7A', partner: '#1B2A49' },
+  { fill: '#1B2A49', partner: '#17A2B8' },
 ];
-// Diagonal hairlines laid over the gradient: white at this alpha.
-export const PATTERN_ALPHA = 0.06;
-// The monogram's alpha. It is decorative but is still held to 4.5:1.
-export const MONOGRAM_ALPHA = 0.9;
+// One flat shape per cover, drawn by dom.js as SVG in the lower part of the
+// jacket so it never runs under the title.
+export const SHAPES = ['disc', 'rise', 'bars', 'dots', 'block', 'corner', 'band'];
 
 /** FNV-1a, 32 bit. Stable across runs and platforms. */
 export function hashString(text) {
@@ -29,29 +34,24 @@ export function hashString(text) {
   for (const char of String(text)) { hash ^= char.codePointAt(0); hash = Math.imul(hash, 0x01000193) >>> 0; }
   return hash >>> 0;
 }
-const hex = (value) => [1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16));
+export const hex = (value) => [1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16));
 const channel = (c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
 export const luminance = ([r, g, b]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 export function contrast(a, b) {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 }
-export const mix = (top, bottom, alpha) => bottom.map((c, i) => Math.round(top[i] * alpha + c * (1 - alpha)));
-/** Worst-case contrast of the ink on one palette pair, with the pattern and the monogram blended in. */
-export function pairContrast(pair) {
-  return Math.min(...pair.flatMap((color) => {
-    const base = hex(color); const lined = mix(INK, base, PATTERN_ALPHA);
-    return [contrast(INK, base), contrast(INK, lined), contrast(mix(INK, base, MONOGRAM_ALPHA), lined)];
-  }));
+/** White or ink, whichever has more contrast on the fill. */
+export function inkFor(fill) {
+  const rgb = hex(fill);
+  return contrast(WHITE, rgb) >= contrast(INK, rgb) ? '#FFFFFF' : '#111111';
 }
-/** The first letter or digit of a title, upper-cased, for the big monogram. */
-export function monogram(title) {
-  const match = String(title || '').match(/[\p{L}\p{N}]/u);
-  return match ? match[0].toLocaleUpperCase() : '?';
-}
-/** Everything a placeholder needs, decided by the title alone. */
+
+/** Everything a generated cover needs, decided by the title alone. */
 export function placeholderFor(title) {
   const hash = hashString(String(title || '').trim().toLocaleLowerCase());
-  const [from, to] = PALETTE[hash % PALETTE.length];
-  return { from, to, angle: 135 + ((hash >>> 8) % 4) * 15, letter: monogram(title) };
+  const { fill, partner } = PALETTE[hash % PALETTE.length];
+  const shape = SHAPES[(hash >>> 8) % SHAPES.length];
+  const accent = (hash >>> 16) % 3 === 0 ? PAPER : partner;
+  return { fill, accent, ink: inkFor(fill), shape };
 }

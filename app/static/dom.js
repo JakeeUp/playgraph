@@ -12,8 +12,8 @@ export const button = (text, className, action) => {
   const node = el('button', className, text); node.type = 'button';
   node.addEventListener('click', action); return node;
 };
-// The digits of a number in running text, so they can be set in the mono face.
-// Units (h, %) stay in the text face, so "96.4 h" keeps a normal word space.
+// The digits of a number in running text, wrapped so they set in tabular
+// figures and line up in columns. Units (h, %) stay outside the wrapper.
 const NUMBER = /\d(?:[\d.,\u00a0\u202f]*\d)?(?![\p{L}\d])/gu;
 export function setNumbers(node, text) {
   node.replaceChildren(); let last = 0;
@@ -38,13 +38,34 @@ export const steamLink = (text = 'Sign in') => {
   const link = el('a', 'button primary', text); link.href = '/account'; return link;
 };
 export const aborted = (error) => error.name === 'AbortError';
-// Deterministic title cover: gradient, hairline pattern and a big initial. It is
-// decorative (aria-hidden): the game's name is always in the text beside it or
-// in its button's label, so the accessible name is spoken once.
+// Deterministic title cover: a flat poster made from the title alone. One
+// solid fill, one solid shape in a second colour, the title in the top-left
+// corner. It is decorative (aria-hidden): the game's name is always in the
+// text beside it or in its button's label, so the name is spoken once.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svgNode(tag, attributes) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, String(value));
+  return node;
+}
+// Each shape lives in the lower part of a 200 x 300 jacket, under the title.
+const SHAPE_DRAW = {
+  disc: () => [svgNode('circle', { cx: 112, cy: 212, r: 62 })],
+  rise: () => [svgNode('path', { d: 'M10 300a90 90 0 0 1 180 0z' })],
+  bars: () => [150, 186, 222, 258].map((y, i) => svgNode('rect', { x: 0, y, width: 200 - i * 34, height: 20 })),
+  dots: () => Array.from({ length: 16 }, (_, i) => svgNode('circle', { cx: 46 + (i % 4) * 36, cy: 160 + Math.floor(i / 4) * 36, r: 9 })),
+  block: () => [svgNode('rect', { x: 64, y: 150, width: 136, height: 150 })],
+  corner: () => [svgNode('path', { d: 'M200 120v180H20A180 180 0 0 1 200 120z' })],
+  band: () => [svgNode('rect', { x: 112, y: 150, width: 32, height: 150 }), svgNode('rect', { x: 152, y: 196, width: 32, height: 104 })],
+};
 export function placeholder(game) {
-  const { from, to, angle, letter } = placeholderFor(game.name);
-  const node = el('span', 'cover-placeholder', letter); node.setAttribute('aria-hidden', 'true');
-  node.style.setProperty('--ph-from', from); node.style.setProperty('--ph-to', to); node.style.setProperty('--ph-angle', `${angle}deg`);
+  const { fill, accent, ink, shape } = placeholderFor(game.name);
+  const node = el('span', `cover-placeholder shape-${shape}`); node.setAttribute('aria-hidden', 'true');
+  node.dataset.title = game.name || '';
+  node.style.setProperty('--ph-fill', fill); node.style.setProperty('--ph-accent', accent); node.style.setProperty('--ph-ink', ink);
+  const art = svgNode('svg', { viewBox: '0 0 200 300', preserveAspectRatio: 'xMidYMid slice', class: 'ph-art' });
+  art.append(...SHAPE_DRAW[shape]());
+  node.append(art, el('span', 'ph-title', game.name || ''));
   return node;
 }
 export function cover(game) {
@@ -72,16 +93,6 @@ export function cover(game) {
   });
   frame.append(img); return frame;
 }
-// One decorative cover in the signed-out welcome wall. Lazy, because the
-// wall's CSS hides its third row everywhere and more columns on narrow
-// screens; a lazy image that is never rendered is never downloaded.
-export function wallArt(appid) {
-  const img = el('img'); img.alt = ''; img.width = 600; img.height = 900;
-  img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
-  img.src = steamArt(appid, 'library_600x900.jpg');
-  img.addEventListener('error', () => img.remove(), { once: true });
-  return img;
-}
 export function timeLabel(value) {
   const date = new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
   return Number.isNaN(date.valueOf()) ? '' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -95,29 +106,34 @@ export async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
 
-// Small stroked icons for empty and error states, drawn with the DOM like the
-// star rating so the strict CSP never sees inline markup.
-const SVG_NS = 'http://www.w3.org/2000/svg';
-const ICONS = {
-  shelf: ['M4 20V6M10 20V4M16 20V8', 'M3 20h18', 'm19 20-2-12'],
-  chat: ['M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z'],
-  warning: ['M12 4 2.8 19.5h18.4z', 'M12 10v4.5', 'M12 17.2v.1'],
-};
-export function icon(name, className = 'empty-icon') {
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('class', className);
-  for (const d of ICONS[name]) { const path = document.createElementNS(SVG_NS, 'path'); path.setAttribute('d', d); svg.append(path); }
-  return svg;
-}
-
-// A loading, empty or error panel. `kind` is 'empty' or 'error'; `actions` are
-// already-built buttons or links. Errors are announced, empties are not.
-export function emptyState({ kind = 'empty', iconName = 'shelf', title, text, actions = [], className = '' }) {
+// A loading, empty or error block: a title, one sentence saying why, and an
+// action. `kind` is 'empty' or 'error'; `actions` are already-built buttons
+// or links. Errors are announced, empties are not.
+export function emptyState({ kind = 'empty', title, text, actions = [], className = '' }) {
   const node = el('div', `empty-message is-${kind} ${className}`.trim());
   if (kind === 'error') node.setAttribute('role', 'alert');
-  node.append(icon(kind === 'error' ? 'warning' : iconName), el('strong', '', title));
+  node.append(el('strong', '', title));
   if (text) node.append(el('span', '', text));
-  node.append(...actions); return node;
+  if (actions.length) { const row = el('div', 'empty-actions'); row.append(...actions); node.append(row); }
+  return node;
+}
+
+// The verified-hours stamp: a check, the hours and the word "verified", in
+// the one green the interface has. Hours come from the reviewer's linked
+// library at the moment of posting.
+export function stamp(text) {
+  const node = el('span', 'stamp');
+  const check = svgNode('svg', { viewBox: '0 0 16 16', 'aria-hidden': 'true', class: 'stamp-check' });
+  check.append(svgNode('path', { d: 'M3.5 8.5 6.5 11.5 12.5 4.5' }));
+  node.append(check, numbered('span', '', text)); return node;
+}
+// The proportional hours bar under a stamp: this reviewer's hours against the
+// longest verified playtime on the game, and a short label against the median.
+export function hoursBar(context) {
+  const row = el('div', 'hours-context');
+  const track = el('span', 'hours-track'); track.setAttribute('aria-hidden', 'true');
+  const fill = el('span', 'hours-fill'); fill.style.setProperty('--fraction', String(context.fraction)); track.append(fill);
+  row.append(track, numbered('span', 'hours-label', context.label)); return row;
 }
 
 // Cover-shaped placeholders with the same footprint as real cards, so the grid

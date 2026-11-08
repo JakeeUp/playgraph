@@ -5,83 +5,74 @@
    ========================================================================== */
 
 .frame { width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto; padding:0 var(--gutter); }
-.account-footer { border-top:1px solid var(--line); padding-top:var(--space-5); padding-bottom:var(--space-6); }
+.account-footer { padding-top:var(--s-5); padding-bottom:var(--s-6); }
+.account-footer .legal-notice { margin-top:0; color:var(--muted); border-top-color:var(--rule); }
+.account-footer .legal-notice a:hover { color:var(--ink); }
 
-.account-header { position:sticky; top:0; z-index:20; border-bottom:1px solid var(--line); background:var(--bg); }
-.account-header .frame { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); height:var(--space-8); }
-.account-header .brand { padding:0; }
+.account-header { position:sticky; top:0; z-index:20; border-bottom:1px solid var(--rule); background:var(--paper); }
+.account-header .frame { display:flex; align-items:center; justify-content:space-between; gap:var(--s-4); height:var(--header-h); }
+.account-header .frame > a:not(.brand) { font-size:var(--text-ui); font-weight:500; }
 
 .account-layout {
-  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,400px); gap:var(--space-8);
-  padding-top:var(--space-8); padding-bottom:var(--space-8);
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,420px); gap:var(--s-8);
+  padding-top:var(--s-8); padding-bottom:var(--s-8);
 }
-.account-intro { display:flex; flex-direction:column; }
+.account-intro { display:flex; flex-direction:column; border-top:1px solid var(--rule-strong); padding-top:var(--s-4); }
 .account-hero { flex:1; }
-.account-intro h1 { font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:800; font-size:var(--text-3xl); line-height:var(--leading-tight); margin-bottom:var(--space-5); }
-.plain-page h1 { font-size:var(--text-hero); margin-bottom:var(--space-5); }
-.account-lede { color:var(--text-body); font-size:var(--text-lg); max-width:40ch; margin:var(--space-4) 0 var(--space-6); }
-.account-intro > p { color:var(--text-muted); font-size:var(--text-lg); max-width:44ch; margin:0; }
-.account-intro .account-note {
-  font-size:var(--text-ui); padding-top:var(--space-5); border-top:1px solid var(--line);
+.account-intro h1 { font-size:var(--text-h1); line-height:36px; letter-spacing:-0.01em; }
+.account-lede { color:var(--ink-2); font-size:var(--text-lede); line-height:1.6; max-width:42ch; margin:var(--s-4) 0 var(--s-6); }
+.account-intro > p { color:var(--muted); font-size:var(--text-small-body); max-width:52ch; margin:0; }
+.account-intro .account-note { padding-top:var(--s-4); border-top:1px solid var(--rule); }
+.account-steam-link { display:inline-block; margin-top:var(--s-3); font-size:var(--text-ui); font-weight:500; }
+/* The sign-in column sits on white: it is a form. */
+.account-form {
+  min-width:0; align-self:start; padding:var(--s-6);
+  background:var(--surface); border:1px solid var(--rule); border-radius:var(--radius);
 }
-.account-steam-link { display:inline-block; margin-top:var(--space-4); font-size:var(--text-ui); }
-.account-form { min-width:0; }
-.account-form h2 { font-size:var(--text-xl); margin-bottom:var(--space-3); }
-.account-form p { color:var(--text-muted); }
-.account-form p + p { margin-top:var(--space-3); }
-.account-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2) var(--space-4); margin:var(--space-5) 0; }
-.account-form .account-status { margin:0 0 var(--space-4); }
+.account-form h2 { font-size:var(--text-h2); line-height:26px; margin-bottom:var(--s-3); }
+.account-form p { color:var(--ink-2); font-size:var(--text-small-body); }
+.account-form p + p { margin-top:var(--s-3); }
+.account-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-2) var(--s-4); margin:var(--s-5) 0; }
+.account-actions > a:not(.button) { font-size:var(--text-ui); font-weight:500; }
+.account-form .account-status { margin:0 0 var(--s-4); color:var(--muted); }
 .account-form .account-status:empty { display:none; }
-.account-form label { display:flex; gap:var(--space-2); align-items:flex-start; font-size:var(--text-ui); margin-top:var(--space-4); }
-#link-context { margin-bottom:var(--space-5); }
-#link-context .button { margin-top:var(--space-4); }
+.account-form label { display:flex; gap:var(--s-2); align-items:flex-start; font-size:var(--text-ui); margin-top:var(--s-4); }
+#link-context { margin-bottom:var(--s-5); }
+#link-context .button { margin-top:var(--s-4); }
 #clerk-sign-in { max-width:100%; }
-.account-steam {
-  margin:var(--space-5) 0; padding:var(--space-4);
-  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
-}
-.account-steam h3 { font-size:var(--text-md); margin-bottom:var(--space-2); }
-.account-steam p { margin-bottom:var(--space-4); }
-
-/* PlayStation linking: the same quiet panel as Connect Steam. */
-.account-psn {
-  margin:var(--space-5) 0; padding:var(--space-4);
-  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
-}
-.account-psn h3 { font-size:var(--text-md); margin-bottom:var(--space-2); }
-.account-psn .account-status { margin:var(--space-3) 0 0; color:var(--text); }
-.account-psn form { margin-top:var(--space-4); }
-.account-form .account-psn label { display:block; margin:0 0 var(--space-2); color:var(--text); }
+/* Sub-sections of the form are separated by rules, not nested boxes. */
+.account-steam, .account-psn { margin:var(--s-5) 0 0; padding-top:var(--s-4); border-top:1px solid var(--rule); }
+.account-steam h3, .account-psn h3 { font-size:var(--text-body); line-height:22px; font-weight:600; margin-bottom:var(--s-2); }
+.account-steam p { margin-bottom:var(--s-4); }
+.account-psn .account-status { margin:var(--s-3) 0 0; color:var(--ink); }
+.account-psn form { margin-top:var(--s-4); }
+.account-form .account-psn label { display:block; margin:0 0 var(--s-2); color:var(--ink); font-weight:500; }
 .account-psn input {
-  width:100%; max-width:24ch; height:var(--control-h); padding:0 var(--space-3);
-  font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line-strong); border-radius:var(--radius);
+  width:100%; max-width:24ch; height:var(--control-h); padding:0 var(--s-3);
+  font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--rule); border-radius:var(--radius);
 }
-.account-psn input:focus-visible { border-color:var(--accent); }
-.account-psn .helper { font-size:var(--text-sm); margin:var(--space-2) 0 var(--space-3); }
-.psn-code-row { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-3); margin:var(--space-3) 0; }
+.account-psn input:focus-visible { border-color:var(--ink); }
+.account-psn .helper { margin:var(--s-2) 0 var(--s-3); }
+.psn-code-row { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-3); margin:var(--s-3) 0; }
 .psn-code {
-  font-family:var(--font-mono); font-size:var(--text-lg); color:var(--text);
-  padding:var(--space-2) var(--space-3); background:var(--bg); border:1px solid var(--line-strong); border-radius:var(--radius);
+  font-size:var(--text-lede); font-weight:600; letter-spacing:0.04em; color:var(--ink);
+  padding:var(--s-2) var(--s-3); background:var(--paper); border:1px solid var(--rule); border-radius:var(--radius);
   user-select:all; overflow-wrap:anywhere;
 }
 
-.plain-page { padding-top:var(--space-8); padding-bottom:var(--space-8); }
-.not-found { text-align:left; }
-.not-found-content { max-width:600px; }
-.not-found-number { display:block; font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:900; font-size:clamp(96px,18vw,180px); color:var(--text); margin:0 0 var(--space-3); line-height:0.9; }
-.plain-page h1.not-found-title { font-size:var(--text-2xl); margin-bottom:var(--space-4); }
-.plain-page p { color:var(--text-muted); font-size:var(--text-lg); max-width:48ch; margin:var(--space-3) 0 var(--space-6); }
-.plain-page .button { margin-top:var(--space-2); }
-.plain-page .num { color:var(--text-muted); font-size:var(--text-md); display:block; margin-bottom:var(--space-3); }
+/* Not found: a label, a title, one sentence, one way back. */
+.plain-page { padding-top:var(--s-8); padding-bottom:var(--s-8); }
+.not-found-content { max-width:600px; border-top:1px solid var(--rule-strong); padding-top:var(--s-4); }
+.plain-page h1.not-found-title { margin-top:var(--s-3); font-size:var(--text-h1); line-height:36px; letter-spacing:-0.01em; }
+.plain-page p:not(.micro) { color:var(--ink-2); font-size:var(--text-body); max-width:48ch; margin:var(--s-3) 0 var(--s-6); }
 
 @media (max-width:760px) {
-  :root { --gutter:var(--space-4); }
-  .account-layout { grid-template-columns:minmax(0,1fr); gap:var(--space-6); padding-top:var(--space-6); padding-bottom:var(--space-6); }
-  .account-intro h1 { font-size:var(--text-2xl); }
-  .account-intro > p { font-size:var(--text-md); margin:0; }
-  .account-intro .account-note { padding-top:var(--space-4); }
-  .plain-page { padding-top:var(--space-6); padding-bottom:var(--space-6); }
-  .plain-page h1 { font-size:var(--text-2xl); }
-  .not-found-number { font-size:clamp(96px,24vw,140px); }
-  .plain-page p { font-size:var(--text-md); margin:var(--space-3) 0 var(--space-6); }
+  :root { --gutter:16px; }
+  .account-layout { grid-template-columns:minmax(0,1fr); gap:var(--s-6); padding-top:var(--s-6); padding-bottom:var(--s-6); }
+  .account-intro h1 { font-size:26px; line-height:30px; }
+  .account-lede { font-size:var(--text-body); }
+  .account-form { padding:var(--s-5); }
+  .plain-page { padding-top:var(--s-6); padding-bottom:var(--s-6); }
+  .plain-page h1.not-found-title { font-size:26px; line-height:30px; }
 }
+@media (pointer:coarse) { .account-header .frame > a:not(.brand) { min-height:44px; display:inline-flex; align-items:center; } }
