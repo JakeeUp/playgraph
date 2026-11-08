@@ -450,3 +450,46 @@ def test_browser_cookie_is_host_only_and_secure_under_https(client, verification
     session = next(cookie for cookie in cookies if cookie.startswith("__Host-playgraph-session="))
     assert "HttpOnly" in session and "Secure" in session and "Path=/" in session and "SameSite=lax" in session
     assert "Domain=" not in session
+
+
+def test_bound_to_normalises_and_fails_closed():
+    from app.security import bound_to
+    assert bound_to("7", "7") and bound_to(b"7", "7") and bound_to("7", b"7") and bound_to(b"7", b"7")
+    assert not bound_to(None, "7") and not bound_to(None, "")
+    assert not bound_to("8", "7") and not bound_to(b"8", b"7") and not bound_to("77", "7")
+    assert not bound_to("", "7") and not bound_to("7", "")
+    assert bound_to("", "")
+    assert not bound_to(7, "7")
+
+
+def test_security_headers_snapshot(monkeypatch):
+    """Header values are frozen byte for byte; a change here is a deliberate policy change."""
+    from app.config import settings
+    from app.middleware import NEWS_IMAGES, security_headers
+    monkeypatch.setattr(settings, "environment", "development")
+    monkeypatch.setattr(settings, "clerk_enabled", False)
+    common = {
+        "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer",
+        "Cache-Control": "no-store", "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Cross-Origin-Opener-Policy": "same-origin", "Cross-Origin-Resource-Policy": "same-origin",
+        "X-Permitted-Cross-Domain-Policies": "none",
+    }
+    tail = "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    app_csp = ("default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' "
+               "https://shared.fastly.steamstatic.com https://shared.akamai.steamstatic.com "
+               "https://cdn.akamai.steamstatic.com https://cdn.cloudflare.steamstatic.com "
+               "https://images.igdb.com https://image.api.playstation.com "
+               f"https://psnobj.prod.dl.playstation.net {NEWS_IMAGES}; font-src 'self'; {tail}")
+    assert security_headers("/app", 200, "text/html") == {**common, "Content-Security-Policy": app_csp}
+    assert security_headers("/library", 401, "application/json") == {
+        **common, "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"}
+    assert security_headers("/nope", 404, "text/html; charset=utf-8") == {
+        **common, "Content-Security-Policy": f"default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; {tail}"}
+    assert security_headers("/nope", 404, "application/json")["Content-Security-Policy"].endswith("base-uri 'none'")
+    assert "Content-Security-Policy" not in security_headers("/docs", 200, "text/html")
+    assert security_headers("/assets/app.js", 200, "text/javascript")["Cache-Control"] == "no-cache"
+    account = security_headers("/account", 200, "text/html")["Content-Security-Policy"]
+    assert account.startswith("default-src 'none'; script-src 'self'  https://challenges.cloudflare.com") and account.endswith(tail)
+    monkeypatch.setattr(settings, "environment", "production")
+    assert security_headers("/health", 200, "application/json")["Strict-Transport-Security"] == \
+        "max-age=31536000; includeSubDomains"

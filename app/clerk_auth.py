@@ -16,7 +16,7 @@ import jwt
 from fastapi import HTTPException
 
 from app.config import settings
-from app.security import redis_call, state_key
+from app.security import bound_to, redis_call, state_key
 
 ACTIVE_SECONDS = 30
 
@@ -150,7 +150,7 @@ async def confirm_active(request, sid: str, subject: str) -> None:
     """
     validate_ids(sid, subject)
     key = state_key("provider-active", sid)
-    if await redis_call(request, "get", key) in (subject, subject.encode()):
+    if bound_to(await redis_call(request, "get", key), subject):
         return
     await active_account(sid, subject)
     await redis_call(request, "set", key, subject, ex=ACTIVE_SECONDS)

@@ -11,17 +11,14 @@ from app.database import get_db
 from app.deps import decode_session, get_current_user
 from app.models import AuthIdentity, LinkedAccount, Platform, User
 from app.schemas import display_name
-from app.security import issue_session, rate_limit, redis_call, session_cookie_name, state_key
+from app.security import bound_to, issue_session, rate_limit, redis_call, session_cookie_name, set_session_cookie, state_key
 
 router = APIRouter(prefix="/auth", tags=["accounts"])
 LINK_SECONDS = 600
 
 
 def browser_cookie(token: str) -> Response:
-    response = Response(status_code=204)
-    response.set_cookie(session_cookie_name(), token, max_age=settings.session_minutes * 60,
-        httponly=True, secure=settings.app_base_url.startswith("https://"), samesite="lax", path="/")
-    return response
+    return set_session_cookie(Response(status_code=204), token)
 
 
 def steam_owner(request: Request, user: User, db: Session, *, fresh=False):
@@ -39,7 +36,7 @@ def steam_owner(request: Request, user: User, db: Session, *, fresh=False):
 async def link_status(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     steam_owner(request, user, db)
     intent = await redis_call(request, "get", state_key("account-link", request.state.session_id))
-    return {"pending": intent in (str(user.id), str(user.id).encode())
+    return {"pending": bound_to(intent, str(user.id))
             and time.time() - request.state.session_issued < LINK_SECONDS}
 
 
@@ -64,8 +61,8 @@ async def cancel_link(request: Request, user: User = Depends(get_current_user), 
 async def complete_link(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     steam_owner(request, user, db, fresh=True)
     key = state_key("account-link", request.state.session_id)
-    owner = (str(user.id), str(user.id).encode())
-    if await redis_call(request, "get", key) not in owner:
+    owner = str(user.id)
+    if not bound_to(await redis_call(request, "get", key), owner):
         raise HTTPException(409, "Start a new account connection in this browser")
     # Keep the local cookie as the authentication source. A separate header
     # proves the destination identity without accepting a browser-supplied ID.
@@ -78,9 +75,9 @@ async def complete_link(request: Request, user: User = Depends(get_current_user)
     # External verification awaited I/O: recheck the initiating session and
     # freshness before consuming the intent. GETDEL admits only one completion.
     steam_owner(request, user, db, fresh=True)
-    if await redis_call(request, "get", state_key("session", request.state.session_id)) not in owner:
+    if not bound_to(await redis_call(request, "get", state_key("session", request.state.session_id)), owner):
         raise clerk_auth.rejected()
-    if await redis_call(request, "getdel", key) not in owner:
+    if not bound_to(await redis_call(request, "getdel", key), owner):
         raise HTTPException(409, "Account connection expired or was already used")
     try:
         db.add(AuthIdentity(user_id=user.id, provider="clerk", issuer=settings.clerk_origin, subject=claims["sub"]))

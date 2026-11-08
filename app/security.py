@@ -30,6 +30,22 @@ def session_cookie_name() -> str:
     return "__Host-playgraph-session" if secure_cookies() else "playgraph-session"
 
 
+def set_cookie(response, name: str, value: str, max_age: int):
+    """Every cookie we set: HttpOnly, SameSite=Lax, site-wide, Secure when served over HTTPS."""
+    response.set_cookie(name, value, max_age=max_age, httponly=True, secure=secure_cookies(),
+                        samesite="lax", path="/")
+    return response
+
+
+def clear_cookie(response, name: str):
+    response.delete_cookie(name, path="/", httponly=True, secure=secure_cookies(), samesite="lax")
+    return response
+
+
+def set_session_cookie(response, token: str):
+    return set_cookie(response, session_cookie_name(), token, settings.session_minutes * 60)
+
+
 def csrf_token(session_id: str) -> str:
     """A token bound to this session, separate from its authentication credential."""
     return hmac.new(settings.jwt_secret.get_secret_value().encode(),
@@ -40,16 +56,30 @@ def state_key(purpose: str, value: str) -> str:
     return f"playgraph:security:{purpose}:{hashlib.sha256(value.encode()).hexdigest()}"
 
 
-def security_store(request: Request):
+def bound_to(raw, expected) -> bool:
+    """Whether a stored value (str or bytes, or None when absent) equals expected, in constant time."""
+    if raw is None:
+        return False
+    if isinstance(raw, str):
+        raw = raw.encode()
+    if isinstance(expected, str):
+        expected = expected.encode()
+    if not isinstance(raw, bytes) or not isinstance(expected, bytes):
+        return False
+    return hmac.compare_digest(raw, expected)
+
+
+def app_store(request: Request, *, required: bool = False):
+    """The shared Redis-like store from app state, or None. required=True answers 503 instead of None."""
     store = getattr(request.app.state, "arq_pool", None)
-    if store is None:
+    if store is None and required:
         raise HTTPException(status_code=503, detail="Security service unavailable")
     return store
 
 
 async def redis_call(request: Request, method: str, *args, **kwargs):
     try:
-        return await getattr(security_store(request), method)(*args, **kwargs)
+        return await getattr(app_store(request, required=True), method)(*args, **kwargs)
     except (RedisError, OSError):
         raise HTTPException(status_code=503, detail="Security service unavailable") from None
 

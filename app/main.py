@@ -40,6 +40,8 @@ async def lifespan(app: FastAPI):
         await app.state.arq_pool.aclose()
 
 
+STATIC_DIR = Path(__file__).parent / "static"
+
 app = FastAPI(
     title="PlayGraph",
     description="Letterboxd for video games - linked-account playtime, genre "
@@ -102,7 +104,6 @@ app.include_router(feed.router)
 app.include_router(news.router)
 app.include_router(psn.router)
 
-STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
 

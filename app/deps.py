@@ -11,7 +11,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import AuthIdentity, User
 from app import clerk_auth
-from app.security import (AUDIENCE, ISSUER, csrf_token, rate_limit, redis_call,
+from app.security import (AUDIENCE, ISSUER, bound_to, csrf_token, rate_limit, redis_call,
                           session_cookie_name, state_key)
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -50,7 +50,7 @@ async def get_current_user(
     user_id, session_id = int(payload["sub"]), payload["jti"]
 
     owner = await redis_call(request, "get", state_key("session", session_id))
-    if owner not in (str(user_id), str(user_id).encode()):
+    if not bound_to(owner, str(user_id)):
         raise HTTPException(status_code=401, detail="Session expired or revoked")
     request.state.session_id = session_id
     request.state.session_expires = payload["exp"]

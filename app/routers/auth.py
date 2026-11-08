@@ -23,8 +23,9 @@ from app.deps import get_current_user
 from app.models import AuthIdentity, LinkedAccount, Platform, User, utcnow
 from app import clerk_auth
 from app.schemas import display_name
-from app.security import (LOGIN_TTL, NONCE_TTL, csrf_token, issue_session, rate_limit,
-                          redis_call, secure_cookies, session_cookie_name, state_key)
+from app.security import (LOGIN_TTL, NONCE_TTL, bound_to, clear_cookie, csrf_token, issue_session, rate_limit,
+                          redis_call, secure_cookies, session_cookie_name, set_cookie, set_session_cookie,
+                          state_key)
 from app.services import steam
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -64,15 +65,14 @@ async def begin_steam(request: Request, callback_path: str, mode: dict, binding_
 
 
 def with_login_cookie(response: Response, browser_secret: str) -> Response:
-    response.set_cookie(cookie_name(), browser_secret, max_age=LOGIN_TTL,
-                        httponly=True, secure=secure_cookies(), samesite="lax", path="/")
+    set_cookie(response, cookie_name(), browser_secret, LOGIN_TTL)
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
 def without_login_cookie(response: Response) -> Response:
     # The browser binding is single use; once a callback finishes, it goes.
-    response.delete_cookie(cookie_name(), path="/", secure=secure_cookies(), httponly=True, samesite="lax")
+    clear_cookie(response, cookie_name())
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -127,14 +127,12 @@ async def verified_steam_id(request: Request, callback_path: str, mode: dict, bi
     key = state_key("login", state)
     expected_browser = (hashlib.sha256(browser_secret.encode()).hexdigest() + binding_suffix).encode()
     stored = await redis_call(request, "get", key)
-    if isinstance(stored, str):
-        stored = stored.encode()
     if stored is None:
         raise HTTPException(status_code=401, detail="Steam login state expired. Start the Steam login again.")
-    if not secrets.compare_digest(stored, expected_browser):
+    if not bound_to(stored, expected_browser):
         raise HTTPException(status_code=401, detail="Steam login belongs to a different browser session. Start the Steam login again.")
     consumed = await redis_call(request, "getdel", key)
-    if consumed != stored:
+    if not bound_to(consumed, stored):
         raise HTTPException(status_code=401, detail="Steam login was already used. Start the Steam login again.")
     verify_params = {k: v for k, v in params.items() if k.startswith("openid.")}
     verify_params["openid.mode"] = "check_authentication"
@@ -182,8 +180,7 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
     logger.info("login_succeeded user_id=%s", user.id)
     if ui:
         response = RedirectResponse("/app", status_code=303)
-        response.set_cookie(session_cookie_name(), token, max_age=settings.session_minutes * 60,
-                            httponly=True, secure=secure_cookies(), samesite="lax", path="/")
+        set_session_cookie(response, token)
     else:
         response = JSONResponse({"access_token": token, "token_type": "bearer",  # nosec B105
                                  "expires_in": settings.session_minutes * 60, "user_id": user.id,
@@ -287,6 +284,5 @@ async def logout(request: Request, user: User = Depends(get_current_user)):
                 JSONResponse({"provider_signed_out": False}))
     response.headers["Cache-Control"] = "no-store"
     response.headers["Clear-Site-Data"] = '"cookies", "storage"'
-    response.delete_cookie(session_cookie_name(), path="/", httponly=True,
-                           secure=secure_cookies(), samesite="lax")
+    clear_cookie(response, session_cookie_name())
     return response

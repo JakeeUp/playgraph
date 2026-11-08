@@ -19,6 +19,64 @@ LOGINS_PER_MINUTE = 10
 NEWS_IMAGES = " ".join([*(f"https://*.{host}" for host in IMAGE_HOSTS), urlsplit(CLAN_IMAGES)._replace(path="").geturl()])
 logger = logging.getLogger("playgraph.security")
 
+TAIL = "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+APP_CSP = (
+    "default-src 'none'; script-src 'self'; style-src 'self'; "
+    "connect-src 'self'; img-src 'self' https://shared.fastly.steamstatic.com "
+    "https://shared.akamai.steamstatic.com https://cdn.akamai.steamstatic.com "
+    "https://cdn.cloudflare.steamstatic.com https://images.igdb.com "
+    "https://image.api.playstation.com https://psnobj.prod.dl.playstation.net "
+    f"{NEWS_IMAGES}; font-src 'self'; " + TAIL
+)
+NOT_FOUND_CSP = "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; " + TAIL
+API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+DOCS_PATHS = {"/docs", "/docs/oauth2-redirect", "/redoc"}
+
+
+def account_csp() -> str:
+    provider = settings.clerk_origin if settings.clerk_enabled else ""
+    # Clerk's runtime CSS is confined to the account page. No
+    # unsafe script execution is enabled on this or the app page.
+    return (
+        "default-src 'none'; script-src 'self' " + provider +
+        " https://challenges.cloudflare.com https://*.protect.clerk.com; "
+        "style-src 'self' 'unsafe-inline'; connect-src 'self' " + provider +
+        " https://*.protect.clerk.com:*; img-src 'self' https://img.clerk.com data:; "
+        "worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com "
+        "https://*.protect.clerk.com; font-src 'self'; " + TAIL
+    )
+
+
+def security_headers(path: str, status: int, content_type: str) -> dict[str, str]:
+    """Every header the middleware adds to a response, in the order it adds them."""
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "no-referrer",
+        # Public static files are stored but revalidated against their ETag,
+        # so repeat visits get 304s. Everything else, every API response
+        # included, is never stored.
+        "Cache-Control": "no-cache" if path.startswith("/assets/") else "no-store",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        # Isolate this origin's windows from other sites' windows, and refuse
+        # to let another site's page embed these responses, JSON included.
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Resource-Policy": "same-origin",
+        "X-Permitted-Cross-Domain-Policies": "none",
+    }
+    if settings.environment == "production":
+        headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if path == "/app":
+        headers["Content-Security-Policy"] = APP_CSP
+    elif path == "/account":
+        headers["Content-Security-Policy"] = account_csp()
+    elif status == 404 and content_type.startswith("text/html"):
+        # The not-found page: its own stylesheet, fonts and icon, and no script.
+        headers["Content-Security-Policy"] = NOT_FOUND_CSP
+    elif path not in DOCS_PATHS:
+        headers["Content-Security-Policy"] = API_CSP
+    return headers
+
 
 class SecurityMiddleware:
     def __init__(self, app):
@@ -39,53 +97,9 @@ class SecurityMiddleware:
                 headers = MutableHeaders(scope=message)
                 if budget is not None and "ratelimit-limit" not in headers:
                     headers.update(rate_headers(REQUESTS_PER_MINUTE, *budget))
-                headers["X-Content-Type-Options"] = "nosniff"
-                headers["X-Frame-Options"] = "DENY"
-                headers["Referrer-Policy"] = "no-referrer"
-                # Public static files are stored but revalidated against their ETag,
-                # so repeat visits get 304s. Everything else, every API response
-                # included, is never stored.
-                static = request.url.path.startswith("/assets/")
-                headers["Cache-Control"] = "no-cache" if static else "no-store"
-                headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-                # Isolate this origin's windows from other sites' windows, and refuse
-                # to let another site's page embed these responses, JSON included.
-                headers["Cross-Origin-Opener-Policy"] = "same-origin"
-                headers["Cross-Origin-Resource-Policy"] = "same-origin"
-                headers["X-Permitted-Cross-Domain-Policies"] = "none"
-                if settings.environment == "production":
-                    headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-                if request.url.path == "/app":
-                    headers["Content-Security-Policy"] = (
-                        "default-src 'none'; script-src 'self'; style-src 'self'; "
-                        "connect-src 'self'; img-src 'self' https://shared.fastly.steamstatic.com "
-                        "https://shared.akamai.steamstatic.com https://cdn.akamai.steamstatic.com "
-                        "https://cdn.cloudflare.steamstatic.com https://images.igdb.com "
-                        "https://image.api.playstation.com https://psnobj.prod.dl.playstation.net "
-                        f"{NEWS_IMAGES}; font-src 'self'; "
-                        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
-                    )
-                elif request.url.path == "/account":
-                    provider = settings.clerk_origin if settings.clerk_enabled else ""
-                    # Clerk's runtime CSS is confined to the account page. No
-                    # unsafe script execution is enabled on this or the app page.
-                    headers["Content-Security-Policy"] = (
-                        "default-src 'none'; script-src 'self' " + provider +
-                        " https://challenges.cloudflare.com https://*.protect.clerk.com; "
-                        "style-src 'self' 'unsafe-inline'; connect-src 'self' " + provider +
-                        " https://*.protect.clerk.com:*; img-src 'self' https://img.clerk.com data:; "
-                        "worker-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com "
-                        "https://*.protect.clerk.com; font-src 'self'; "
-                        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
-                    )
-                elif message["status"] == 404 and headers.get("content-type", "").startswith("text/html"):
-                    # The not-found page: its own stylesheet, fonts and icon, and no script.
-                    headers["Content-Security-Policy"] = (
-                        "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; "
-                        "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
-                    )
-                elif request.url.path not in {"/docs", "/docs/oauth2-redirect", "/redoc"}:
-                    headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+                for name, value in security_headers(request.url.path, message["status"],
+                                                    headers.get("content-type", "")).items():
+                    headers[name] = value
             await send(message)
 
         try:

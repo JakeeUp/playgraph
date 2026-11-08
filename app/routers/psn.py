@@ -31,7 +31,7 @@ from app.deps import get_current_user
 from app.models import LinkedAccount, Platform, User, utcnow
 from app.routers.library import enqueue_sync, job_status
 from app.schemas import display_name
-from app.security import rate_limit, redis_call, state_key
+from app.security import app_store, bound_to, rate_limit, redis_call, state_key
 from app.services import psn
 
 logger = logging.getLogger("playgraph.psn")
@@ -63,10 +63,6 @@ def _psn_link(db: Session, user_id: int) -> LinkedAccount | None:
     return db.query(LinkedAccount).filter_by(user_id=user_id, platform=Platform.psn).first()
 
 
-def _store(request: Request):
-    return getattr(request.app.state, "arq_pool", None)
-
-
 def _account_taken(db: Session, account_id: str) -> bool:
     return db.query(LinkedAccount).filter_by(platform=Platform.psn, platform_user_id=account_id).first() is not None
 
@@ -88,7 +84,7 @@ def _parse_pending(raw, user: User) -> dict | None:
 
 
 async def _sony_unavailable_if_blocked(request: Request) -> None:
-    if await psn_status.auth_blocked(_store(request)):
+    if await psn_status.auth_blocked(app_store(request)):
         raise HTTPException(503, "PlayStation is temporarily unavailable. Try again later.")
 
 
@@ -96,7 +92,7 @@ async def _sony_error(request: Request, exc: psn.PSNError, *, missing: str) -> H
     """Map a PSN failure to a response a player can act on. Sony's own error
     text never reaches the browser."""
     if isinstance(exc, psn.PSNAuthError):
-        await psn_status.block_auth(_store(request))
+        await psn_status.block_auth(app_store(request))
         logger.error("psn_operator_action_needed: Sony rejected the server PSN_NPSSO. %s", psn_status.OPERATOR_HINT)
         return HTTPException(503, "PlayStation is temporarily unavailable. Try again later.")
     if isinstance(exc, psn.PSNRateLimitedError):
@@ -122,7 +118,7 @@ async def link_status(request: Request, user: User = Depends(get_current_user), 
         if waiting:
             pending = {"online_id": waiting["online_id"], "code": waiting["code"],
                        "expires_in": max(0, int(waiting.get("expires_at", 0) - time.time()))}
-    store = _store(request)
+    store = app_store(request)
     return {
         "enabled": True,
         "linked": linked is not None,
@@ -189,8 +185,7 @@ async def check_link(request: Request, user: User = Depends(get_current_user), d
         raise HTTPException(409, "Code not found in your About Me yet. Save it on PSN, wait a minute, and try again.")
     # The Sony call awaited I/O. Recheck that this session is still live, then
     # consume the code: GETDEL lets exactly one request finish the link.
-    if await redis_call(request, "get", state_key("session", request.state.session_id)) not in (
-            str(user.id), str(user.id).encode()):
+    if not bound_to(await redis_call(request, "get", state_key("session", request.state.session_id)), str(user.id)):
         raise HTTPException(401, "Session expired or revoked")
     consumed = _parse_pending(await redis_call(request, "getdel", key), user)
     if consumed is None or (consumed["account_id"], consumed["code"]) != (pending["account_id"], pending["code"]):
