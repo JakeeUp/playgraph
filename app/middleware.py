@@ -89,9 +89,12 @@ class SecurityMiddleware:
         # Remaining budget in the per-address bucket, reported on every response
         # so well-behaved clients can slow down before they are refused.
         budget = None
+        started = False
 
         async def secure_send(message):
+            nonlocal started
             if message["type"] == "http.response.start":
+                started = True
                 if request.url.path.startswith("/auth/") and message["status"] >= 400:
                     logger.warning("authentication_rejected status=%s", message["status"])
                 headers = MutableHeaders(scope=message)
@@ -146,4 +149,12 @@ class SecurityMiddleware:
                 return {"type": "http.request", "body": bytes(body), "more_body": False}
             return await receive()
 
-        await self.app(scope, bounded_receive, secure_send)
+        try:
+            await self.app(scope, bounded_receive, secure_send)
+        except Exception:
+            # Starlette's outermost error handler would answer without our
+            # headers, so answer here, and keep the traceback in the log.
+            logger.exception("unhandled_error method=%s path=%s", request.method, request.url.path)
+            if started:
+                raise
+            await JSONResponse({"detail": "Internal Server Error"}, status_code=500)(scope, receive, secure_send)
