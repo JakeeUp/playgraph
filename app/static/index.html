@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0d1117">
+  <meta name="theme-color" content="#0f1317">
   <meta name="color-scheme" content="dark">
   <meta name="description" content="A game library with reviews. Connect Steam and each review shows how long you actually played.">
   <title>Games | PlayGraph</title>
@@ -16,7 +16,10 @@
   <link rel="stylesheet" href="/assets/details.css">
   <link rel="stylesheet" href="/assets/social.css">
   <link rel="modulepreload" href="/assets/library.js">
+  <link rel="modulepreload" href="/assets/jobs.js">
   <link rel="modulepreload" href="/assets/dom.js">
+  <link rel="modulepreload" href="/assets/covers.js">
+  <link rel="modulepreload" href="/assets/net.js">
   <link rel="modulepreload" href="/assets/chart.js">
   <link rel="modulepreload" href="/assets/rating.js">
   <link rel="modulepreload" href="/assets/game-detail.js">
@@ -28,9 +31,10 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <div class="shell">
   <div class="workspace">
+    <div id="demo-banner" class="demo-banner" role="status" hidden><span class="demo-dot" aria-hidden="true"></span><strong>Demo</strong> with sample data. <span>Sign-ins and posting are disabled.</span></div>
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand" href="/app"><img src="/assets/mark.svg" alt="" width="20" height="20">PlayGraph<span class="beta">Beta</span></a>
+        <a class="brand" href="/app" aria-label="PlayGraph"><img src="/assets/mark.svg" alt="" width="20" height="20"><span class="brand-text">PlayGraph</span><span class="beta">Beta</span></a>
         <nav class="topnav" aria-label="Main navigation">
           <button class="nav-item active" data-view="library">Library <span id="nav-count" class="nav-count num"></span></button>
           <button class="nav-item" data-view="news">For you</button>
@@ -93,12 +97,13 @@
   </div>
   </div>
 
+  <svg class="sr-only" width="0" height="0" aria-hidden="true" focusable="false"><symbol id="i-library" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></symbol><symbol id="i-news" viewBox="0 0 24 24"><path d="m12 3 2.4 5.6L20 9.3l-4.2 3.9 1.2 5.8L12 16l-5 3 1.2-5.8L4 9.3l5.6-.7z"/></symbol><symbol id="i-feed" viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/></symbol><symbol id="i-explore" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></symbol><symbol id="i-stats" viewBox="0 0 24 24"><path d="M6 20V11M12 20V5M18 20v-6"/></symbol></svg>
   <nav class="tabbar" aria-label="Mobile navigation">
-    <button class="nav-item active" data-view="library">Library</button>
-    <button class="nav-item" data-view="news">For you</button>
-    <button class="nav-item" data-view="feed">Reviews</button>
-    <button class="nav-item" data-view="explore">Explore</button>
-    <button class="nav-item" data-view="stats">Playtime</button>
+    <button class="nav-item active" data-view="library"><span class="nav-icon" aria-hidden="true"><svg><use href="#i-library"/></svg></span>Library</button>
+    <button class="nav-item" data-view="news"><span class="nav-icon" aria-hidden="true"><svg><use href="#i-news"/></svg></span>For you</button>
+    <button class="nav-item" data-view="feed"><span class="nav-icon" aria-hidden="true"><svg><use href="#i-feed"/></svg></span>Reviews</button>
+    <button class="nav-item" data-view="explore"><span class="nav-icon" aria-hidden="true"><svg><use href="#i-explore"/></svg></span>Explore</button>
+    <button class="nav-item" data-view="stats"><span class="nav-icon" aria-hidden="true"><svg><use href="#i-stats"/></svg></span>Playtime</button>
   </nav>
   <dialog id="game-dialog" aria-labelledby="detail-title"><button id="close-dialog" class="close-button" aria-label="Close game page">×</button><div id="detail-content"></div></dialog>
   <noscript><p class="noscript">PlayGraph needs JavaScript to show your games. Steam sign-in needs it too.</p></noscript>

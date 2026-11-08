@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 // A minimal stand-in for the few DOM calls these modules make. Each fake
 // element records whether lazy loading was already set when src was assigned.
 class FakeElement {
-  constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this.listeners = {}; this.hidden = false; this.textContent = ''; this.classList = { add() {}, toggle() {} }; this.dataset = {}; }
+  constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this.listeners = {}; this.hidden = false; this.textContent = ''; this.classList = { add() {}, toggle() {} }; this.dataset = {}; this.style = { setProperty() {} }; }
+  setAttribute(name, value) { this[name] = value; }
   set src(value) { this.srcSetWhileLazy = this.loading === 'lazy'; this._src = value; }
   get src() { return this._src; }
   append(...nodes) { this.children.push(...nodes); }
@@ -42,7 +43,17 @@ test('a PlayStation game keeps the title placeholder and never requests Steam ar
   const { cover } = await import('../app/static/dom.js');
   const frame = cover({ name: 'PS only', steam_appid: null });
   assert.equal(frame.children.some((node) => node.tagName === 'IMG'), false);
-  assert.equal(frame.children[0].textContent, 'PS only');
+  assert.equal(frame.children[0].textContent, 'P');
+  assert.equal(frame.children[0]['aria-hidden'], 'true');
+});
+
+test('in demo mode a Steam game gets the placeholder and no Steam request', async () => {
+  const { cover, demo } = await import('../app/static/dom.js');
+  demo.on = true;
+  try {
+    const frame = cover({ name: 'Synthetic', steam_appid: 9000001 });
+    assert.equal(frame.children.some((node) => node.tagName === 'IMG'), false);
+  } finally { demo.on = false; }
 });
 
 test('the account page asks for its settings and the session at the same time', async () => {

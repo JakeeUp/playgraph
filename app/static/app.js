@@ -1,11 +1,13 @@
 import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown, steamArt,
-  splitBySource, playStationSummary, playtimeLabel, storeArt } from './library.js';
-import { $, el, button, steamLink, cover, wallArt, aborted, numbered, setNumbers, timeLabel } from './dom.js';
+  splitBySource, playStationSummary, playtimeLabel, storeArt, plural } from './library.js';
+import { $, el, button, steamLink, demo, cover, wallArt, aborted, numbered, setNumbers, timeLabel, skeletonGrid, emptyState } from './dom.js';
 import { starDisplay } from './rating.js';
 import { createGameDialog } from './game-detail.js';
 import { createFeed } from './feed.js';
 import { createNews } from './news.js';
 import { barList } from './chart.js';
+import { sendRequest, readBody, failureOf } from './net.js';
+import { createJobPoller } from './jobs.js';
 
 // Page copy per view. pageKey() folds the signed-out library and playtime
 // views into the welcome copy, which is what they have always shown. `tab`
@@ -57,7 +59,7 @@ const WALL_APPS = [1145360, 1245620, 1086940, 1091500, 292030, 413150, 367520, 1
 const state = { user: null, csrf: '', library: [], psnLibrary: [], platform: 'steam', genres: [], catalog: [], total: 0,
   view: 'library', query: '', filter: 'all', genre: '', sort: 'playtime', shown: 48,
   controller: new AbortController(), generation: 0, catalogRequest: 0,
-  pollTimer: null, expiryTimer: null, searchTimer: null, syncing: false };
+  expiryTimer: null, searchTimer: null, syncing: false };
 const privateView = () => Boolean(state.user) && ['library', 'software', 'stats'].includes(state.view);
 const gameLibrary = () => state.library.filter((entry) => entry.game.content_kind !== 'software');
 const psnShelf = () => state.view === 'library' && state.platform === 'psn' && state.psnLibrary.length > 0;
@@ -80,28 +82,21 @@ function notify(message, error = false) {
 function report(error) { if (!aborted(error)) notify(error.message || 'Something went wrong. Please try again.', true); }
 async function api(path, { anonymous = false, ...options } = {}) {
   const generation = state.generation;
-  const headers = new Headers(options.headers);
-  if (options.body) headers.set('Content-Type', 'application/json');
-  if (options.method && options.method !== 'GET') headers.set('X-CSRF-Token', state.csrf);
-  const response = await fetch(path, { ...options, headers, credentials: 'same-origin', cache: 'no-store', signal: state.controller.signal });
+  const method = options.method && options.method !== 'GET' ? { csrf: state.csrf } : {};
+  const response = await sendRequest(path, { ...options, ...method, signal: state.controller.signal });
   if (generation !== state.generation) throw new DOMException('Session changed', 'AbortError');
   if (response.status === 401 && anonymous) return null;
   if (response.status === 401 && state.user) {
     clearSession(); notify('Your session ended. Sign in again to continue.', true);
     void loadCatalog(); throw new DOMException('Session ended', 'AbortError');
   }
-  const body = response.status === 204 ? null : await response.json().catch(() => null);
+  const body = await readBody(response);
   if (generation !== state.generation) throw new DOMException('Session changed', 'AbortError');
-  if (!response.ok) {
-    const detail = typeof body?.detail === 'string' ? body.detail : null;
-    const error = new Error(response.status === 429 ? `Too many requests. Try again in ${response.headers.get('Retry-After') || '60'} seconds.`
-      : detail || (response.status === 503 ? 'PlayGraph cannot reach its security service. Check that Redis is available, then refresh.' : 'This request could not be completed. Please try again.'));
-    error.status = response.status; throw error;
-  }
+  if (!response.ok) throw failureOf(response, body);
   return body;
 }
 function stopPolling() {
-  clearTimeout(state.pollTimer); state.pollTimer = null; state.syncing = false;
+  syncPoller.stop(); state.syncing = false;
   $('#sync-button').disabled = false; $('#sync-button').textContent = 'Sync Steam';
 }
 function clearSession() {
@@ -140,7 +135,7 @@ function renderShell() {
   $('#insights').hidden = !own || software || !(onPsn ? state.psnLibrary : gameLibrary()).length;
   $('#collection').hidden = isFeed || isNews || (state.view === 'stats' && Boolean(state.user) && gameLibrary().length > 0);
   $('#feed').hidden = !isFeed; $('#news').hidden = !isNews;
-  $('#sync-button').hidden = !state.user || !state.hasSteam || onPsn; $('#filters').hidden = !own;
+  $('#sync-button').hidden = demo.on || !state.user || !state.hasSteam || onPsn; $('#filters').hidden = !own;
   $('#sort').disabled = !own; $('#sort').value = own ? state.sort : 'name';
   const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
   // The welcome hero has its own headline, so the plain page heading steps aside.
@@ -227,7 +222,7 @@ async function loadFrontReviews() {
 function setHero(game) {
   const heading = $('.page-heading'); const appid = game?.steam_appid;
   const other = game && appid == null ? storeArt(game) : null;
-  const key = game && (appid != null || other.hero) ? String(game.id) : '';
+  const key = game && ((appid != null && !demo.on) || other?.hero) ? String(game.id) : '';
   if (heading.dataset.hero === key) return;
   heading.dataset.hero = key;
   heading.querySelector('.hero-art')?.remove(); heading.classList.toggle('has-hero', Boolean(key));
@@ -235,12 +230,12 @@ function setHero(game) {
   const art = el('img', 'hero-art'); art.alt = ''; art.decoding = 'async'; art.referrerPolicy = 'no-referrer';
   if (other) {
     // Same banner as a Steam game: IGDB artwork, or the cover blurred wide.
-    art.classList.toggle('soft', other.soft); art.addEventListener('error', () => art.remove());
+    art.classList.toggle('soft', other.soft); art.addEventListener('error', () => { art.remove(); heading.classList.remove('has-hero'); });
     art.src = other.hero; heading.prepend(art); return;
   }
   // Not every game has hero art. The store header, blurred, still gives the color.
   art.addEventListener('error', () => {
-    if (art.classList.contains('soft')) { art.remove(); return; }
+    if (art.classList.contains('soft')) { art.remove(); heading.classList.remove('has-hero'); return; }
     art.classList.add('soft'); art.src = steamArt(appid, 'header.jpg');
   });
   art.src = steamArt(appid, 'library_hero.jpg'); heading.prepend(art);
@@ -330,7 +325,7 @@ function genreCard() {
   const genres = full ? state.genres : state.genres.slice(0, 5);
   if (!genres.length) card.append(el('p', 'helper', 'Genres show up after your first sync.'));
   else card.append(barList(genres.map((genre) => {
-    const games = `${integer(genre.game_count)} ${genre.game_count === 1 ? 'game' : 'games'}`;
+    const games = `${integer(genre.game_count)} ${plural(genre.game_count, 'game')}`;
     return { label: genre.genre, value: genre.total_minutes, text: `${hours(genre.total_minutes)} h`, detail: games,
       name: `${genre.genre}: ${hours(genre.total_minutes)} hours across ${games}. Show these games.`,
       onSelect: () => showGenre(genre.genre) };
@@ -360,7 +355,7 @@ function showGenre(genre) {
 function renderCollection() {
   const own = privateView(); const filtered = own ? selectLibrary(shelfLibrary(), state) : state.catalog.map((game) => ({ game }));
   const total = own ? filtered.length : state.total; const visible = own ? filtered.slice(0, state.shown) : filtered;
-  const grid = $('#games'); grid.replaceChildren(); const shelf = shelfCopy();
+  const grid = $('#games'); grid.replaceChildren(); grid.removeAttribute('aria-busy'); const shelf = shelfCopy();
   for (const entry of visible) {
     const game = entry.game; const card = el('article', 'game-card'); const open = button('', '', () => gameDialog.open(game));
     const psn = entry.source === 'psn';
@@ -371,6 +366,7 @@ function renderCollection() {
     if (own && psn && entry.trophies?.earned.platinum > 0) art.append(el('span', 'cover-badge', 'Platinum'));
     else if (own && pct === 100) art.append(numbered('span', 'cover-badge', '100%'));
     else if (own && entry.playtime_minutes === 0) art.append(el('span', 'cover-badge', shelf.unused));
+    if (own && pct != null) art.append(numbered('span', 'cover-meta', `${Math.round(pct)}% ${psn ? 'trophies' : 'achievements'}`));
     const meta = el('span', 'game-meta');
     if (psn) meta.append(el('span', 'platform-badge', 'PlayStation'));
     else meta.append(el('span', 'genre-text', genresFor(game)[0] || 'Steam'));
@@ -379,14 +375,16 @@ function renderCollection() {
     open.append(art, el('h3', 'game-name', game.name), meta); card.append(open); grid.append(card);
   }
   if (!visible.length) {
-    const filtering = state.query || state.genre || state.filter !== 'all'; const empty = el('div', 'empty-message');
-    empty.append(el('strong', '', filtering ? 'No matches' : own ? 'No games yet' : 'No games in the catalog yet'));
-    empty.append(el('span', '', filtering ? 'Try another search or clear your filters.'
-      : own ? (state.hasSteam ? 'Sync Steam to bring in your games. Your Steam game details need to be public.' : 'Connect Steam to bring in your library and put verified hours on your reviews.') : 'Games show up here once someone syncs a Steam library.'));
-    if (filtering) empty.append(button('Clear filters', 'button secondary', resetFilters));
-    else if (state.user && state.hasSteam) empty.append(button('Sync Steam', 'button primary', syncLibrary));
-    else if (state.user) { const connect = el('a', 'button primary', 'Connect Steam'); connect.href = '/account'; empty.append(connect); }
-    else empty.append(steamLink('Create an account'));
+    const filtering = state.query || state.genre || state.filter !== 'all';
+    const actions = [];
+    if (filtering) actions.push(button('Clear filters', 'button secondary', resetFilters));
+    else if (state.user && state.hasSteam) actions.push(button('Sync Steam', 'button primary', syncLibrary));
+    else if (state.user) { const connect = el('a', 'button primary', 'Connect Steam'); connect.href = '/account'; actions.push(connect); }
+    else actions.push(steamLink('Create an account'));
+    const empty = emptyState({ title: filtering ? 'No matches' : own ? 'No games yet' : 'No games in the catalog yet',
+      text: filtering ? 'Try another search or clear your filters.'
+        : own ? (state.hasSteam ? 'Sync Steam to bring in your games. Your Steam game details need to be public.' : 'Connect Steam to bring in your library and put verified hours on your reviews.') : 'Games show up here once someone syncs a Steam library.',
+      actions });
     grid.append(empty);
   }
   $('#result-count').textContent = integer(total); $('#load-more').hidden = visible.length >= total;
@@ -396,14 +394,19 @@ function renderCollection() {
 async function loadCatalog(append = false) {
   const request = ++state.catalogRequest; const generation = state.generation; const offset = append ? state.catalog.length : 0;
   $('#load-more').disabled = true;
-  if (!append) { state.catalog = []; state.total = 0; $('#result-count').textContent = ''; $('#games').replaceChildren(el('p', 'empty-message', 'Loading games…')); }
+  if (!append) { state.catalog = []; state.total = 0; $('#result-count').textContent = ''; const games = $('#games'); games.setAttribute('aria-busy', 'true'); games.replaceChildren(...skeletonGrid()); }
   try {
     const data = await api(`/games?kind=${state.view === 'software' ? 'software' : 'game'}&limit=48&offset=${offset}&q=${encodeURIComponent(state.query)}`);
     if (request !== state.catalogRequest || generation !== state.generation || privateView()) return;
     state.catalog = append ? state.catalog.concat(data.games) : data.games; state.total = data.total; renderCollection();
   } catch (error) {
     if (request !== state.catalogRequest || aborted(error)) return;
-    if (!append) $('#games').replaceChildren(el('p', 'empty-message', 'Couldn’t load the catalog. Refresh to try again.')); report(error);
+    if (!append) {
+      const games = $('#games'); games.removeAttribute('aria-busy');
+      games.replaceChildren(emptyState({ kind: 'error', title: 'Couldn’t load the catalog', text: 'Check your connection, then try again.',
+        actions: [button('Try again', 'button secondary', () => void loadCatalog())] }));
+    }
+    report(error);
   } finally { if (request === state.catalogRequest) $('#load-more').disabled = false; }
 }
 async function loadLibrary() {
@@ -441,21 +444,22 @@ async function syncLibrary() {
     else { stopPolling(); report(error); }
   }
 }
-async function pollSync(jobId, restore = false) {
-  const generation = state.generation;
-  try {
-    const job = await api(`/me/sync/status/${encodeURIComponent(jobId)}`); if (!state.user || generation !== state.generation) return;
-    if (['queued', 'in_progress', 'deferred'].includes(job.status)) {
-      state.syncing = true; $('#sync-button').disabled = true; $('#sync-button').textContent = 'Syncing…';
-      notify(job.status === 'in_progress' ? 'Syncing with Steam. Large libraries can take several minutes; achievement checks run one game at a time.' : 'Steam sync is queued. Keep the worker running and we will update your library when it finishes.');
-      state.pollTimer = setTimeout(() => void pollSync(jobId), 5000);
-    } else {
-      stopPolling(); if (restore) return;
-      if (job.status === 'complete') { await loadLibrary(); if (state.user && generation === state.generation) notify(`Your library is up to date. ${integer(job.result?.games_synced ?? state.library.length)} games synced.`); }
-      else notify(job.status === 'failed' ? 'The sync failed. Check the worker and Steam availability, then try again.' : 'This sync is no longer in the queue. Start a new sync when you are ready.', true);
-    }
-  } catch (error) { if (generation === state.generation) { stopPolling(); if (!restore) report(error); } }
-}
+const syncPoller = createJobPoller({
+  fetchJob: (jobId) => api(`/me/sync/status/${encodeURIComponent(jobId)}`),
+  begin: () => { const generation = state.generation; return () => !state.user || generation !== state.generation; },
+  onActive: (job) => {
+    state.syncing = true; $('#sync-button').disabled = true; $('#sync-button').textContent = 'Syncing…';
+    notify(job.status === 'in_progress' ? 'Syncing with Steam. Large libraries can take several minutes; achievement checks run one game at a time.' : 'Steam sync is queued. Keep the worker running and we will update your library when it finishes.');
+  },
+  onSettled: async (job, restore) => {
+    const generation = state.generation;
+    stopPolling(); if (restore) return;
+    if (job.status === 'complete') { await loadLibrary(); if (state.user && generation === state.generation) notify(`Your library is up to date. ${integer(job.result?.games_synced ?? state.library.length)} games synced.`); }
+    else notify(job.status === 'failed' ? 'The sync failed. Check the worker and Steam availability, then try again.' : 'This sync is no longer in the queue. Start a new sync when you are ready.', true);
+  },
+  onError: (error, restore) => { stopPolling(); if (!restore) report(error); },
+});
+const pollSync = (jobId, restore = false) => syncPoller.poll(jobId, restore);
 document.querySelectorAll('[data-view]').forEach((node) => node.addEventListener('click', () => navigate(node.dataset.view)));
 document.querySelectorAll('[data-filter]').forEach((node) => node.addEventListener('click', () => { state.filter = node.dataset.filter; state.shown = 48; renderCollection(); }));
 document.querySelectorAll('.platform-switch .in-dev:not(#platform-psn)').forEach((node) => node.addEventListener('click', () =>
@@ -502,14 +506,24 @@ async function checkSession() {
     if (!session && state.user) { clearSession(); notify('You are signed out.'); await loadCatalog(); }
     else if (session && (session.user.id !== state.user?.id || session.csrf_token !== state.csrf)) {
       clearSession(); acceptSession(session); renderShell(); await loadLibrary();
-      if (state.user && state.hasSteam) void pollSync(`sync-json-user-${state.user.id}`, true);
+      if (state.user && state.hasSteam && !demo.on) void pollSync(`sync-json-user-${state.user.id}`, true);
     }
   } catch (error) { report(error); } finally { checkingSession = false; }
 }
 sessionChannel?.addEventListener('message', (event) => { if (event.data === 'session-changed') void checkSession(); });
 window.addEventListener('focus', () => void checkSession());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) void checkSession(); });
+async function applyDemo() {
+  try {
+    const config = await sendRequest('/auth/config').then((r) => r.json());
+    if (!config.demo) return;
+    demo.on = true; $('#demo-banner').hidden = false;
+    document.querySelectorAll('[data-view="news"]').forEach((item) => item.remove());
+    const actions = $('.welcome-actions'); actions.replaceChildren(steamLink()); actions.nextElementSibling?.remove();
+  } catch { /* not the demo, or config unreachable: behave normally */ }
+}
 async function start() {
+  await applyDemo();
   if (new URLSearchParams(location.search).has('login_error')) {
     notify('Steam sign-in could not be completed. Start again using Connect Steam in this browser. If it repeats, check that the address matches APP_BASE_URL.', true); history.replaceState(null, '', '/app');
   }
@@ -522,7 +536,7 @@ async function start() {
       renderShell(); await loadLibrary();
       // Straight back from connecting Steam: start the first sync for them.
       if (steamConnected && state.hasSteam) { notify('Steam connected. Bringing in your library now.'); void syncLibrary(); }
-      else if (state.user && state.hasSteam) void pollSync(`sync-json-user-${state.user.id}`, true);
+      else if (state.user && state.hasSteam && !demo.on) void pollSync(`sync-json-user-${state.user.id}`, true);
     } else { renderShell(); await loadCatalog(); }
   } catch (error) { report(error); if (!state.user) { renderShell(); await loadCatalog(); } }
 }

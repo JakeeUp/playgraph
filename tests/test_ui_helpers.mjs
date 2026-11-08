@@ -96,3 +96,16 @@ test('stopping a poller cancels the next scheduled read', async () => {
   await new Promise((resolve) => setTimeout(resolve, 30));
   assert.equal(reads, 1);
 });
+
+test('copyText reports success or failure instead of throwing', async () => {
+  const { copyText, statCell } = await Promise.all([import('../app/static/dom.js'), import('../app/static/game-detail.js')])
+    .then(([dom, detail]) => ({ copyText: dom.copyText, statCell: detail.statCell }));
+  let copied;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async (text) => { copied = text; } } } });
+  assert.equal(await copyText('abc'), true); assert.equal(copied, 'abc');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async () => { throw new Error('denied'); } } } });
+  assert.equal(await copyText('abc'), false);
+  const cell = statCell('Played', '96 h', 'played');
+  assert.equal(cell.children[0].tag, 'dt'); assert.equal(cell.children[0].textContent, 'Played');
+  assert.equal(cell.children[1].tag, 'dd'); assert.equal(cell.children[1].className, 'played');
+});
