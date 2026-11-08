@@ -90,3 +90,32 @@ test('news ages read as minutes, then hours, then a date, and bad input is blank
   assert.equal(ageLabel('2026-10-02T07:00:00Z', now), '5 h ago');
   assert.equal(ageLabel('not a date', now), '');
 });
+
+test('hours context measures a reviewer against the longest and the median verified hours', async () => {
+  const { hoursContext } = await import('../app/static/library.js');
+  const pool = [6000, 1200, 600, 300, null, 0];
+  // The longest playtime fills the bar and says so.
+  assert.deepEqual(hoursContext(6000, pool), { fraction: 1, label: 'Most hours of 4 verified reviewers' });
+  // Median of 300, 600, 1200, 6000 is 900; 1200 is about it, 300 is under it.
+  assert.deepEqual(hoursContext(1200, pool), { fraction: 0.2, label: 'About the median' });
+  assert.equal(hoursContext(300, pool).label, 'Under the median');
+  assert.equal(hoursContext(300, pool).fraction, 0.05);
+  // Well above the median gets a multiple, formatted like every other number.
+  const label = hoursContext(1800, [1800, 6000, 300, 600]).label;
+  assert.equal(label, `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(1.5)}× the median`);
+});
+
+test('hours context stays out when there is nothing to compare', async () => {
+  const { hoursContext } = await import('../app/static/library.js');
+  assert.equal(hoursContext(null, [600, 1200]), null);
+  assert.equal(hoursContext(0, [600, 1200]), null);
+  assert.equal(hoursContext(600, [600]), null);
+  assert.equal(hoursContext(600, [600, null, 0]), null);
+  assert.equal(hoursContext(600, []), null);
+});
+
+test('hours context says when the longest playtime is shared', async () => {
+  const { hoursContext } = await import('../app/static/library.js');
+  assert.equal(hoursContext(120, [120, 120]).label, 'Tied for most hours of 2 verified reviewers');
+  assert.equal(hoursContext(120, [120, 120]).fraction, 1);
+});
