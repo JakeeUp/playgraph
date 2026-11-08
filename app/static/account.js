@@ -1,5 +1,6 @@
 import { $ } from './dom.js';
 import { initPlayStation } from './psn-account.js';
+import { sendRequest, readBody, failureOf, currentSession, AUTH_HEADER } from './net.js';
 
 const status = $('#account-status');
 const signIn = $('#clerk-sign-in');
@@ -23,13 +24,6 @@ function report(message, retry = false) {
   $('#retry-account').hidden = !retry;
 }
 
-async function currentSession() {
-  const response = await fetch('/auth/session', { credentials: 'same-origin', cache: 'no-store' });
-  if (response.status === 401) return null;
-  if (!response.ok) throw new Error('Unable to check your current account. Please try again.');
-  return response.json();
-}
-
 function isSteam(session) {
   return session && session.auth_provider !== 'clerk';
 }
@@ -49,10 +43,7 @@ function showSteam() {
 async function endPlayGraphSession() {
   const session = await currentSession();
   if (!session) return;
-  const response = await fetch('/auth/logout', {
-    method: 'POST', credentials: 'same-origin', cache: 'no-store',
-    headers: { 'X-CSRF-Token': session.csrf_token },
-  });
+  const response = await sendRequest('/auth/logout', { method: 'POST', csrf: session.csrf_token });
   if (!response.ok && response.status !== 401) throw new Error('Sign-out failed. Please try again.');
 }
 
@@ -113,7 +104,7 @@ async function start() {
   sessionRequest.catch(() => {});
   // PlayStation linking works for any signed-in account, with or without Clerk.
   sessionRequest.then((session) => { if (session) void initPlayStation(session); }, () => {});
-  const response = await fetch('/auth/config', { credentials: 'same-origin', cache: 'no-store' });
+  const response = await sendRequest('/auth/config');
   if (!response.ok) throw new Error('Sign-in settings could not load. Please try again.');
   const config = await response.json();
   if (!config.enabled) {
@@ -123,7 +114,7 @@ async function start() {
   const session = await sessionRequest;
   playgraph = session;
   if (isSteam(session)) {
-    const pending = await fetch('/auth/clerk/link', { credentials: 'same-origin', cache: 'no-store' });
+    const pending = await sendRequest('/auth/clerk/link');
     if (!pending.ok) throw new Error('Unable to check your account connection.');
     linking = (await pending.json()).pending;
     if (!linking) { showSteam(); return; }
@@ -161,12 +152,10 @@ $('#retry-account').addEventListener('click', () => location.reload());
 async function linkRequest(path, method, token) {
   const session = await currentSession();
   if (!isSteam(session)) throw new Error('Your Steam session ended. Sign in with Steam again before connecting.');
-  const response = await fetch(path, { method, credentials: 'same-origin', cache: 'no-store',
-    headers: { 'X-CSRF-Token': session.csrf_token, ...(token ? { 'X-Clerk-Token': token } : {}) },
-  });
+  const response = await sendRequest(path, { method, csrf: session.csrf_token, headers: token ? { 'X-Clerk-Token': token } : {} });
   if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(typeof body?.detail === 'string' ? body.detail : 'Connection could not finish. Please try again.');
+    const fallback = 'Connection could not finish. Please try again.';
+    throw failureOf(response, await readBody(response), { unavailable: fallback, fallback });
   }
 }
 $('#start-link').addEventListener('click', async (event) => {
@@ -197,9 +186,8 @@ $('#continue-account').addEventListener('click', async (event) => {
       location.assign('/app');
       return;
     }
-    const response = await fetch('/auth/clerk/session', {
-      method: 'POST', credentials: 'same-origin', cache: 'no-store',
-      headers: { Authorization: `Bearer ${token}`, 'X-PlayGraph-Auth': '1' },
+    const response = await sendRequest('/auth/clerk/session', {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, [AUTH_HEADER]: '1' },
     });
     if (!response.ok) {
       throw new Error(response.status === 409
@@ -217,12 +205,14 @@ $('#connect-steam').addEventListener('click', async (event) => {
     if (session?.auth_provider !== 'clerk') throw new Error('Continue to PlayGraph first, then connect Steam.');
     const token = await clerk.session?.getToken({ skipCache: true });
     if (!token) throw new Error('Your sign-in expired. Please sign in again.');
-    const response = await fetch('/auth/steam/connect', {
-      method: 'POST', credentials: 'same-origin', cache: 'no-store',
-      headers: { 'X-CSRF-Token': session.csrf_token, 'X-Clerk-Token': token },
+    const response = await sendRequest('/auth/steam/connect', {
+      method: 'POST', csrf: session.csrf_token, headers: { 'X-Clerk-Token': token },
     });
-    const body = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(typeof body?.detail === 'string' ? body.detail : 'Steam connection could not start. Please try again.');
+    const body = await readBody(response);
+    if (!response.ok) {
+      const fallback = 'Steam connection could not start. Please try again.';
+      throw failureOf(response, body, { unavailable: fallback, fallback });
+    }
     const target = new URL(body.redirect);
     if (target.origin !== 'https://steamcommunity.com') throw new Error('Steam connection could not start. Please try again.');
     location.assign(target.href);

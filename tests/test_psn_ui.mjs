@@ -55,7 +55,7 @@ test('account page explains what privacy settings let the last sync see', () => 
 });
 
 test('failures become sentences without inventing server detail', () => {
-  assert.equal(failureText(429, 'Too many requests', '120'), 'Too many attempts. Try again in 120 seconds.');
+  assert.equal(failureText(429, 'Too many requests', '120'), 'Too many requests. Try again in 120 seconds.');
   assert.equal(failureText(409, 'Code not found in your About Me yet.'), 'Code not found in your About Me yet.');
   assert.equal(failureText(503, null), 'PlayStation is temporarily unavailable. Try again later.');
   assert.equal(failureText(500, { nested: true }), 'That didn’t work. Please try again.');

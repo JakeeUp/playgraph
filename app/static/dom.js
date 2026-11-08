@@ -66,3 +66,8 @@ export function timeLabel(value) {
 export function formError(target, error) {
   if (!aborted(error) && target.isConnected) { target.textContent = error.message; target.hidden = false; }
 }
+
+// Copy text to the clipboard. True when it worked, false when the browser said no.
+export async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+}

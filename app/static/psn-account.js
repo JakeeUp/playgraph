@@ -1,12 +1,14 @@
-import { $, timeLabel } from './dom.js';
+import { $, timeLabel, copyText } from './dom.js';
+import { currentSession, requestJson, failureMessage } from './net.js';
+import { createJobPoller } from './jobs.js';
 
 // The PlayStation section of the account page. Players prove they own a PSN
 // Online ID by putting a one-time code in their public About Me; PlayGraph
 // never asks for a PSN password, cookie or token. Importing this module does
 // nothing until initPlayStation runs, so its text helpers can be unit tested.
 
-const POLL_MS = 5000;
-const ACTIVE = new Set(['queued', 'in_progress', 'deferred']);
+
+const PSN_WORDS = { unavailable: 'PlayStation is temporarily unavailable. Try again later.', fallback: 'That didn’t work. Please try again.' };
 
 /** What the last sync could see, in words. `sync` is the server's last outcome. */
 export function privacyNote(sync) {
@@ -23,12 +25,7 @@ export function privacyNote(sync) {
 }
 
 /** A failed response as a sentence a player can act on. */
-export function failureText(status, detail, retryAfter) {
-  if (status === 429) return `Too many attempts. Try again in ${retryAfter || '60'} seconds.`;
-  if (typeof detail === 'string' && detail) return detail;
-  if (status === 503) return 'PlayStation is temporarily unavailable. Try again later.';
-  return 'That didn’t work. Please try again.';
-}
+export const failureText = (status, detail, retryAfter) => failureMessage(status, detail, retryAfter, PSN_WORDS);
 
 let started = false;
 
@@ -37,26 +34,17 @@ export async function initPlayStation(session) {
   started = true;
   const section = $('#psn-section');
   const status = $('#psn-status');
-  let pollTimer = null;
   const say = (message) => { status.textContent = message; };
 
   async function call(path, method = 'GET', body) {
-    const headers = {};
+    const init = { method, body: body ? JSON.stringify(body) : undefined };
     if (method !== 'GET') {
       // Ask for the current CSRF token each time; the session may have rotated.
-      const current = await fetch('/auth/session', { credentials: 'same-origin', cache: 'no-store' });
-      if (!current.ok) throw new Error('Your session ended. Sign in again, then link PlayStation.');
-      headers['X-CSRF-Token'] = (await current.json()).csrf_token;
+      const fresh = await currentSession().catch(() => null);
+      if (!fresh) throw new Error('Your session ended. Sign in again, then link PlayStation.');
+      init.csrf = fresh.csrf_token;
     }
-    if (body) headers['Content-Type'] = 'application/json';
-    const response = await fetch(path, { method, headers, credentials: 'same-origin', cache: 'no-store',
-      body: body ? JSON.stringify(body) : undefined });
-    const data = response.status === 204 ? null : await response.json().catch(() => null);
-    if (!response.ok) {
-      const error = new Error(failureText(response.status, data?.detail, response.headers.get('Retry-After')));
-      error.status = response.status; throw error;
-    }
-    return data;
+    return requestJson(path, init, PSN_WORDS);
   }
 
   function show(part) {
@@ -84,23 +72,22 @@ export async function initPlayStation(session) {
     return state;
   }
 
-  async function poll(jobId) {
-    clearTimeout(pollTimer);
-    try {
-      const job = await call(`/me/psn/sync/status/${encodeURIComponent(jobId)}`);
-      if (ACTIVE.has(job.status)) {
-        say(job.status === 'in_progress' ? 'Syncing with PlayStation. Requests are paced, so this can take a minute or two.'
-          : 'PlayStation sync is queued.');
-        $('#psn-sync').disabled = true;
-        pollTimer = setTimeout(() => void poll(jobId), POLL_MS);
-        return;
-      }
+  const poller = createJobPoller({
+    fetchJob: (jobId) => call(`/me/psn/sync/status/${encodeURIComponent(jobId)}`),
+    onActive: (job) => {
+      say(job.status === 'in_progress' ? 'Syncing with PlayStation. Requests are paced, so this can take a minute or two.'
+        : 'PlayStation sync is queued.');
+      $('#psn-sync').disabled = true;
+    },
+    onSettled: async (job) => {
       $('#psn-sync').disabled = false;
       await refresh();
       say(job.status === 'complete' ? 'PlayStation sync finished.'
         : job.status === 'failed' ? 'The PlayStation sync failed. Try again later.' : '');
-    } catch (error) { $('#psn-sync').disabled = false; say(error.message); }
-  }
+    },
+    onError: (error) => { $('#psn-sync').disabled = false; say(error.message); },
+  });
+  const poll = (jobId) => poller.poll(jobId);
 
   $('#psn-start').addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -116,8 +103,7 @@ export async function initPlayStation(session) {
   });
 
   $('#psn-copy').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText($('#psn-code').textContent); say('Code copied.'); }
-    catch { say('Copy didn’t work. Select the code and copy it yourself.'); }
+    say(await copyText($('#psn-code').textContent) ? 'Code copied.' : 'Copy didn’t work. Select the code and copy it yourself.');
   });
 
   $('#psn-check').addEventListener('click', async (event) => {

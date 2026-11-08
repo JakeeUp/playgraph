@@ -108,3 +108,9 @@ export function reviewVerification(review) {
   if (pct != null) parts.push(`${Math.round(pct)}% ${psn ? 'trophies' : 'achievements'}`);
   return { badge: psn ? 'PlayStation' : 'PC', text: parts.join(' · ') };
 }
+
+/** `1 comment`, `2 comments`: the word follows the count. */
+export const plural = (count, word, many = `${word}s`) => (count === 1 ? word : many);
+
+/** `3 / 10`: how many of how many, each with thousands separators. */
+export const countPair = (earned, total) => `${integer(earned)} / ${integer(total)}`;
