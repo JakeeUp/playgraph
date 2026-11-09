@@ -115,6 +115,20 @@ export function heroArt(game) {
   });
   art.src = steamArt(appid, 'library_hero.jpg'); return art;
 }
+// The signature: a tilted wall of covers drifting slowly behind a heading.
+// Each row holds its covers twice, so sliding it by half its width loops
+// without a seam; alternate rows run the other way. Decorative only.
+export function coverWall(games, { rows = 3, perRow = 9 } = {}) {
+  const wall = el('div', 'cover-wall'); wall.setAttribute('aria-hidden', 'true');
+  const pool = games.filter(Boolean); if (!pool.length) return wall;
+  for (let row = 0; row < rows; row += 1) {
+    const strip = el('div', 'wall-row'); const track = el('div', 'wall-track');
+    const picks = Array.from({ length: perRow }, (_, i) => pool[(row * perRow + i * (rows + 1) + row) % pool.length]);
+    for (const game of [...picks, ...picks]) { const art = cover(game); art.classList.add('wall-cover'); track.append(art); }
+    strip.append(track); wall.append(strip);
+  }
+  return wall;
+}
 export function cover(game) {
   const frame = el('span', 'cover'); frame.append(placeholder(game));
   // Games from other stores have no Steam art. They use IGDB's cover, then

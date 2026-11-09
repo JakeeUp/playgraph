@@ -117,6 +117,22 @@ test('hero art asks for the wide Steam art, then the softened header, then gives
   assert.equal(hero.removed, true);
 });
 
+test('the cover wall is decorative rows that hold each set of covers twice', async () => {
+  const { coverWall } = await import('../app/static/dom.js');
+  const games = Array.from({ length: 5 }, (_, i) => ({ id: i + 1, name: `Game ${i + 1}`, steam_appid: null }));
+  const wall = coverWall(games, { rows: 3, perRow: 4 });
+  assert.equal(wall.className, 'cover-wall'); assert.equal(wall['aria-hidden'], 'true');
+  assert.equal(wall.children.length, 3);
+  for (const row of wall.children) {
+    const [track] = row.children; assert.equal(track.className, 'wall-track');
+    assert.equal(track.children.length, 8);
+    // The second half repeats the first, so sliding by half loops without a seam.
+    const titles = track.children.map((frame) => frame.children[0].dataset.title);
+    assert.deepEqual(titles.slice(4), titles.slice(0, 4));
+  }
+  assert.equal(coverWall([]).children.length, 0);
+});
+
 test('the verified stamp and hours bar carry their numbers', async () => {
   const { stamp, hoursBar } = await import('../app/static/dom.js');
   const node = stamp('152 h verified');

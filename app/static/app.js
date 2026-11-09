@@ -1,6 +1,6 @@
 import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown,
   splitBySource, playStationSummary, playtimeLabel, plural, hoursContext } from './library.js';
-import { $, el, button, steamLink, demo, cover, aborted, numbered, setNumbers, timeLabel, skeletonGrid, emptyState,
+import { $, el, button, steamLink, demo, cover, coverWall, aborted, numbered, setNumbers, timeLabel, skeletonGrid, emptyState,
   stamp, hoursBar } from './dom.js';
 import { starDisplay } from './rating.js';
 import { createGameDialog } from './game-detail.js';
@@ -153,7 +153,7 @@ function renderShell() {
   $('#load-more').textContent = shelf.more;
   $('#sort').querySelector('[value="playtime"]').textContent = shelf.mostUsed;
   updateGenres();
-  if (own) renderInsights();
+  if (own) renderInsights(); else setHero(null);
 }
 // Said plainly wherever PlayStation data appears: it is public profile data
 // read through Sony's unofficial app interface, not a Sony-approved link.
@@ -264,22 +264,41 @@ function renderInsights() {
       const [ah, at] = rank(a); const [bh, bt] = rank(b); return bh - ah || bt - at;
     });
     const byHours = ranked[0]?.playtime_minutes > 0;
-    insights.classList.remove('expanded');
+    insights.classList.remove('expanded'); setHero(ranked.map((entry) => entry.game));
     insights.replaceChildren(rankedSection(byHours ? 'Most played' : 'Most trophies', ranked.slice(0, 5),
       byHours ? (entry) => entry.playtime_minutes || 0 : (entry) => entry.achievements_unlocked || 0,
       byHours ? playtimeLabel : (entry) => `${integer(entry.achievements_unlocked)} trophies`));
     return;
   }
-  if (!shelfLibrary().length) return;
+  if (!shelfLibrary().length) { setHero(null); return; }
   const summary = summarize(shelfLibrary()); const software = state.view === 'software';
   renderStrip([['Hours', hours(summary.minutes)], [software ? 'Apps' : 'Games', integer(summary.games)],
     [software ? 'Used' : 'Played', integer(summary.played)], ['Achievements', integer(summary.unlocked)]]);
-  if (software) return;
   const full = state.view === 'stats';
   const ranked = selectLibrary(gameLibrary()).filter((entry) => entry.playtime_minutes > 0).slice(0, full ? 10 : 5);
+  setHero(software ? null : [...gameLibrary()].sort((a, b) => b.playtime_minutes - a.playtime_minutes).map((entry) => entry.game));
+  if (software) return;
   insights.classList.toggle('expanded', full);
   insights.replaceChildren(rankedSection(full ? 'Top 10 by playtime' : 'Most played', ranked,
     (entry) => entry.playtime_minutes, (entry) => `${hours(entry.playtime_minutes)} h`), genreSection(full));
+}
+// Your library heading sits on a tilted wall of your own covers, most played
+// first, drifting slowly behind your name.
+function setHero(games) {
+  const list = ['library', 'stats'].includes(state.view) ? (games || []).filter(Boolean).slice(0, 27) : [];
+  const heading = $('.page-heading'); const key = list.map((game) => game.id).join(',');
+  if (heading.dataset.hero === key) return;
+  heading.dataset.hero = key; heading.querySelector('.cover-wall')?.remove();
+  heading.classList.toggle('has-hero', Boolean(key));
+  if (key) heading.prepend(coverWall(list));
+}
+// The front door and the closing band share one wall built from the catalog.
+function fillWalls() {
+  const games = state.catalog.slice(0, 27); const key = games.map((game) => game.id).join(',');
+  if (!key || $('#welcome').dataset.wall === key) return;
+  $('#welcome').dataset.wall = key;
+  $('#welcome-wall').replaceChildren(coverWall(games));
+  $('#cta-wall').replaceChildren(coverWall([...games].reverse(), { rows: 2 }));
 }
 // A ranked list: muted rank, small cover, title, a flat bar and the value.
 function rankedSection(title, entries, value, text) {
@@ -346,6 +365,15 @@ function renderCollection() {
   setNumbers($('#shown-count'), total ? `${integer(visible.length)} of ${integer(total)} ${shelf.plural}` : '');
   document.querySelectorAll('[data-filter]').forEach((chip) => { chip.classList.toggle('selected', chip.dataset.filter === state.filter); chip.setAttribute('aria-pressed', String(chip.dataset.filter === state.filter)); });
 }
+// A small tag in the corner of a cover on your own shelf: a gold 100% or
+// platinum, or "New" for a game not started yet. The same facts are in the
+// caption and the button label, so the tag stays out of the reading order.
+function coverBadge(entry) {
+  const platinum = entry.source === 'psn' && entry.trophies?.earned.platinum > 0;
+  const label = platinum ? 'Platinum' : achievementPercent(entry) === 100 ? '100%' : entry.playtime_minutes === 0 ? 'New' : null;
+  if (!label) return null;
+  const tag = el('span', `cover-badge${label === 'New' ? '' : ' gold'}`, label); tag.setAttribute('aria-hidden', 'true'); return tag;
+}
 // The line under a cover: your hours (and achievement share) on your own
 // shelf, the first genre in the catalog.
 function caption(entry, own, shelf) {
@@ -365,15 +393,6 @@ function renderFilterCounts(shelf) {
   const counts = { all: base.length, played: base.filter((entry) => entry.playtime_minutes > 0).length,
     unplayed: base.filter((entry) => entry.playtime_minutes === 0).length };
   const labels = { all: shelf.all, played: shelf.used, unplayed: shelf.unused };
-// A small tag in the corner of a cover on your own shelf: a gold 100% or
-// platinum, or "New" for a game not started yet. The same facts are in the
-// caption and the button label, so the tag stays out of the reading order.
-function coverBadge(entry) {
-  const platinum = entry.source === 'psn' && entry.trophies?.earned.platinum > 0;
-  const label = platinum ? 'Platinum' : achievementPercent(entry) === 100 ? '100%' : entry.playtime_minutes === 0 ? 'New' : null;
-  if (!label) return null;
-  const tag = el('span', `cover-badge${label === 'New' ? '' : ' gold'}`, label); tag.setAttribute('aria-hidden', 'true'); return tag;
-}
   document.querySelectorAll('[data-filter]').forEach((chip) => {
     chip.replaceChildren(labels[chip.dataset.filter], ' ', el('span', 'tab-count num', integer(counts[chip.dataset.filter])));
   });
@@ -386,6 +405,7 @@ async function loadCatalog(append = false) {
     const data = await api(`/games?kind=${state.view === 'software' ? 'software' : 'game'}&limit=48&offset=${offset}&q=${encodeURIComponent(state.query)}`);
     if (request !== state.catalogRequest || generation !== state.generation || privateView()) return;
     state.catalog = append ? state.catalog.concat(data.games) : data.games; state.total = data.total; renderCollection();
+    if (!append && state.view === 'library') fillWalls();
   } catch (error) {
     if (request !== state.catalogRequest || aborted(error)) return;
     if (!append) {
