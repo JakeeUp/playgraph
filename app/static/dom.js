@@ -91,6 +91,30 @@ export function placeholder(game) {
   node.append(svg, el('span', 'ph-title', game.name || ''));
   return node;
 }
+// Wide art for a banner behind a page heading or a game page: the game's own
+// hero art when it has some, otherwise its generated scene stretched wide and
+// softened. Always decorative.
+export function heroArt(game) {
+  const appid = game?.steam_appid; const playstation = isPlayStationGame(game);
+  const other = playstation ? storeArt(game) : null;
+  if ((playstation && !other.hero) || (demo.on && !other?.hero)) {
+    const scene = placeholder(game); scene.classList.add('hero-art', 'scene');
+    // Stretched wide, the landscape squashes into a low horizon instead of
+    // being cropped to nothing but ground.
+    scene.querySelector('.ph-art').setAttribute('preserveAspectRatio', 'none'); return scene;
+  }
+  const art = el('img', 'hero-art'); art.alt = ''; art.decoding = 'async'; art.referrerPolicy = 'no-referrer';
+  if (other) {
+    art.classList.toggle('soft', other.soft); art.addEventListener('error', () => art.remove());
+    art.src = other.hero; return art;
+  }
+  // Not every game has hero art. The store header, softened, still gives the colour.
+  art.addEventListener('error', () => {
+    if (art.classList.contains('soft')) { art.remove(); return; }
+    art.classList.add('soft'); art.src = steamArt(appid, 'header.jpg');
+  });
+  art.src = steamArt(appid, 'library_hero.jpg'); return art;
+}
 export function cover(game) {
   const frame = el('span', 'cover'); frame.append(placeholder(game));
   // Games from other stores have no Steam art. They use IGDB's cover, then

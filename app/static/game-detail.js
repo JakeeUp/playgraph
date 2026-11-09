@@ -1,5 +1,5 @@
 import { genresFor, hours, countPair, achievementPercent, isPlayStationGame, playtimeLabel, hoursContext, TROPHY_GRADES } from './library.js';
-import { $, el, button, cover, demo, steamLink, timeLabel, formError, numbered, copyText, stamp, hoursBar } from './dom.js';
+import { $, el, button, cover, heroArt, demo, steamLink, timeLabel, formError, numbered, copyText, stamp, hoursBar } from './dom.js';
 import { createRatingPicker, starDisplay } from './rating.js';
 
 // One label/value pair in a <dl>: <div><dt>label</dt><dd>value</dd></div>.
@@ -74,7 +74,9 @@ export function createGameDialog(state, api, report = () => {}) {
     info.append(fields, about, ...syncNotes(entry, psnEntry, playstation));
     void loadDetails(game, request, { platforms, fields, about });
     header.append(info); main.append(header); profile.append(aside, main);
-    content.append(profile);
+    // The page opens on the game's own art, darkened into the room.
+    const banner = el('div', 'detail-banner'); banner.setAttribute('aria-hidden', 'true'); banner.append(heroArt(game));
+    content.append(banner, profile);
     const reviews = renderReviews(game, request, { createdReview, threadReview, editRequested, ratings });
     main.append(reviews.tabs, ...reviews.panels); reviews.selectTab(createdReview ? 1 : 0);
     const actions = el('div', 'detail-actions');

@@ -12,6 +12,7 @@ class FakeElement {
   replaceChildren(...nodes) { this.children = [...nodes]; }
   addEventListener(type, fn) { this.listeners[type] = fn; }
   remove() { this.removed = true; }
+  querySelector(selector) { return this.children.find((node) => node.class === selector.slice(1) || node.className === selector.slice(1)) || null; }
 }
 const elements = new Map();
 globalThis.document = {
@@ -90,6 +91,30 @@ test('a generated cover is key art: sky colours, a stars layer, two hills and th
   assert.deepEqual(art.children.map((child) => child.class), ['ph-stars', 'ph-far', 'ph-near']);
   for (const hill of art.children.slice(1)) assert.match(hill.d, /^M0 300V\d/);
   assert.equal(title.className, 'ph-title'); assert.equal(title.textContent, 'Cold Harbor');
+});
+
+test('demo hero art is the generated scene, stretched wide, and never a Steam request', async () => {
+  const { heroArt, demo } = await import('../app/static/dom.js');
+  demo.on = true;
+  try {
+    const hero = heroArt({ name: 'Synthetic', steam_appid: 9000001 });
+    assert.notEqual(hero.tagName, 'IMG');
+    assert.equal(hero['aria-hidden'], 'true');
+    assert.equal(hero.children[0].preserveAspectRatio, 'none');
+  } finally { demo.on = false; }
+});
+
+test('hero art asks for the wide Steam art, then the softened header, then gives up', async () => {
+  const { heroArt } = await import('../app/static/dom.js');
+  const added = [];
+  const hero = heroArt({ name: 'Alpha', steam_appid: 620 });
+  hero.classList = { add: (name) => added.push(name), contains: (name) => added.includes(name), toggle() {} };
+  assert.equal(hero.tagName, 'IMG'); assert.equal(hero.alt, '');
+  assert.match(hero.src, /\/620\/library_hero\.jpg$/);
+  hero.listeners.error();
+  assert.deepEqual(added, ['soft']); assert.match(hero.src, /\/620\/header\.jpg$/);
+  hero.listeners.error();
+  assert.equal(hero.removed, true);
 });
 
 test('the verified stamp and hours bar carry their numbers', async () => {
