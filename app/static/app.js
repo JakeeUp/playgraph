@@ -137,7 +137,9 @@ function renderShell() {
   // The welcome hero has its own headline, so the plain page heading steps aside.
   $('.page-heading').hidden = pageKey() === 'welcome';
   if ($('#welcome').hidden === false) void loadFrontReviews();
-  $('#page-title').textContent = copy.title;
+  // Your own shelf is named for you: it is a library to show off.
+  const first = state.user?.display_name?.trim().split(/\s+/)[0];
+  $('#page-title').textContent = own && first && pageKey() === 'library' && !software ? `${first}’s library` : copy.title;
   $('#page-subtitle').textContent = onPsn
     ? 'Your PlayStation games: trophies, and PS4 and PS5 hours when your PSN privacy settings share them.' : copy.subtitle;
   // An open game page owns the tab title until it closes.
@@ -323,7 +325,8 @@ function renderCollection() {
     open.setAttribute('aria-label', `Open ${game.name}${!own ? '' : psn
       ? `, PlayStation, ${entry.playtime_minutes == null ? 'hours not shared' : `${hours(entry.playtime_minutes)} hours played`}`
       : `, ${hours(entry.playtime_minutes)} hours ${shelf.verb}`}`);
-    open.append(cover(game), el('h3', 'game-name', game.name), numbered('span', 'game-meta', caption(entry, own, shelf)));
+    const art = cover(game); const badge = own && coverBadge(entry); if (badge) art.append(badge);
+    open.append(art, el('h3', 'game-name', game.name), numbered('span', 'game-meta', caption(entry, own, shelf)));
     card.append(open); grid.append(card);
   }
   if (!visible.length) {
@@ -362,6 +365,15 @@ function renderFilterCounts(shelf) {
   const counts = { all: base.length, played: base.filter((entry) => entry.playtime_minutes > 0).length,
     unplayed: base.filter((entry) => entry.playtime_minutes === 0).length };
   const labels = { all: shelf.all, played: shelf.used, unplayed: shelf.unused };
+// A small tag in the corner of a cover on your own shelf: a gold 100% or
+// platinum, or "New" for a game not started yet. The same facts are in the
+// caption and the button label, so the tag stays out of the reading order.
+function coverBadge(entry) {
+  const platinum = entry.source === 'psn' && entry.trophies?.earned.platinum > 0;
+  const label = platinum ? 'Platinum' : achievementPercent(entry) === 100 ? '100%' : entry.playtime_minutes === 0 ? 'New' : null;
+  if (!label) return null;
+  const tag = el('span', `cover-badge${label === 'New' ? '' : ' gold'}`, label); tag.setAttribute('aria-hidden', 'true'); return tag;
+}
   document.querySelectorAll('[data-filter]').forEach((chip) => {
     chip.replaceChildren(labels[chip.dataset.filter], ' ', el('span', 'tab-count num', integer(counts[chip.dataset.filter])));
   });
