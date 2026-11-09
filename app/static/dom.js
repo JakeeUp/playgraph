@@ -38,34 +38,57 @@ export const steamLink = (text = 'Sign in') => {
   const link = el('a', 'button primary', text); link.href = '/account'; return link;
 };
 export const aborted = (error) => error.name === 'AbortError';
-// Deterministic title cover: a flat poster made from the title alone. One
-// solid fill, one solid shape in a second colour, the title in the top-left
-// corner. It is decorative (aria-hidden): the game's name is always in the
-// text beside it or in its button's label, so the name is spoken once.
+// Deterministic title cover: a little piece of key art made from the title
+// alone. The sky and the sun are CSS gradients; the two landscape layers are
+// SVG. It is decorative (aria-hidden): the game's name is always in the text
+// beside it or in its button's label, so the name is spoken once.
 const SVG_NS = 'http://www.w3.org/2000/svg';
 function svgNode(tag, attributes) {
   const node = document.createElementNS(SVG_NS, tag);
   for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, String(value));
   return node;
 }
-// Each shape lives in the lower part of a 200 x 300 jacket, under the title.
-const SHAPE_DRAW = {
-  disc: () => [svgNode('circle', { cx: 112, cy: 212, r: 62 })],
-  rise: () => [svgNode('path', { d: 'M10 300a90 90 0 0 1 180 0z' })],
-  bars: () => [150, 186, 222, 258].map((y, i) => svgNode('rect', { x: 0, y, width: 200 - i * 34, height: 20 })),
-  dots: () => Array.from({ length: 16 }, (_, i) => svgNode('circle', { cx: 46 + (i % 4) * 36, cy: 160 + Math.floor(i / 4) * 36, r: 9 })),
-  block: () => [svgNode('rect', { x: 64, y: 150, width: 136, height: 150 })],
-  corner: () => [svgNode('path', { d: 'M200 120v180H20A180 180 0 0 1 200 120z' })],
-  band: () => [svgNode('rect', { x: 112, y: 150, width: 32, height: 150 }), svgNode('rect', { x: 152, y: 196, width: 32, height: 104 })],
+// Rows of shapes along a baseline, for skylines and tree lines.
+const skyline = (base, widths, heights) => {
+  let x = 0; let d = `M0 300V${base}`;
+  widths.forEach((w, i) => { const top = base - heights[i % heights.length]; d += `H${x}V${top}H${x + w}V${base}`; x += w; });
+  return `${d}H200V300Z`;
 };
+const pines = (base, size, step, offset) => {
+  let d = `M0 300V${base}`;
+  for (let x = offset - step; x < 200 + step; x += step) {
+    const h = size * (0.75 + ((x * 7) % 5) / 10);
+    d += `L${x} ${base}L${x + step / 2} ${base - h}L${x + step} ${base}`;
+  }
+  return `${d}L200 ${base}V300Z`;
+};
+// Each scene is [far, near], both resting on the bottom of a 200 x 300 jacket.
+const SCENES = {
+  peaks: () => ['M0 300V214L32 168 54 192 92 132 124 182 150 150 178 178 200 160V300Z',
+    'M0 300V252L38 216 70 240 112 204 150 246 182 224 200 236V300Z'],
+  hills: () => ['M0 300V222Q50 178 102 210T200 196V300Z', 'M0 300V254Q64 214 124 246T200 238V300Z'],
+  city: () => [skyline(236, [14, 18, 12, 22, 16, 20, 14, 24, 18, 22, 20], [42, 70, 30, 88, 54, 36, 76, 48, 96, 40, 60]),
+    skyline(266, [26, 20, 30, 24, 28, 22, 30, 20], [28, 44, 20, 52, 34, 26, 40, 30])],
+  forest: () => [pines(232, 40, 22, 6), pines(262, 58, 30, 0)],
+  waves: () => ['M0 300V230Q25 218 50 230T100 230T150 230T200 230V300Z',
+    'M0 300V256Q33 242 66 256T133 256T200 256V300Z'],
+  dunes: () => ['M0 300V226C60 196 110 236 200 206V300Z', 'M0 300V250C70 266 120 222 200 252V300Z'],
+  islands: () => ['M0 300V246H40Q66 204 96 236Q120 214 148 246H200V300Z', 'M0 300V262H200V300Z'],
+};
+// A few small stars, the same ones for the same title.
+const STARS = [[30, 64], [62, 96], [146, 58], [172, 104], [104, 82], [18, 132], [186, 140], [128, 120]];
 export function placeholder(game) {
-  const { fill, accent, ink, shape } = placeholderFor(game.name);
-  const node = el('span', `cover-placeholder shape-${shape}`); node.setAttribute('aria-hidden', 'true');
+  const art = placeholderFor(game.name);
+  const node = el('span', `cover-placeholder scene-${art.shape}`); node.setAttribute('aria-hidden', 'true');
   node.dataset.title = game.name || '';
-  node.style.setProperty('--ph-fill', fill); node.style.setProperty('--ph-accent', accent); node.style.setProperty('--ph-ink', ink);
-  const art = svgNode('svg', { viewBox: '0 0 200 300', preserveAspectRatio: 'xMidYMid slice', class: 'ph-art' });
-  art.append(...SHAPE_DRAW[shape]());
-  node.append(art, el('span', 'ph-title', game.name || ''));
+  for (const name of ['sky', 'horizon', 'glow', 'far', 'near', 'ink']) node.style.setProperty(`--ph-${name}`, art[name]);
+  node.style.setProperty('--ph-sun-x', `${art.sunX}%`); node.style.setProperty('--ph-sun-y', `${art.sunY}%`);
+  const svg = svgNode('svg', { viewBox: '0 0 200 300', preserveAspectRatio: 'xMidYMax slice', class: 'ph-art' });
+  const stars = svgNode('g', { class: 'ph-stars' });
+  STARS.forEach(([x, y], i) => { if ((art.sunX + i) % 3) stars.append(svgNode('circle', { cx: x, cy: y, r: i % 2 ? 0.9 : 1.4 })); });
+  const [far, near] = SCENES[art.shape]();
+  svg.append(stars, svgNode('path', { d: far, class: 'ph-far' }), svgNode('path', { d: near, class: 'ph-near' }));
+  node.append(svg, el('span', 'ph-title', game.name || ''));
   return node;
 }
 export function cover(game) {

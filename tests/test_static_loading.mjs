@@ -74,19 +74,21 @@ test('the account page asks for its settings and the session at the same time', 
   assert.equal(document.querySelector('#retry-account').hidden, true);
 });
 
-test('a generated cover is a flat poster: fill, one SVG shape and the title', async () => {
+test('a generated cover is key art: sky colours, a stars layer, two hills and the title', async () => {
   const { placeholder } = await import('../app/static/dom.js');
   const { placeholderFor } = await import('../app/static/covers.js');
   const node = placeholder({ name: 'Cold Harbor' });
   const expected = placeholderFor('Cold Harbor');
-  assert.equal(node.className, `cover-placeholder shape-${expected.shape}`);
+  assert.equal(node.className, `cover-placeholder scene-${expected.shape}`);
   assert.equal(node.dataset.title, 'Cold Harbor');
   assert.equal(node['aria-hidden'], 'true');
-  assert.equal(node.props['--ph-fill'], expected.fill);
-  assert.equal(node.props['--ph-accent'], expected.accent);
-  assert.equal(node.props['--ph-ink'], expected.ink);
+  for (const name of ['sky', 'horizon', 'glow', 'far', 'near', 'ink']) assert.equal(node.props[`--ph-${name}`], expected[name]);
+  assert.equal(node.props['--ph-sun-x'], `${expected.sunX}%`);
+  assert.equal(node.props['--ph-sun-y'], `${expected.sunY}%`);
   const [art, title] = node.children;
-  assert.equal(art.tagName, 'SVG'); assert.ok(art.children.length >= 1);
+  assert.equal(art.tagName, 'SVG');
+  assert.deepEqual(art.children.map((child) => child.class), ['ph-stars', 'ph-far', 'ph-near']);
+  for (const hill of art.children.slice(1)) assert.match(hill.d, /^M0 300V\d/);
   assert.equal(title.className, 'ph-title'); assert.equal(title.textContent, 'Cold Harbor');
 });
 

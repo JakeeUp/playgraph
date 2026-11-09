@@ -1,32 +1,29 @@
 // Generated covers for games without artwork. Pure functions, no DOM: the
-// same title always gets the same cover. Each one is a flat poster: one
-// solid fill, one solid shape in a second colour, and the title set in the
-// top-left corner in white or ink, whichever reads better on the fill. No
-// gradients, no texture, no transparency, so the text contrast is exactly
-// the fill's contrast with the ink.
+// same title always gets the same cover. Each one is a small piece of key
+// art: a dusk sky fading to a lit horizon, a glowing sun or moon, two layers
+// of silhouette landscape, and the title set at the top over the darkest part
+// of the sky. The title is always white; every sky top keeps it at 4.5:1.
 export const WHITE = [255, 255, 255];
 export const INK = [17, 17, 17];
 
-// Twelve fills, each with two partner colours for its shape: one from the
-// set and the paper tone, picked by the title.
-export const PAPER = '#F6F6F3';
+// Twelve skies. sky is the top of the gradient (the title sits on it),
+// horizon the bottom, glow the sun, far and near the two landscape layers.
 export const PALETTE = [
-  { fill: '#2B4C7E', partner: '#D9A441' },
-  { fill: '#C0392B', partner: '#1B2A49' },
-  { fill: '#1F7A5A', partner: '#D9A441' },
-  { fill: '#D9A441', partner: '#1B2A49' },
-  { fill: '#6B3FA0', partner: '#D9A441' },
-  { fill: '#E4572E', partner: '#1B2A49' },
-  { fill: '#17A2B8', partner: '#1B2A49' },
-  { fill: '#3D3D3A', partner: '#E4572E' },
-  { fill: '#8C5A2B', partner: '#D9A441' },
-  { fill: '#A4BF3C', partner: '#1F7A5A' },
-  { fill: '#D64F7A', partner: '#1B2A49' },
-  { fill: '#1B2A49', partner: '#17A2B8' },
+  { sky: '#2A1B3D', horizon: '#F08A5D', glow: '#FFD27A', far: '#6B2F4A', near: '#1E1222' },
+  { sky: '#0F2A3A', horizon: '#2F7F86', glow: '#F3E9C6', far: '#1D4B56', near: '#0B1A22' },
+  { sky: '#3A1C3F', horizon: '#E07A8F', glow: '#FFE0B0', far: '#7A3557', near: '#1F0F20' },
+  { sky: '#1F3B2D', horizon: '#C9B46A', glow: '#FFF1C1', far: '#3D5A3A', near: '#13221A' },
+  { sky: '#1B1640', horizon: '#7B5FC7', glow: '#F6D6FF', far: '#3E2F7A', near: '#110D26' },
+  { sky: '#2B0F0F', horizon: '#D9572B', glow: '#FFC36B', far: '#6E2416', near: '#1A0909' },
+  { sky: '#0D1B3D', horizon: '#3F78C2', glow: '#FFE9B8', far: '#23477F', near: '#0A1328' },
+  { sky: '#3B2430', horizon: '#F2A07B', glow: '#FFF0C9', far: '#8A4B4F', near: '#24141B' },
+  { sky: '#12302F', horizon: '#5FB3A1', glow: '#F0FFE8', far: '#2A6A60', near: '#0C1D1C' },
+  { sky: '#2F2412', horizon: '#E0A63A', glow: '#FFF2C2', far: '#6E4D1C', near: '#1B140A' },
+  { sky: '#261229', horizon: '#A8508F', glow: '#FFD6E8', far: '#5A2350', near: '#170A19' },
+  { sky: '#1A2233', horizon: '#8AA3C7', glow: '#FFFFFF', far: '#4A5D80', near: '#121826' },
 ];
-// One flat shape per cover, drawn by dom.js as SVG in the lower part of the
-// jacket so it never runs under the title.
-export const SHAPES = ['disc', 'rise', 'bars', 'dots', 'block', 'corner', 'band'];
+// The landscape under the sky, drawn by dom.js as SVG in a 200 x 300 jacket.
+export const SHAPES = ['peaks', 'hills', 'city', 'forest', 'waves', 'dunes', 'islands'];
 
 /** FNV-1a, 32 bit. Stable across runs and platforms. */
 export function hashString(text) {
@@ -50,8 +47,10 @@ export function inkFor(fill) {
 /** Everything a generated cover needs, decided by the title alone. */
 export function placeholderFor(title) {
   const hash = hashString(String(title || '').trim().toLocaleLowerCase());
-  const { fill, partner } = PALETTE[hash % PALETTE.length];
+  const colors = PALETTE[hash % PALETTE.length];
   const shape = SHAPES[(hash >>> 8) % SHAPES.length];
-  const accent = (hash >>> 16) % 3 === 0 ? PAPER : partner;
-  return { fill, accent, ink: inkFor(fill), shape };
+  // The sun sits somewhere along the lower middle, never under the title.
+  const sunX = 22 + ((hash >>> 16) % 57);           // 22% to 78% across
+  const sunY = 50 + ((hash >>> 24) % 16);           // 50% to 65% down
+  return { ...colors, ink: inkFor(colors.sky), shape, sunX, sunY };
 }
