@@ -1,5 +1,5 @@
+Archivo (variable, wdth and wght axes), latin subset from @fontsource-variable/archivo 5.3.0, as archivo-var.woff2.
 Schibsted Grotesk (variable, wght axis 400-900), latin subset from Google Fonts (fonts.gstatic.com, v7), as schibsted-grotesk-var.woff2.
-Source Serif 4 (weight 600, opsz axis), latin subset from Google Fonts (fonts.gstatic.com, v15), as source-serif-4-600.woff2.
 
 == Schibsted Grotesk ==
 Copyright 2023 The Schibsted-Grotesk Project Authors (https://github.com/schibsted/schibsted-grotesk)
@@ -96,12 +96,12 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 
-== Source Serif 4 ==
-Copyright 2014 The Source Serif 4 Project Authors (https://github.com/adobe-fonts/source-serif)
+== Archivo ==
+Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo) Archivo-Italic[wdth,wght].ttf: Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
-https://openfontlicense.org
+http://scripts.sil.org/OFL
 
 
 -----------------------------------------------------------
@@ -117,7 +117,7 @@ with others.
 
 The OFL allows the licensed fonts to be used, studied, modified and
 redistributed freely as long as they are not sold by themselves. The
-fonts, including any derivative works, can be bundled, embedded, 
+fonts, including any derivative works, can be bundled, embedded,
 redistributed and/or sold with any software provided that any reserved
 names are not used by derivative works. The fonts and derivatives,
 however, cannot be released under any other type of license. The

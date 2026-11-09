@@ -27,7 +27,7 @@ def test_shell_assets_and_strict_csp(web):
     assert "https://*.futurecdn.net" in csp and "https://clan.fastly.steamstatic.com" in csp and " https: " not in csp and " https:;" not in csp
     assert "font-src 'self'" in csp
     for name in ["styles.css", "details.css", "social.css", "app.js", "game-detail.js", "rating.js", "feed.js", "library.js", "dom.js", "chart.js",
-                 "mark.svg", "favicon-32.png", "apple-touch-icon.png", "fonts/schibsted-grotesk-var.woff2", "fonts/source-serif-4-600.woff2"]:
+                 "mark.svg", "favicon-32.png", "apple-touch-icon.png", "fonts/schibsted-grotesk-var.woff2", "fonts/archivo-var.woff2"]:
         assert web.get("/assets/" + name).status_code == 200
     assert web.get("/auth/session").status_code == 401
 

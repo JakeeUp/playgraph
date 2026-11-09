@@ -4,13 +4,12 @@
    ========================================================================== */
 
 /* ---------------- feed ----------------
-   One 680px column. Each review is a row: the game's cover on the left, and
-   on the right who reviewed what, the stamp, the stars, the text and the
-   conversation. Rules between rows, no panels. */
+   One 720px column of rows: the game's cover on the left, and on the right
+   who reviewed what, the stamp, the stars, the text and the conversation. */
 
-.feed-items { display:flex; flex-direction:column; max-width:680px; border-top:1px solid var(--rule); }
+.feed-items { display:flex; flex-direction:column; max-width:720px; border-top:1px solid var(--rule); }
 .feed-items > .empty-message { border-top:0; }
-.feed-card { display:grid; grid-template-columns:56px minmax(0,1fr); align-items:start; gap:var(--s-4); padding:var(--s-5) 0; border-bottom:1px solid var(--rule); }
+.feed-card { display:grid; grid-template-columns:64px minmax(0,1fr); align-items:start; gap:var(--s-5); padding:var(--s-5) 0; border-bottom:1px solid var(--rule); }
 .feed-body { min-width:0; display:flex; flex-direction:column; gap:var(--s-2); }
 .feed-reason { font-size:var(--text-caption); line-height:18px; color:var(--muted); }
 .feed-card .review-body {
@@ -20,7 +19,7 @@
 .feed-card .review-body.expanded { display:block; -webkit-line-clamp:none; overflow:visible; }
 .feed-more { margin-top:var(--s-1); font-size:var(--text-caption); }
 .feed-card .review-actions > [aria-expanded]:not(.feed-comments) { display:none; }
-.skeleton-feed { display:grid; grid-template-columns:56px minmax(0,1fr); gap:var(--s-4); padding:var(--s-5) 0; border-bottom:1px solid var(--rule); }
+.skeleton-feed { display:grid; grid-template-columns:64px minmax(0,1fr); gap:var(--s-5); padding:var(--s-5) 0; border-bottom:1px solid var(--rule); }
 
 /* ==========================================================================
    HALF-STAR RATING
@@ -34,20 +33,20 @@
 
    So the fill width is what changes, not the star. The inner svg keeps the
    FULL star width so that clipping the parent to 50% shows exactly half.
-   Stars are ink on a rule-coloured base: a number, never a colour signal.
+   Stars are orange on a dark base.
    ========================================================================== */
 
 .rating-picker { display:flex; align-items:flex-end; gap:var(--s-2) var(--s-4); flex-wrap:wrap; }
-.rating-picker > label { display:inline-flex; flex-direction:column; align-items:flex-start; gap:var(--s-2); font-size:var(--text-ui); font-weight:500; color:var(--ink); }
+.rating-picker > label { display:inline-flex; flex-direction:column; align-items:flex-start; gap:var(--s-2); font-size:var(--text-ui); font-weight:600; color:var(--ink); }
 .rating-picker .helper { flex-basis:100%; }
 
 .rating-track { position:relative; display:inline-block; line-height:0; touch-action:none; }
 .rating-stars { display:inline-flex; gap:2px; line-height:0; }
 
 .rating-star { --star:28px; position:relative; display:block; width:var(--star); height:var(--star); flex:none; }
-.rating-star > svg { width:var(--star); height:var(--star); display:block; fill:var(--rule); }
+.rating-star > svg { width:var(--star); height:var(--star); display:block; fill:var(--rule-strong); }
 .star-fill { position:absolute; inset:0; overflow:hidden; width:0; pointer-events:none; }
-.star-fill > svg { width:var(--star); height:var(--star); display:block; fill:var(--ink); }
+.star-fill > svg { width:var(--star); height:var(--star); display:block; fill:var(--accent); }
 .star-fill.full { width:100%; }
 .star-fill.half { width:50%; }
 
@@ -59,10 +58,10 @@
   opacity:0; margin:0; padding:0; cursor:pointer;
   -webkit-appearance:none; appearance:none; background:none; border:0;
 }
-.rating-track:focus-within .rating-stars { outline:2px solid var(--ring); outline-offset:4px; border-radius:2px; }
+.rating-track:focus-within .rating-stars { outline:2px solid var(--ring); outline-offset:4px; border-radius:3px; }
 @media (pointer:coarse) { .rating-track { padding-block:var(--s-2); } }
 
-.rating-value { font-weight:500; font-size:var(--text-ui); line-height:28px; min-width:9ch; color:var(--muted); }
+.rating-value { font-weight:700; font-size:var(--text-ui); line-height:28px; min-width:9ch; color:var(--muted); }
 .rating-value.num { color:var(--ink); }
 
 /* Read-only star rows next to a review. Same markup, smaller. */
@@ -79,29 +78,30 @@
 
 /* ---------------- news (For you) ----------------
    The first story runs full width with a wide picture; the rest sit in two
-   columns with rules between. The side column lists what is still coming. */
+   columns. The side column lists what is still coming. */
 
 .news { display:grid; grid-template-columns:minmax(0,1fr) 260px; gap:var(--s-7); align-items:start; }
 .news-items { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s-6) var(--s-5); }
 .news-items > .empty-message { grid-column:1/-1; }
 .news-row { display:flex; flex-direction:column; min-width:0; }
-.news-image { display:block; aspect-ratio:16/9; overflow:hidden; background:var(--paper-2); border-radius:var(--radius-cover); }
+.news-image { display:block; aspect-ratio:16/9; overflow:hidden; background:var(--paper-2); border-radius:var(--radius); box-shadow:var(--shadow-cover); transition:box-shadow var(--dur-2) var(--ease); }
+@media (hover:hover) { .news-row:hover .news-image { box-shadow:0 0 0 2px var(--accent), var(--shadow-cover); } }
 .news-image img { width:100%; height:100%; object-fit:cover; display:block; }
 .news-meta { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-2); margin-top:var(--s-3); font-size:var(--text-caption); color:var(--muted); }
-.news-source { color:var(--ink); font-weight:500; }
+.news-source { color:var(--accent); font-weight:700; }
 .news-tag::before { content:"\00B7"; margin-right:var(--s-2); }
-.news-heading { margin-top:var(--s-1); font-size:var(--text-h3); line-height:24px; font-weight:600; }
-.news-title { color:var(--ink); }
-.news-title:hover { color:var(--ink); }
+.news-heading { margin-top:var(--s-2); font-size:var(--text-h3); line-height:24px; font-weight:800; }
+.news-title { color:var(--ink); text-decoration:none; }
+.news-title:hover { color:var(--accent); }
 .news-summary { margin-top:var(--s-2); font-size:var(--text-ui); line-height:1.6; color:var(--ink-2); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 .news-row:first-child { grid-column:1/-1; }
 .news-row:first-child .news-image { aspect-ratio:21/9; }
-.news-row:first-child .news-heading { font-size:var(--text-h1); line-height:36px; font-weight:700; letter-spacing:-0.01em; }
+.news-row:first-child .news-heading { font-family:var(--font-display); font-stretch:var(--display-stretch); font-size:var(--text-h1); line-height:1.05; font-weight:800; letter-spacing:-0.02em; }
 .news-row:first-child .news-summary { font-size:var(--text-body); -webkit-line-clamp:4; max-width:62ch; }
 
 .news-side { display:flex; flex-direction:column; gap:var(--s-5); position:sticky; top:calc(var(--header-h) + var(--s-5)); }
-.side-block { border-top:1px solid var(--rule-strong); padding-top:var(--s-3); }
-.side-block h2 { font-size:var(--text-ui); line-height:20px; font-weight:600; }
+.side-block { border-top:1px solid var(--rule); padding-top:var(--s-3); }
+.side-block h2 { font-size:18px; }
 .side-block p { margin-top:var(--s-1); font-size:var(--text-caption); line-height:18px; color:var(--muted); }
 
 @media (max-width:860px) {

@@ -17,19 +17,19 @@
   display:grid; grid-template-columns:minmax(0,1fr) minmax(0,420px); gap:var(--s-8);
   padding-top:var(--s-8); padding-bottom:var(--s-8);
 }
-.account-intro { display:flex; flex-direction:column; border-top:1px solid var(--rule-strong); padding-top:var(--s-4); }
+.account-intro { display:flex; flex-direction:column; border-top:1px solid var(--rule); padding-top:var(--s-4); }
 .account-hero { flex:1; }
-.account-intro h1 { font-size:var(--text-h1); line-height:36px; letter-spacing:-0.01em; }
+.account-intro h1 { font-size:var(--text-h1); }
 .account-lede { color:var(--ink-2); font-size:var(--text-lede); line-height:1.6; max-width:42ch; margin:var(--s-4) 0 var(--s-6); }
 .account-intro > p { color:var(--muted); font-size:var(--text-small-body); max-width:52ch; margin:0; }
 .account-intro .account-note { padding-top:var(--s-4); border-top:1px solid var(--rule); }
 .account-steam-link { display:inline-block; margin-top:var(--s-3); font-size:var(--text-ui); font-weight:500; }
-/* The sign-in column sits on white: it is a form. */
+/* The sign-in column is a form, so it sits on a surface. */
 .account-form {
   min-width:0; align-self:start; padding:var(--s-6);
-  background:var(--surface); border:1px solid var(--rule); border-radius:var(--radius);
+  background:var(--surface); border:1px solid var(--rule-strong); border-radius:var(--radius);
 }
-.account-form h2 { font-size:var(--text-h2); line-height:26px; margin-bottom:var(--s-3); }
+.account-form h2 { font-size:var(--text-h2); margin-bottom:var(--s-3); }
 .account-form p { color:var(--ink-2); font-size:var(--text-small-body); }
 .account-form p + p { margin-top:var(--s-3); }
 .account-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-2) var(--s-4); margin:var(--s-5) 0; }
@@ -42,37 +42,37 @@
 #clerk-sign-in { max-width:100%; }
 /* Sub-sections of the form are separated by rules, not nested boxes. */
 .account-steam, .account-psn { margin:var(--s-5) 0 0; padding-top:var(--s-4); border-top:1px solid var(--rule); }
-.account-steam h3, .account-psn h3 { font-size:var(--text-body); line-height:22px; font-weight:600; margin-bottom:var(--s-2); }
+.account-steam h3, .account-psn h3 { font-size:var(--text-body); line-height:22px; font-weight:700; margin-bottom:var(--s-2); }
 .account-steam p { margin-bottom:var(--s-4); }
 .account-psn .account-status { margin:var(--s-3) 0 0; color:var(--ink); }
 .account-psn form { margin-top:var(--s-4); }
 .account-form .account-psn label { display:block; margin:0 0 var(--s-2); color:var(--ink); font-weight:500; }
 .account-psn input {
   width:100%; max-width:24ch; height:var(--control-h); padding:0 var(--s-3);
-  font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--rule); border-radius:var(--radius);
+  font:inherit; color:var(--ink); background:var(--paper); border:1px solid var(--rule-strong); border-radius:var(--radius);
 }
-.account-psn input:focus-visible { border-color:var(--ink); }
+.account-psn input:focus-visible { outline:none; border-color:var(--accent); }
 .account-psn .helper { margin:var(--s-2) 0 var(--s-3); }
 .psn-code-row { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-3); margin:var(--s-3) 0; }
 .psn-code {
-  font-size:var(--text-lede); font-weight:600; letter-spacing:0.04em; color:var(--ink);
-  padding:var(--s-2) var(--s-3); background:var(--paper); border:1px solid var(--rule); border-radius:var(--radius);
+  font-size:var(--text-lede); font-weight:800; letter-spacing:0.06em; color:var(--accent);
+  padding:var(--s-2) var(--s-3); background:var(--paper); border:1px solid var(--rule-strong); border-radius:var(--radius);
   user-select:all; overflow-wrap:anywhere;
 }
 
 /* Not found: a label, a title, one sentence, one way back. */
 .plain-page { padding-top:var(--s-8); padding-bottom:var(--s-8); }
-.not-found-content { max-width:600px; border-top:1px solid var(--rule-strong); padding-top:var(--s-4); }
-.plain-page h1.not-found-title { margin-top:var(--s-3); font-size:var(--text-h1); line-height:36px; letter-spacing:-0.01em; }
+.not-found-content { max-width:640px; border-top:1px solid var(--rule); padding-top:var(--s-4); }
+.plain-page h1.not-found-title { margin-top:var(--s-3); font-size:var(--text-display); }
 .plain-page p:not(.micro) { color:var(--ink-2); font-size:var(--text-body); max-width:48ch; margin:var(--s-3) 0 var(--s-6); }
 
 @media (max-width:760px) {
   :root { --gutter:16px; }
   .account-layout { grid-template-columns:minmax(0,1fr); gap:var(--s-6); padding-top:var(--s-6); padding-bottom:var(--s-6); }
-  .account-intro h1 { font-size:26px; line-height:30px; }
+  .account-intro h1 { font-size:40px; }
   .account-lede { font-size:var(--text-body); }
   .account-form { padding:var(--s-5); }
   .plain-page { padding-top:var(--s-6); padding-bottom:var(--s-6); }
-  .plain-page h1.not-found-title { font-size:26px; line-height:30px; }
+  .plain-page h1.not-found-title { font-size:56px; }
 }
 @media (pointer:coarse) { .account-header .frame > a:not(.brand) { min-height:44px; display:inline-flex; align-items:center; } }
