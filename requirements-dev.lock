@@ -1,0 +1,17 @@
+# Test and dev tools on top of the runtime snapshot. CI and local dev install this.
+-r requirements.lock
+charset-normalizer==3.5.2
+honcho==2.0.0
+iniconfig==2.3.0
+moto[s3]==5.2.5
+packaging==26.3
+pluggy==1.6.0
+py-partiql-parser==0.6.3
+pygments==2.21.0
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pyyaml==6.0.3
+requests==2.34.2
+responses==0.26.3
+werkzeug==3.1.9
+xmltodict==1.0.4

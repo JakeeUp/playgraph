@@ -6,22 +6,21 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import clerk_auth
+from app import handles
+from app.beta import clerk_invited, require_invite
 from app.config import settings
 from app.database import get_db
 from app.deps import decode_session, get_current_user
 from app.models import AuthIdentity, LinkedAccount, Platform, User
 from app.schemas import display_name
-from app.security import issue_session, rate_limit, redis_call, session_cookie_name, state_key
+from app.security import bound_to, client_key, issue_session, rate_limit, redis_call, session_cookie_name, set_session_cookie, state_key
 
 router = APIRouter(prefix="/auth", tags=["accounts"])
 LINK_SECONDS = 600
 
 
 def browser_cookie(token: str) -> Response:
-    response = Response(status_code=204)
-    response.set_cookie(session_cookie_name(), token, max_age=settings.session_minutes * 60,
-        httponly=True, secure=settings.app_base_url.startswith("https://"), samesite="lax", path="/")
-    return response
+    return set_session_cookie(Response(status_code=204), token)
 
 
 def steam_owner(request: Request, user: User, db: Session, *, fresh=False):
@@ -39,7 +38,7 @@ def steam_owner(request: Request, user: User, db: Session, *, fresh=False):
 async def link_status(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     steam_owner(request, user, db)
     intent = await redis_call(request, "get", state_key("account-link", request.state.session_id))
-    return {"pending": intent in (str(user.id), str(user.id).encode())
+    return {"pending": bound_to(intent, str(user.id))
             and time.time() - request.state.session_issued < LINK_SECONDS}
 
 
@@ -64,8 +63,8 @@ async def cancel_link(request: Request, user: User = Depends(get_current_user), 
 async def complete_link(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     steam_owner(request, user, db, fresh=True)
     key = state_key("account-link", request.state.session_id)
-    owner = (str(user.id), str(user.id).encode())
-    if await redis_call(request, "get", key) not in owner:
+    owner = str(user.id)
+    if not bound_to(await redis_call(request, "get", key), owner):
         raise HTTPException(409, "Start a new account connection in this browser")
     # Keep the local cookie as the authentication source. A separate header
     # proves the destination identity without accepting a browser-supplied ID.
@@ -78,9 +77,9 @@ async def complete_link(request: Request, user: User = Depends(get_current_user)
     # External verification awaited I/O: recheck the initiating session and
     # freshness before consuming the intent. GETDEL admits only one completion.
     steam_owner(request, user, db, fresh=True)
-    if await redis_call(request, "get", state_key("session", request.state.session_id)) not in owner:
+    if not bound_to(await redis_call(request, "get", state_key("session", request.state.session_id)), owner):
         raise clerk_auth.rejected()
-    if await redis_call(request, "getdel", key) not in owner:
+    if not bound_to(await redis_call(request, "getdel", key), owner):
         raise HTTPException(409, "Account connection expired or was already used")
     try:
         db.add(AuthIdentity(user_id=user.id, provider="clerk", issuer=settings.clerk_origin, subject=claims["sub"]))
@@ -98,7 +97,8 @@ async def complete_link(request: Request, user: User = Depends(get_current_user)
 
 @router.get("/config")
 def configuration():
-    return {"enabled": settings.clerk_enabled,
+    return {**({"demo": True} if settings.demo_mode else {}), "enabled": settings.clerk_enabled,
+            "beta": settings.beta_invite_only,
             "publishable_key": settings.clerk_publishable_key if settings.clerk_enabled else None,
             "frontend_api": settings.clerk_origin if settings.clerk_enabled else None}
 
@@ -109,7 +109,7 @@ async def exchange(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(404, "PlayGraph account sign-in is not enabled")
     if request.headers.get("origin") != settings.app_base_url or request.headers.get("x-playgraph-auth") != "1":
         raise HTTPException(403, "Start sign-in on PlayGraph in this browser")
-    address = request.client.host if request.client else "unknown"
+    address = client_key(request)
     await rate_limit(request, "account-login", address, 10, 60)
     authorization = request.headers.get("authorization", "")
     if not authorization.startswith("Bearer "):
@@ -132,8 +132,10 @@ async def exchange(request: Request, db: Session = Depends(get_db)):
                 raise HTTPException(409, "Sign out of your current account first, or connect your Steam account from the account page.")
     identity = db.query(AuthIdentity).filter_by(issuer=settings.clerk_origin, subject=claims["sub"]).first()
     if identity is None:
+        require_invite(clerk_invited(profile))
         # Names are presentation only; matching names/emails never merges users.
         user = User(display_name=display_name(profile.get("username") or profile.get("first_name"), "Player"))
+        user.handle = handles.available(db, user.display_name)
         try:
             db.add(user)
             db.flush()

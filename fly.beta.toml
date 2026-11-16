@@ -1,0 +1,65 @@
+# Fly.io config for the PlayGraph PRIVATE BETA: real, invited users only.
+#
+# Owner decision 2026-11-14: a private, invite-only beta may run here before
+# the full Phase 7 gates. The app refuses to start in production unless
+# BETA_INVITE_ONLY=true, so this cannot become a public launch by accident.
+#
+# One machine. The database is SQLite on the persistent volume below, and the
+# arq worker runs next to the web server in the same machine, because both
+# must open the same database file. Deploy with:
+#   fly deploy -c fly.beta.toml --ha=false
+# See DEPLOY.md, section "Private beta".
+
+app = "playgraph-beta"
+primary_region = "dfw"
+
+[build]
+  dockerfile = "Dockerfile"
+  build-target = "beta"
+
+# No [processes] block: the beta image's CMD fixes volume ownership, drops to
+# the app user, migrates with a verified backup on the volume, then starts the
+# worker and the server.
+
+[env]
+  ENVIRONMENT = "production"
+  DEMO_MODE = "false"
+  BETA_INVITE_ONLY = "true"
+  SESSION_MINUTES = "30"
+  DATABASE_URL = "sqlite:////data/playgraph.db"
+  PLAYGRAPH_BACKUP_DIR = "/data/backups"
+  # Set with `fly secrets` (names only, never in this file): JWT_SECRET,
+  # STEAM_API_KEY, APP_BASE_URL, REDIS_URL (rediss:// with a password),
+  # FORWARDED_ALLOW_IPS, BETA_STEAM_IDS, and optionally IGDB_CLIENT_ID,
+  # IGDB_CLIENT_SECRET, PSN_NPSSO and the AWS backup settings.
+
+[mounts]
+  source = "playgraph_beta_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # Real users and a background worker: keep the machine up.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 60
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "30s"
+  method = "GET"
+  path = "/health"
+  [http_service.checks.headers]
+    Host = "playgraph-beta.fly.dev"
+    X-Forwarded-Proto = "https"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -150,7 +150,7 @@ def test_logout_invalidates_local_cookie_during_provider_outage(accounts):
 def test_public_config_and_account_page_keep_secret_server_side(accounts):
     a = accounts
     config = a.client.get("/auth/config").json()
-    assert set(config) == {"enabled", "publishable_key", "frontend_api"}
+    assert set(config) == {"enabled", "beta", "publishable_key", "frontend_api"}
     page = a.client.get("/account")
     assert page.status_code == 200 and '/assets/account.js' in page.text
     csp = page.headers["content-security-policy"]

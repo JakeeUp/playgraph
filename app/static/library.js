@@ -108,3 +108,33 @@ export function reviewVerification(review) {
   if (pct != null) parts.push(`${Math.round(pct)}% ${psn ? 'trophies' : 'achievements'}`);
   return { badge: psn ? 'PlayStation' : 'PC', text: parts.join(' · ') };
 }
+
+/**
+ * Where one reviewer's verified hours sit among everyone who reviewed the
+ * same game: the bar length (share of the longest verified playtime) and a
+ * short label against the median. Null when there is nothing to compare,
+ * that is without hours or with fewer than two verified reviewers.
+ * @param {number|null} minutes this reviewer's verified minutes
+ * @param {Array<number|null>} all verified minutes of the game's reviewers
+ * @returns {{fraction: number, label: string}|null}
+ */
+export function hoursContext(minutes, all) {
+  const verified = all.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
+  if (!(minutes > 0) || verified.length < 2) return null;
+  const longest = verified[verified.length - 1];
+  const middle = verified.length >> 1;
+  const median = verified.length % 2 ? verified[middle] : (verified[middle - 1] + verified[middle]) / 2;
+  const fraction = Math.min(1, minutes / longest);
+  const ratio = minutes / median;
+  const tied = verified.filter((value) => value === longest).length > 1;
+  const label = minutes >= longest ? `${tied ? 'Tied for most' : 'Most'} hours of ${verified.length} verified reviewers`
+    : ratio >= 1.5 ? `${hourFormat.format(Math.round(ratio * 10) / 10)}× the median`
+    : ratio > 0.67 ? 'About the median' : 'Under the median';
+  return { fraction, label };
+}
+
+/** `1 comment`, `2 comments`: the word follows the count. */
+export const plural = (count, word, many = `${word}s`) => (count === 1 ? word : many);
+
+/** `3 / 10`: how many of how many, each with thousands separators. */
+export const countPair = (earned, total) => `${integer(earned)} / ${integer(total)}`;

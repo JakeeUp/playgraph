@@ -27,7 +27,7 @@ def test_shell_assets_and_strict_csp(web):
     assert "https://*.futurecdn.net" in csp and "https://clan.fastly.steamstatic.com" in csp and " https: " not in csp and " https:;" not in csp
     assert "font-src 'self'" in csp
     for name in ["styles.css", "details.css", "social.css", "app.js", "game-detail.js", "rating.js", "feed.js", "library.js", "dom.js", "chart.js",
-                 "mark.svg", "favicon-32.png", "apple-touch-icon.png", "fonts/plex-sans-400.woff2", "fonts/plex-mono-400.woff2"]:
+                 "mark.svg", "favicon-32.png", "apple-touch-icon.png", "fonts/schibsted-grotesk-var.woff2", "fonts/archivo-var.woff2"]:
         assert web.get("/assets/" + name).status_code == 200
     assert web.get("/auth/session").status_code == 401
 
@@ -121,7 +121,7 @@ def test_text_assets_are_gzipped_without_losing_security_or_cache_headers(web):
     assert page.headers["content-encoding"] == "gzip" and page.headers["cache-control"] == "no-store"
     assert "script-src 'self'" in page.headers["content-security-policy"]
     # Fonts are already compressed; clients that do not ask for gzip get identity.
-    assert "content-encoding" not in web.get("/assets/fonts/archivo-var.woff2", headers={"Accept-Encoding": "gzip"}).headers
+    assert "content-encoding" not in web.get("/assets/fonts/schibsted-grotesk-var.woff2", headers={"Accept-Encoding": "gzip"}).headers
     assert "content-encoding" not in web.get("/assets/app.js", headers={"Accept-Encoding": "identity"}).headers
 
 

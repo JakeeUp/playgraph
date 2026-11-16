@@ -150,8 +150,10 @@ def test_duplicate_callback_parameters_rejected(client, verification):
 
 
 @pytest.mark.parametrize("seconds", [-601, 61])
-def test_expired_or_future_nonce_rejected(client, verification, seconds):
-    nonce = (utcnow() + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ") + "nonce"
+def test_expired_or_future_nonce_rejected(client, verification, seconds, monkeypatch):
+    now = utcnow().replace(microsecond=0)
+    monkeypatch.setattr(auth, "utcnow", lambda: now)
+    nonce = (now + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ") + "nonce"
     assert callback(client, begin(client, nonce)).status_code == 401
     assert not verification.calls
 
@@ -186,6 +188,30 @@ def test_new_account_creation(client, verification, db):
     assert response.json()["display_name"] == "New"
     assert db.query(LinkedAccount).count() == 2
 
+
+
+def test_rejects_plain_http_claimed_id(client, verification):
+    params = begin(client)
+    params["openid.claimed_id"] = params["openid.identity"] = "http://steamcommunity.com/openid/id/76561198000000001"
+    assert callback(client, params).status_code == 401
+    assert not verification.calls
+
+
+def test_new_account_survives_steam_profile_outage(client, verification, db, monkeypatch):
+    monkeypatch.setattr(auth.steam, "get_player_summary", AsyncMock(side_effect=httpx.ConnectError("down")))
+    params = begin(client)
+    params["openid.claimed_id"] = params["openid.identity"] = "https://steamcommunity.com/openid/id/76561198000000003"
+    response = callback(client, params)
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "Player000003"
+
+
+def test_steam_login_revokes_the_previous_session(client, verification):
+    first = callback(client, begin(client)).json()["access_token"]
+    client.cookies.set(auth.session_cookie_name(), first)
+    second = callback(client, begin(client)).json()["access_token"]
+    assert client.get("/me/genres", headers={"Authorization": "Bearer " + first}).status_code == 401
+    assert client.get("/me/genres", headers={"Authorization": "Bearer " + second}).status_code == 200
 
 @pytest.mark.parametrize("claim,value", [("aud", "another-api"), ("iss", "another-app"),
                                          ("sub", None), ("sub", "-1"), ("jti", "short"),
@@ -286,6 +312,17 @@ def test_responses_report_the_per_address_budget(client):
     assert 1 <= int(second.headers["ratelimit-reset"]) <= 60
 
 
+def test_static_assets_do_not_spend_the_request_budget(client):
+    before = client.get("/games/1/reviews")
+    for _ in range(REQUESTS_PER_MINUTE + 5):
+        asset = client.get("/assets/styles.css")
+        assert "ratelimit-limit" not in asset.headers
+    after = client.get("/games/1/reviews")
+    assert int(before.headers["ratelimit-remaining"]) - int(after.headers["ratelimit-remaining"]) == 1
+    # Writes to an asset path still count.
+    assert "ratelimit-limit" in client.post("/assets/styles.css").headers
+
+
 def test_each_account_has_its_own_private_read_budget(client):
     headers = auth_headers(client.app.state.arq_pool)
     for _ in range(90):
@@ -359,7 +396,7 @@ def browser_login(client):
     assert "Domain=" not in cookie
     session = client.get("/auth/session")
     assert session.status_code == 200
-    assert session.json()["user"] == {"id": 1, "display_name": "One"}
+    assert session.json()["user"] == {"id": 1, "display_name": "One", "avatar_url": None}
     assert "access_token" not in session.text
     return session.json()["csrf_token"]
 
@@ -450,3 +487,46 @@ def test_browser_cookie_is_host_only_and_secure_under_https(client, verification
     session = next(cookie for cookie in cookies if cookie.startswith("__Host-playgraph-session="))
     assert "HttpOnly" in session and "Secure" in session and "Path=/" in session and "SameSite=lax" in session
     assert "Domain=" not in session
+
+
+def test_bound_to_normalises_and_fails_closed():
+    from app.security import bound_to
+    assert bound_to("7", "7") and bound_to(b"7", "7") and bound_to("7", b"7") and bound_to(b"7", b"7")
+    assert not bound_to(None, "7") and not bound_to(None, "")
+    assert not bound_to("8", "7") and not bound_to(b"8", b"7") and not bound_to("77", "7")
+    assert not bound_to("", "7") and not bound_to("7", "")
+    assert bound_to("", "")
+    assert not bound_to(7, "7")
+
+
+def test_security_headers_snapshot(monkeypatch):
+    """Header values are frozen byte for byte; a change here is a deliberate policy change."""
+    from app.config import settings
+    from app.middleware import NEWS_IMAGES, security_headers
+    monkeypatch.setattr(settings, "environment", "development")
+    monkeypatch.setattr(settings, "clerk_enabled", False)
+    common = {
+        "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer",
+        "Cache-Control": "no-store", "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Cross-Origin-Opener-Policy": "same-origin", "Cross-Origin-Resource-Policy": "same-origin",
+        "X-Permitted-Cross-Domain-Policies": "none",
+    }
+    tail = "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    app_csp = ("default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' "
+               "https://shared.fastly.steamstatic.com https://shared.akamai.steamstatic.com "
+               "https://cdn.akamai.steamstatic.com https://cdn.cloudflare.steamstatic.com "
+               "https://images.igdb.com https://image.api.playstation.com "
+               f"https://psnobj.prod.dl.playstation.net {NEWS_IMAGES}; font-src 'self'; {tail}")
+    assert security_headers("/app", 200, "text/html") == {**common, "Content-Security-Policy": app_csp}
+    assert security_headers("/library", 401, "application/json") == {
+        **common, "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"}
+    assert security_headers("/nope", 404, "text/html; charset=utf-8") == {
+        **common, "Content-Security-Policy": f"default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; {tail}"}
+    assert security_headers("/nope", 404, "application/json")["Content-Security-Policy"].endswith("base-uri 'none'")
+    assert "Content-Security-Policy" not in security_headers("/docs", 200, "text/html")
+    assert security_headers("/assets/app.js", 200, "text/javascript")["Cache-Control"] == "no-cache"
+    account = security_headers("/account", 200, "text/html")["Content-Security-Policy"]
+    assert account.startswith("default-src 'none'; script-src 'self'  https://challenges.cloudflare.com") and account.endswith(tail)
+    monkeypatch.setattr(settings, "environment", "production")
+    assert security_headers("/health", 200, "application/json")["Strict-Transport-Security"] == \
+        "max-age=31536000; includeSubDomains"

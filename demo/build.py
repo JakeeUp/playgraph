@@ -27,7 +27,7 @@ PAGES = {"index.html", "account.html", "404.html"}
 UNUSED = {"account.js", "psn-account.js"}
 
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; "
-       "img-src 'self' https://shared.fastly.steamstatic.com https://shared.akamai.steamstatic.com "
+       "img-src 'self' data: https://shared.fastly.steamstatic.com https://shared.akamai.steamstatic.com "
        "https://cdn.akamai.steamstatic.com https://cdn.cloudflare.steamstatic.com; "
        "font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'")
 BANNER = ('<div class="demo-banner" role="note"><div class="demo-banner-inner">'
@@ -104,7 +104,10 @@ def build(out: Path, base: str) -> None:
 
     index = rewrite((STATIC / "index.html").read_text(encoding="utf-8"), HTML_RULES)
     (out / "index.html").write_text(inject(index), encoding="utf-8")
-    (out / "account.html").write_text(inject((DEMO / "account.html").read_text(encoding="utf-8")), encoding="utf-8")
+    account = (DEMO / "account.html").read_text(encoding="utf-8")
+    profile = re.search(r'<section id="profile-section".*?</section>', (STATIC / "account.html").read_text(encoding="utf-8"), re.S).group()
+    account = account.replace('<!-- profile-settings -->', rewrite(profile, HTML_RULES))
+    (out / "account.html").write_text(inject(account), encoding="utf-8")
     # The 404 page is served at any missing path, so it needs a base to find its assets.
     missing = rewrite((STATIC / "404.html").read_text(encoding="utf-8"), HTML_RULES)
     (out / "404.html").write_text(inject(missing, base=base), encoding="utf-8")

@@ -41,6 +41,8 @@ def test_demo_ships_sample_data_and_leaves_out_real_sign_in(tmp_path):
     assert {comment["review_id"] for comment in data["comments"]} <= {review["id"] for review in data["reviews"]}
     assert not (out / "assets" / "account.js").exists() and not (out / "assets" / "psn-account.js").exists()
     assert 'id="demo-sign-in"' in (out / "account.html").read_text(encoding="utf-8")
+    assert 'id="profile-avatar-file"' in (out / "account.html").read_text(encoding="utf-8")
+    assert 'id="favorites-form"' in (out / "account.html").read_text(encoding="utf-8")
     assert '<base href="/playgraph/">' in (out / "404.html").read_text(encoding="utf-8")
 
 

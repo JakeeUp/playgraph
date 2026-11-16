@@ -17,14 +17,17 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app import handles
 from app.config import settings
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import decode_session, get_current_user
 from app.models import AuthIdentity, LinkedAccount, Platform, User, utcnow
 from app import clerk_auth
+from app.beta import require_invite, steam_invited
 from app.schemas import display_name
-from app.security import (LOGIN_TTL, NONCE_TTL, csrf_token, issue_session, rate_limit,
-                          redis_call, secure_cookies, session_cookie_name, state_key)
+from app.security import (LOGIN_TTL, NONCE_TTL, bound_to, clear_cookie, csrf_token, issue_session, rate_limit,
+                          redis_call, secure_cookies, session_cookie_name, set_cookie, set_session_cookie,
+                          state_key)
 from app.services import steam
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -64,15 +67,14 @@ async def begin_steam(request: Request, callback_path: str, mode: dict, binding_
 
 
 def with_login_cookie(response: Response, browser_secret: str) -> Response:
-    response.set_cookie(cookie_name(), browser_secret, max_age=LOGIN_TTL,
-                        httponly=True, secure=secure_cookies(), samesite="lax", path="/")
+    set_cookie(response, cookie_name(), browser_secret, LOGIN_TTL)
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
 def without_login_cookie(response: Response) -> Response:
     # The browser binding is single use; once a callback finishes, it goes.
-    response.delete_cookie(cookie_name(), path="/", secure=secure_cookies(), httponly=True, samesite="lax")
+    clear_cookie(response, cookie_name())
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -106,7 +108,7 @@ async def verified_steam_id(request: Request, callback_path: str, mode: dict, bi
         )
     expected_return = f"{settings.app_base_url}{callback_path}?{urlencode({'state': state, **mode})}"
     identity = params.get("openid.claimed_id", "")
-    match = re.fullmatch(r"https?://steamcommunity\.com/openid/id/([0-9]{17})", identity)
+    match = re.fullmatch(r"https://steamcommunity\.com/openid/id/([0-9]{17})", identity)
     if (params.get("openid.ns") != OPENID_NS or params.get("openid.mode") != "id_res"
             or params.get("openid.op_endpoint") != STEAM_OPENID_URL
             or params.get("openid.return_to") != expected_return
@@ -127,14 +129,12 @@ async def verified_steam_id(request: Request, callback_path: str, mode: dict, bi
     key = state_key("login", state)
     expected_browser = (hashlib.sha256(browser_secret.encode()).hexdigest() + binding_suffix).encode()
     stored = await redis_call(request, "get", key)
-    if isinstance(stored, str):
-        stored = stored.encode()
     if stored is None:
         raise HTTPException(status_code=401, detail="Steam login state expired. Start the Steam login again.")
-    if not secrets.compare_digest(stored, expected_browser):
+    if not bound_to(stored, expected_browser):
         raise HTTPException(status_code=401, detail="Steam login belongs to a different browser session. Start the Steam login again.")
     consumed = await redis_call(request, "getdel", key)
-    if consumed != stored:
+    if not bound_to(consumed, stored):
         raise HTTPException(status_code=401, detail="Steam login was already used. Start the Steam login again.")
     verify_params = {k: v for k, v in params.items() if k.startswith("openid.")}
     verify_params["openid.mode"] = "check_authentication"
@@ -152,6 +152,16 @@ async def verified_steam_id(request: Request, callback_path: str, mode: dict, bi
     return match.group(1)
 
 
+async def revoke_previous_session(request: Request) -> None:
+    # A new login replaces the cookie, so the old token must stop working too.
+    try:
+        old = decode_session(request.cookies.get(session_cookie_name(), ""))
+    except HTTPException:
+        return
+    await redis_call(request, "delete", state_key("session", old["jti"]))
+    await redis_call(request, "delete", state_key("provider-session", old["jti"]))
+
+
 @router.get("/steam/callback")
 async def steam_callback(request: Request, db: Session = Depends(get_db)):
     ui = request.query_params.get("ui") == "1"
@@ -163,8 +173,13 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
     if linked:
         user = linked.user
     else:
-        summary = await steam.get_player_summary(steam_id)
+        require_invite(steam_invited(steam_id))
+        try:
+            summary = await steam.get_player_summary(steam_id)
+        except (httpx.HTTPError, ValueError):
+            summary = None  # The one-time state is spent, so fall back to a placeholder name.
         user = User(display_name=display_name((summary or {}).get("persona_name"), f"Player{steam_id[-6:]}"))
+        user.handle = handles.available(db, user.display_name)
         db.add(user)
         try:
             db.flush()
@@ -179,11 +194,11 @@ async def steam_callback(request: Request, db: Session = Depends(get_db)):
     if db.query(AuthIdentity).filter_by(user_id=user.id).first():
         raise HTTPException(401, "Use PlayGraph account sign-in for this account")
     token = await issue_session(request, user.id)
+    await revoke_previous_session(request)
     logger.info("login_succeeded user_id=%s", user.id)
     if ui:
         response = RedirectResponse("/app", status_code=303)
-        response.set_cookie(session_cookie_name(), token, max_age=settings.session_minutes * 60,
-                            httponly=True, secure=secure_cookies(), samesite="lax", path="/")
+        set_session_cookie(response, token)
     else:
         response = JSONResponse({"access_token": token, "token_type": "bearer",  # nosec B105
                                  "expires_in": settings.session_minutes * 60, "user_id": user.id,
@@ -254,7 +269,7 @@ async def steam_connect_callback(request: Request, user: User = Depends(get_curr
 async def browser_session(request: Request, user: User = Depends(get_current_user)):
     linked = next((account for account in user.linked_accounts if account.platform == Platform.steam), None)
     playstation = next((account for account in user.linked_accounts if account.platform == Platform.psn), None)
-    return {"user": {"id": user.id, "display_name": user.display_name},
+    return {"user": {"id": user.id, "display_name": user.display_name, "avatar_url": user.avatar_url},
             "auth_provider": request.state.auth_provider, "has_steam": linked is not None,
             # Whether PlayStation linking is switched on here, never how.
             "psn_enabled": settings.psn_enabled, "has_psn": playstation is not None,
@@ -287,6 +302,5 @@ async def logout(request: Request, user: User = Depends(get_current_user)):
                 JSONResponse({"provider_signed_out": False}))
     response.headers["Cache-Control"] = "no-store"
     response.headers["Clear-Site-Data"] = '"cookies", "storage"'
-    response.delete_cookie(session_cookie_name(), path="/", httponly=True,
-                           secure=secure_cookies(), samesite="lax")
+    clear_cookie(response, session_cookie_name())
     return response

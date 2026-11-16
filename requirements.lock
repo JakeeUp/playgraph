@@ -1,9 +1,12 @@
-# Tested dependency snapshot for Python 3.14. Regenerate and audit when updating.
+# Runtime dependency snapshot (what the image installs) for Python 3.14. Regenerate and audit when updating.
 alembic==1.19.2
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
 arq==0.28.0
+Pillow==13.0.0
+boto3==1.44.3
+botocore==1.44.3
 certifi==2026.10.18
 cffi==2.1.1
 cryptography==50.0.1
@@ -14,26 +17,24 @@ fastapi==0.141.1
 greenlet==3.5.5
 h11==0.16.0
 hiredis==3.4.1
-honcho==2.0.0
 httpcore==1.0.9
 httpx==0.28.1
 idna==3.19
-iniconfig==2.3.0
-mako==1.4.1
+jmespath==1.1.0
+mako==1.4.2
 markupsafe==3.0.3
-packaging==26.3
-pluggy==1.6.0
 pydantic==2.13.5
 pydantic-core==2.46.5
 pydantic-settings==2.15.0
-pygments==2.21.0
 pyjwt[crypto]==2.15.1
-pytest==9.1.1
-pytest-asyncio==1.4.0
+python-dateutil==2.9.0.post0
 python-dotenv==1.2.3
 redis==5.3.1
+s3transfer==0.19.3
+six==1.17.0
 sqlalchemy==2.0.52
 starlette==1.6.0
 typing-extensions==4.16.0
 typing-inspection==0.4.4
+urllib3==2.8.0
 uvicorn==0.52.4

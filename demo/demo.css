@@ -1,10 +1,10 @@
 /* The demo banner. Uses only the tokens defined in styles.css. */
-.demo-banner { background:var(--surface); border-bottom:1px solid var(--line); font-size:var(--text-sm); color:var(--text-body); }
+.demo-banner { background:var(--paper-2); border-bottom:1px solid var(--rule); font-size:var(--text-caption); line-height:18px; color:var(--ink-2); }
 .demo-banner-inner {
-  display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-1) var(--space-4);
-  width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto; padding:var(--space-2) var(--gutter);
+  display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-1) var(--s-3);
+  width:100%; max-width:calc(var(--content-max) + var(--gutter) * 2); margin:0 auto; padding:7px var(--gutter);
 }
-.demo-banner strong { color:var(--accent); font-weight:600; }
-.demo-banner .text-button, .demo-banner a { font-size:var(--text-sm); }
-.demo-banner .demo-links { display:flex; gap:var(--space-4); margin-left:auto; }
+.demo-banner strong { color:var(--accent); font-weight:800; }
+.demo-banner .text-button, .demo-banner a { font-size:var(--text-caption); }
+.demo-banner .demo-links { display:flex; gap:var(--s-4); margin-left:auto; }
 @media (max-width:640px) { .demo-banner .demo-links { margin-left:0; } }

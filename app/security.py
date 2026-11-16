@@ -1,7 +1,7 @@
 """Shared, expiring security state. Redis failures never grant access."""
-
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import secrets
@@ -11,6 +11,7 @@ from fastapi import HTTPException, Request
 import jwt
 from redis.exceptions import RedisError
 
+from app.beta import require_not_suspended
 from app.config import settings
 from app.models import utcnow
 
@@ -30,6 +31,22 @@ def session_cookie_name() -> str:
     return "__Host-playgraph-session" if secure_cookies() else "playgraph-session"
 
 
+def set_cookie(response, name: str, value: str, max_age: int):
+    """Every cookie we set: HttpOnly, SameSite=Lax, site-wide, Secure when served over HTTPS."""
+    response.set_cookie(name, value, max_age=max_age, httponly=True, secure=secure_cookies(),
+                        samesite="lax", path="/")
+    return response
+
+
+def clear_cookie(response, name: str):
+    response.delete_cookie(name, path="/", httponly=True, secure=secure_cookies(), samesite="lax")
+    return response
+
+
+def set_session_cookie(response, token: str):
+    return set_cookie(response, session_cookie_name(), token, settings.session_minutes * 60)
+
+
 def csrf_token(session_id: str) -> str:
     """A token bound to this session, separate from its authentication credential."""
     return hmac.new(settings.jwt_secret.get_secret_value().encode(),
@@ -40,21 +57,36 @@ def state_key(purpose: str, value: str) -> str:
     return f"playgraph:security:{purpose}:{hashlib.sha256(value.encode()).hexdigest()}"
 
 
-def security_store(request: Request):
+def bound_to(raw, expected) -> bool:
+    """Whether a stored value (str or bytes, or None when absent) equals expected, in constant time."""
+    if raw is None:
+        return False
+    if isinstance(raw, str):
+        raw = raw.encode()
+    if isinstance(expected, str):
+        expected = expected.encode()
+    if not isinstance(raw, bytes) or not isinstance(expected, bytes):
+        return False
+    return hmac.compare_digest(raw, expected)
+
+
+def app_store(request: Request, *, required: bool = False):
+    """The shared Redis-like store from app state, or None. required=True answers 503 instead of None."""
     store = getattr(request.app.state, "arq_pool", None)
-    if store is None:
+    if store is None and required:
         raise HTTPException(status_code=503, detail="Security service unavailable")
     return store
 
 
 async def redis_call(request: Request, method: str, *args, **kwargs):
     try:
-        return await getattr(security_store(request), method)(*args, **kwargs)
+        return await getattr(app_store(request, required=True), method)(*args, **kwargs)
     except (RedisError, OSError):
         raise HTTPException(status_code=503, detail="Security service unavailable") from None
 
 
 async def issue_session(request: Request, user_id: int, *, provider: dict | None = None) -> str:
+    require_not_suspended(user_id)
     now = utcnow()
     session_id = secrets.token_urlsafe(32)
     seconds = settings.session_minutes * 60
@@ -101,6 +133,25 @@ def rate_headers(limit: int, remaining: int, reset: int) -> dict[str, str]:
     """The RateLimit fields from the IETF draft, in the widely deployed draft 6 form."""
     return {"RateLimit-Limit": str(limit), "RateLimit-Remaining": str(max(0, remaining)),
             "RateLimit-Reset": str(max(1, reset))}
+
+
+def client_key(request: Request) -> str:
+    """The rate-limit identity for the caller's address.
+
+    One IPv6 customer usually gets a whole /64, so counting full addresses
+    would hand them billions of separate budgets. IPv6 is bucketed by /64,
+    IPv4 by the exact address.
+    """
+    host = request.client.host if request.client else "unknown"
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    if address.version == 6:
+        if address.ipv4_mapped:
+            return str(address.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{address}/64", strict=False))
+    return str(address)
 
 
 async def rate_limit(request: Request, bucket: str, identity: str, limit: int, seconds: int) -> tuple[int, int]:

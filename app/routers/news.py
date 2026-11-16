@@ -30,6 +30,7 @@ from starlette.concurrency import run_in_threadpool
 from app.cache import PREFIX
 from app.database import SessionLocal
 from app.models import Game, PlaytimeSnapshot
+from app.security import app_store
 from app.services import news, steam_news
 
 router = APIRouter(tags=["news"])
@@ -116,7 +117,7 @@ def _timestamp(item: dict) -> float:
 
 @router.get("/news")
 async def gaming_news(request: Request, offset: int = Query(0, ge=0, le=1000)):
-    store = getattr(request.app.state, "arq_pool", None)
+    store = app_store(request)
     sources = [_latest(store, "steam", _steam)]
     if news.configured():
         sources.append(_latest(store, "apitube", _apitube))

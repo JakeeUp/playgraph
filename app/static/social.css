@@ -1,29 +1,66 @@
 /* ==========================================================================
-   Review feed and the half-star rating control.
+   Review feed, news and the half-star rating control.
    Uses only the tokens defined in styles.css.
    ========================================================================== */
 
-/* ---------------- feed ---------------- */
+/* ---------------- feed ----------------
+   Rows of reviews. Profiles keep the 720px cap. The Reviews page drops it
+   so the posts share the width with the rail. */
 
-.feed-items { display:flex; flex-direction:column; }
+.feed-items { display:flex; flex-direction:column; max-width:720px; border-top:1px solid var(--rule); }
 
-/* Hairline rows, not cards: cover on the left, the game and its review beside it. */
-.feed-card { display:grid; grid-template-columns:88px minmax(0,1fr); gap:var(--space-5); padding:var(--space-5) 0; border-bottom:1px solid var(--line); }
-.feed-card:first-child { padding-top:0; }
-.feed-cover { width:88px; align-self:start; padding:0; border:0; background:none; cursor:pointer; border-radius:var(--radius-sm); box-shadow:var(--shadow-cover); }
-.feed-cover .cover { border-radius:var(--radius-sm); }
-.feed-cover:hover .cover img { filter:brightness(1.12); }
-.feed-body { min-width:0; }
-.feed-game { display:flex; align-items:baseline; gap:var(--space-1) var(--space-3); flex-wrap:wrap; margin-bottom:var(--space-2); }
-.feed-title {
-  font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:800; font-size:var(--text-xl); letter-spacing:var(--tracking-tight); line-height:var(--leading-tight);
-  color:var(--text); background:none; border:0; padding:0; cursor:pointer; text-align:left;
+/* Reviews sit in the left column. The rail uses the space that used to sit empty. */
+.feed-layout { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:var(--s-6); align-items:start; }
+.feed-main { min-width:0; }
+.feed-main .feed-items { max-width:none; }
+.feed-rail { display:flex; flex-direction:column; gap:var(--s-5); position:sticky; top:calc(var(--header-h) + var(--s-4)); }
+.rail-head { display:flex; align-items:baseline; justify-content:space-between; gap:var(--s-3); }
+.rail-head h2 { font-size:18px; }
+.rail-hit, .rail-person, .rail-news {
+  display:grid; grid-template-columns:44px minmax(0,1fr); gap:var(--s-3); align-items:center;
+  width:100%; padding:var(--s-2) 0; border:0; background:none; color:inherit; text-align:left;
+  text-decoration:none; cursor:pointer;
 }
-.feed-title:hover { color:var(--accent-hover); }
-.feed-reason { font-size:var(--text-sm); color:var(--text-muted); }
-.feed-card .review-author { font-size:var(--text-ui); }
-.feed-card .review-body { font-size:var(--text-md); color:var(--text-body); margin-top:var(--space-2); }
-.feed-count { margin-top:var(--space-3); font-size:var(--text-sm); color:var(--text-muted); }
+.rail-news { grid-template-columns:minmax(0,1fr); }
+.rail-person { grid-template-columns:36px minmax(0,1fr); }
+.rail-hit .cover { width:44px; }
+.rail-copy { display:flex; flex-direction:column; min-width:0; }
+.rail-title { font-size:var(--text-ui); font-weight:700; color:var(--ink); overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.rail-meta { font-size:var(--text-caption); color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rail-avatar { width:36px; height:36px; font-size:15px; border:0; background:hsl(var(--hue) 45% 28%); color:hsl(var(--hue) 80% 88%); }
+@media (hover:hover) {
+  .rail-hit:hover .rail-title, .rail-news:hover .rail-title, .rail-person:hover .rail-title { color:var(--accent); }
+}
+@media (max-width:980px) {
+  .feed-layout { grid-template-columns:minmax(0,1fr); }
+  .feed-rail { display:none; }
+}
+
+/* Explore sits above the catalog. Three columns on a wide window, one stack on a phone. */
+.explore-columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) 280px; gap:var(--s-6); align-items:start; }
+.explore-columns h2 { font-size:18px; margin-bottom:var(--s-2); }
+.explore-columns section { min-width:0; border-top:1px solid var(--rule); padding-top:var(--s-3); }
+.suggest-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:var(--s-3); align-items:center; padding:var(--s-2) 0; }
+.suggest-link { display:grid; grid-template-columns:36px minmax(0,1fr); gap:var(--s-3); align-items:center; min-width:0; color:inherit; text-decoration:none; }
+.trend-review { grid-template-columns:36px minmax(0,1fr); }
+@media (hover:hover) {
+  .suggest-link:hover .rail-title { color:var(--accent); }
+}
+@media (max-width:980px) {
+  .explore-columns { grid-template-columns:minmax(0,1fr); }
+}
+.feed-items > .empty-message { border-top:0; }
+.feed-card { display:grid; grid-template-columns:64px minmax(0,1fr); align-items:start; gap:var(--s-5); padding:var(--s-5) 0; border-bottom:1px solid var(--rule); }
+.feed-body { min-width:0; display:flex; flex-direction:column; gap:var(--s-2); }
+.feed-reason { font-size:var(--text-caption); line-height:18px; color:var(--muted); }
+.feed-card .review-body {
+  margin-top:var(--s-2); font-size:var(--text-small-body);
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+.feed-card .review-body.expanded { display:block; -webkit-line-clamp:none; overflow:visible; }
+.feed-more { margin-top:var(--s-1); font-size:var(--text-caption); }
+.feed-card .review-actions > [aria-expanded]:not(.feed-comments) { display:none; }
+.skeleton-feed { display:grid; grid-template-columns:64px minmax(0,1fr); gap:var(--s-5); padding:var(--s-5) 0; border-bottom:1px solid var(--rule); }
 
 /* ==========================================================================
    HALF-STAR RATING
@@ -33,26 +70,22 @@
      span.rating-star
        svg                       <- the empty base
        span.star-fill(.full|.half)
-         svg                     <- the amber overlay, clipped by the parent
+         svg                     <- the ink overlay, clipped by the parent
 
-   So the fill width is what changes, not the star. .star-fill carries .full
-   and .half; the inner svg keeps the FULL star width so that clipping the
-   parent to 50% shows exactly half a star.
+   So the fill width is what changes, not the star. The inner svg keeps the
+   FULL star width so that clipping the parent to 50% shows exactly half.
+   Stars are orange on a dark base.
    ========================================================================== */
 
-.rating-picker { display:flex; align-items:center; gap:var(--space-3); flex-wrap:wrap; }
-.rating-picker > label { display:inline-flex; align-items:center; gap:var(--space-3); font-size:var(--text-ui); font-weight:500; }
+.rating-picker { display:flex; align-items:flex-end; gap:var(--s-2) var(--s-4); flex-wrap:wrap; }
+.rating-picker > label { display:inline-flex; flex-direction:column; align-items:flex-start; gap:var(--s-2); font-size:var(--text-ui); font-weight:600; color:var(--ink); }
 .rating-picker .helper { flex-basis:100%; }
 
 .rating-track { position:relative; display:inline-block; line-height:0; touch-action:none; }
-.rating-stars { display:inline-flex; gap:var(--space-1); line-height:0; }
+.rating-stars { display:inline-flex; gap:2px; line-height:0; }
 
-.rating-star {
-  --star:28px;
-  position:relative; display:block;
-  width:var(--star); height:var(--star); flex:none;
-}
-.rating-star > svg { width:var(--star); height:var(--star); display:block; fill:var(--surface-3); }
+.rating-star { --star:28px; position:relative; display:block; width:var(--star); height:var(--star); flex:none; }
+.rating-star > svg { width:var(--star); height:var(--star); display:block; fill:var(--rule-strong); }
 .star-fill { position:absolute; inset:0; overflow:hidden; width:0; pointer-events:none; }
 .star-fill > svg { width:var(--star); height:var(--star); display:block; fill:var(--accent); }
 .star-fill.full { width:100%; }
@@ -66,59 +99,253 @@
   opacity:0; margin:0; padding:0; cursor:pointer;
   -webkit-appearance:none; appearance:none; background:none; border:0;
 }
-.rating-track:focus-within .rating-stars { outline:2px solid var(--accent); outline-offset:3px; border-radius:var(--radius); }
+.rating-track:focus-within .rating-stars { outline:2px solid var(--ring); outline-offset:4px; border-radius:3px; }
+@media (pointer:coarse) { .rating-track { padding-block:var(--s-2); } }
 
-.rating-value { font-weight:500; font-size:var(--text-md); min-width:9ch; color:var(--text-muted); }
-.rating-value.num { color:var(--text); }
+.rating-value { font-weight:700; font-size:var(--text-ui); line-height:28px; min-width:9ch; color:var(--muted); }
+.rating-value.num { color:var(--ink); }
 
 /* Read-only star rows next to a review. Same markup, smaller. */
 .review-rating .rating-star { --star:14px; }
-.review-rating .rating-stars { gap:var(--space-1); }
+.review-rating .rating-stars { gap:1px; }
 
 @media (max-width:860px) {
-  .feed-card { grid-template-columns:64px minmax(0,1fr); gap:var(--space-4); padding:var(--space-4); }
-  .feed-cover { width:64px; }
-  .feed-title { font-size:var(--text-lg); }
   .rating-star { --star:32px; }
+  .review-rating .rating-star { --star:14px; }
+}
+@media (max-width:600px) {
+  .feed-card { grid-template-columns:48px minmax(0,1fr); gap:var(--s-3); }
 }
 
 /* ---------------- news (For you) ----------------
-   A magazine: the first story runs full width with a big picture, the rest
-   sit in a card grid. The side column holds the parts still being built. */
+   The first story runs full width with a wide picture; the rest sit in two
+   columns. The side column lists what is still coming. */
 
-.news { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:var(--space-6); align-items:start; }
-.news-items { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-5); }
+.news { display:grid; grid-template-columns:minmax(0,1fr) 260px; gap:var(--s-7); align-items:start; }
+.news-items { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s-6) var(--s-5); }
 .news-items > .empty-message { grid-column:1/-1; }
-.news-row { display:flex; flex-direction:column; min-width:0; overflow:hidden; border-top:1px solid var(--line); padding-top:var(--space-4); }
-.news-image { display:block; aspect-ratio:16/9; overflow:hidden; background:var(--surface-2); border-radius:var(--radius); }
+.news-row { display:flex; flex-direction:column; min-width:0; }
+.news-image { display:block; aspect-ratio:16/9; overflow:hidden; background:var(--paper-2); border-radius:var(--radius); box-shadow:var(--shadow-cover); transition:box-shadow var(--dur-2) var(--ease); }
+@media (hover:hover) { .news-row:hover .news-image { box-shadow:0 0 0 2px var(--accent), var(--shadow-cover); } }
 .news-image img { width:100%; height:100%; object-fit:cover; display:block; }
-/* No picture: a flat block so the row keeps its shape (the source is in the meta line below). */
-.news-row:not(:has(.news-image))::before { content:""; display:block; aspect-ratio:16/9; background:var(--surface-2); border-radius:var(--radius); }
-.news-meta { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); margin-top:var(--space-3); font-size:var(--text-xs); color:var(--text-muted); }
-.news-source { color:var(--text-body); font-weight:500; }
-.news-tag { color:var(--accent); font-weight:500; }
-.news-tag::before { content:"·"; margin-right:var(--space-2); color:var(--text-muted); }
-.news-heading { margin-top:var(--space-2); font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:800; font-size:var(--text-lg); line-height:var(--leading-tight); }
-.news-title { color:var(--text); }
-.news-title:hover { color:var(--accent-hover); text-decoration:none; }
-.news-summary { margin-top:var(--space-2); font-size:var(--text-ui); color:var(--text-body); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.news-meta { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-2); margin-top:var(--s-3); font-size:var(--text-caption); color:var(--muted); }
+.news-source { color:var(--accent); font-weight:700; }
+.news-tag::before { content:"\00B7"; margin-right:var(--s-2); }
+.news-heading { margin-top:var(--s-2); font-size:var(--text-h3); line-height:24px; font-weight:800; }
+.news-title { color:var(--ink); text-decoration:none; }
+.news-title:hover { color:var(--accent); }
+.news-summary { margin-top:var(--s-2); font-size:var(--text-ui); line-height:1.6; color:var(--ink-2); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 .news-row:first-child { grid-column:1/-1; }
-.news-row:first-child .news-image, .news-row:first-child:not(:has(.news-image))::before { aspect-ratio:21/9; }
-.news-row:first-child .news-heading { font-size:var(--text-3xl); letter-spacing:var(--tracking-tight); }
-.news-row:first-child .news-summary { font-size:var(--text-md); -webkit-line-clamp:4; }
+.news-row:first-child .news-image { aspect-ratio:21/9; }
+.news-row:first-child .news-heading { font-family:var(--font-display); font-stretch:var(--display-stretch); font-size:var(--text-h1); line-height:1.05; font-weight:800; letter-spacing:-0.02em; }
+.news-row:first-child .news-summary { font-size:var(--text-body); -webkit-line-clamp:4; max-width:62ch; }
 
-.news-side { display:flex; flex-direction:column; gap:var(--space-4); position:sticky; top:calc(var(--header-h) + var(--space-5)); }
-.side-block { padding:var(--space-3) 0 0; border-top:1px solid var(--line); }
-.side-block .dev-tag { white-space:nowrap; }
-.side-block h2 { display:inline; font-family:var(--font-display); font-stretch:var(--display-stretch); font-weight:800; font-size:var(--text-md); margin-right:var(--space-2); }
-.side-block p { margin-top:var(--space-2); font-size:var(--text-sm); color:var(--text-muted); }
+.news-side { display:flex; flex-direction:column; gap:var(--s-5); position:sticky; top:calc(var(--header-h) + var(--s-5)); }
+.side-block { border-top:1px solid var(--rule); padding-top:var(--s-3); }
+.side-block h2 { font-size:18px; }
+.side-block p { margin-top:var(--s-1); font-size:var(--text-caption); line-height:18px; color:var(--muted); }
 
 @media (max-width:860px) {
-  .news { grid-template-columns:minmax(0,1fr); gap:var(--space-5); }
+  .news { grid-template-columns:minmax(0,1fr); gap:var(--s-6); }
   .news-side { position:static; }
 }
 @media (max-width:640px) {
-  .news-items { grid-template-columns:minmax(0,1fr); gap:var(--space-4); }
-  .news-row:first-child .news-image, .news-row:first-child:not(:has(.news-image))::before { aspect-ratio:16/9; }
-  .news-row:first-child .news-heading { font-size:var(--text-xl); }
+  .news-items { grid-template-columns:minmax(0,1fr); }
+  .news-row:first-child .news-image { aspect-ratio:16/9; }
+  .news-row:first-child .news-heading { font-size:var(--text-h2); line-height:26px; }
 }
+
+/* ---------------- profiles ----------------
+   A player's page: a big initial, the name in the display face, counts and
+   bio, then the actions. Recent reviews reuse the feed rows. */
+
+.author-link { color:var(--ink); font-weight:700; }
+.author-link:hover { color:var(--accent); }
+.comment .comment-author { font-weight:700; }
+
+.profile { display:flex; flex-direction:column; gap:var(--s-7); max-width:720px; }
+.profile-head { display:grid; grid-template-columns:auto minmax(0,1fr); gap:var(--s-3) var(--s-5); align-items:start; padding-top:var(--s-5); }
+.profile-avatar { width:72px; height:72px; font-size:32px; }
+.profile-who { display:flex; flex-direction:column; gap:var(--s-2); min-width:0; }
+.profile-who h1 { font-size:var(--text-h1); overflow-wrap:anywhere; }
+.profile-counts { font-size:var(--text-ui); color:var(--ink-2); }
+.profile-bio { font-size:var(--text-body); line-height:1.6; color:var(--ink-2); max-width:62ch; overflow-wrap:anywhere; }
+.profile-note { font-size:var(--text-ui); color:var(--muted); max-width:62ch; }
+.profile-actions { grid-column:2; display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-2) var(--s-4); }
+.profile-actions > .form-error, .profile-actions > .block-confirmation { flex-basis:100%; }
+.block-confirmation { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-3); padding:var(--s-3) 0; border-top:1px solid var(--rule); }
+.block-confirmation p { flex-basis:100%; font-size:var(--text-ui); color:var(--ink-2); }
+.profile-section { display:flex; flex-direction:column; gap:var(--s-4); }
+.people-list { list-style:none; margin:0; padding:0; border-top:1px solid var(--rule); }
+.people-list li { padding:var(--s-3) 0; border-bottom:1px solid var(--rule); font-size:var(--text-ui); }
+
+/* Report: a quiet text action that opens a small form in place. */
+.report-control:has(.report-form:not([hidden])) { flex-basis:100%; }
+.report-control:has(.report-form:not([hidden]))::before { display:none; }
+.review-actions > .report-control:has(.report-form:not([hidden])) { margin-left:0; }
+.report-form { display:flex; flex-direction:column; gap:var(--s-3); max-width:420px; padding:var(--s-3) 0; }
+.report-form label { display:flex; flex-direction:column; gap:var(--s-2); font-size:var(--text-ui); font-weight:700; color:var(--ink); }
+.report-actions { display:flex; align-items:center; gap:var(--s-4); }
+.comment .report-control { display:block; margin-top:var(--s-1); }
+.comment .report-open { font-size:var(--text-caption); color:var(--muted); }
+.report-sent { display:inline-block; }
+
+@media (max-width:600px) {
+  .profile-head { grid-template-columns:minmax(0,1fr); }
+  .profile-actions { grid-column:1; }
+  .profile-avatar { width:56px; height:56px; font-size:24px; }
+  .profile-who h1 { font-size:36px; }
+}
+@media (pointer:coarse) { .people-list a { display:inline-flex; min-height:44px; align-items:center; } }
+
+/* ---------------- posts: reviews as X / Bluesky posts ----------------
+   One column of posts split by hairlines. Avatar left, everything else in a
+   column beside it. The game art sits under the text like an attached image. */
+.feed-items:has(.post) { border:1px solid var(--rule); border-radius:16px; overflow:hidden; background:var(--surface); }
+.post { display:grid; grid-template-columns:44px minmax(0,1fr); gap:0 var(--s-3); padding:var(--s-4) var(--s-4) var(--s-2); border-bottom:1px solid var(--rule); transition:background var(--dur-1) var(--ease); }
+.post:last-child { border-bottom:0; }
+.post:hover { background:rgba(255,255,255,0.018); }
+.post-reason { grid-column:2; margin-bottom:var(--s-1); font-size:var(--text-caption); font-weight:600; color:var(--muted); }
+.post-repost-banner { grid-column:1 / -1; display:flex; align-items:center; gap:var(--s-2); margin:0 0 var(--s-1); font-size:var(--text-caption); font-weight:700; color:var(--muted); }
+.post-repost-banner .post-icon { width:16px; height:16px; padding:0; margin:0; }
+.post-repost-banner a { color:var(--ink-2); font-weight:800; text-decoration:none; }
+.post-quote { margin:var(--s-2) 0; font-size:var(--text-ui); color:var(--ink); overflow-wrap:anywhere; }
+.post-embed { margin-top:var(--s-2); padding:var(--s-3); border:1px solid var(--rule-strong); border-radius:16px; display:flex; flex-direction:column; gap:2px; }
+.post-avatar { display:block; padding-top:2px; }
+.post-avatar .avatar, .people-list .avatar { --hue:200; width:44px; height:44px; font-size:18px; border:0;
+  background:hsl(var(--hue) 45% 28%); color:hsl(var(--hue) 80% 88%); }
+.people-list .avatar { width:32px; height:32px; font-size:14px; }
+.people-list li { display:flex; align-items:center; gap:var(--s-2); }
+.post-main { min-width:0; display:flex; flex-direction:column; gap:2px; }
+.post-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 var(--s-1); min-width:0; font-size:var(--text-ui); }
+.post-name { font-weight:800; color:var(--ink); text-decoration:none; overflow-wrap:anywhere; }
+.post-name:hover { text-decoration:underline; }
+.post-handle, .post-dot, .post-time { color:var(--muted); }
+.post-handle { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:18ch; }
+.post-context { font-size:var(--text-ui); color:var(--muted); }
+.post-context .title-link { font-weight:700; color:var(--ink-2); }
+.post .review-card { margin-top:var(--s-2); }
+.post .review-body { margin-top:var(--s-2); color:var(--ink); max-width:none;
+  display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden; }
+.post .review-body.expanded { display:block; -webkit-line-clamp:none; overflow:visible; }
+.post .review-actions { display:none; }
+.post .comments { margin-top:var(--s-3); }
+
+/* The game, attached like an image: wide art with the cover and title on a dark foot. */
+.post-media { position:relative; display:block; width:100%; margin-top:var(--s-3); padding:0; aspect-ratio:2.4 / 1;
+  border:1px solid var(--rule-strong); border-radius:16px; overflow:hidden; background:var(--paper-2); cursor:pointer; }
+.post-media .hero-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.post-media:hover .hero-art { transform:scale(1.02); transition:transform 400ms var(--ease); }
+.post-media-caption { position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; gap:var(--s-3);
+  padding:var(--s-6) var(--s-3) var(--s-3); background:linear-gradient(transparent, rgba(5,8,12,0.88)); text-align:left; }
+.post-media-caption .cover { width:34px; flex:none; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.5); }
+.post-media-title { font-size:var(--text-ui); font-weight:800; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.6); }
+.post-media:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
+
+/* The action bar: five spread out, like X. Counts sit beside the icons. */
+.post-actions { display:flex; align-items:center; justify-content:space-between; max-width:460px; margin:var(--s-2) 0 0 -8px; flex-wrap:wrap; }
+.post-action { display:inline-flex; align-items:center; gap:2px; min-height:36px; padding:0 8px 0 6px;
+  border:0; border-radius:999px; background:none; color:var(--muted); font-size:var(--text-caption); cursor:pointer;
+  transition:color var(--dur-1) var(--ease), background var(--dur-1) var(--ease); }
+.post-icon { width:20px; height:20px; padding:6px; box-sizing:content-box; margin:-6px 0; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; border-radius:50%; transition:background var(--dur-1) var(--ease); }
+.post-count { min-width:1ch; }
+.post-action.reply:hover:not(:disabled) { color:#1D9BF0; }
+.post-action.reply:hover:not(:disabled) .post-icon { background:rgba(29,155,240,0.12); }
+.post-action.repost:hover:not(:disabled), .post-action.repost.on { color:var(--verified); }
+.post-action.repost:hover:not(:disabled) .post-icon, .post-action.repost.on .post-icon { background:rgba(0,224,84,0.12); }
+.post-repost { position:relative; display:inline-flex; }
+.post-menu { position:absolute; z-index:4; right:0; bottom:calc(100% + 4px); width:min(280px, 70vw); padding:var(--s-2);
+  border:1px solid var(--rule-strong); border-radius:12px; background:var(--surface); box-shadow:0 8px 24px rgba(0,0,0,0.35); }
+.post-menu-item { display:block; width:100%; min-height:36px; padding:0 var(--s-3); border:0; border-radius:8px; background:none; color:var(--ink); font-weight:700; text-align:left; cursor:pointer; }
+.post-menu-item:hover { background:rgba(255,255,255,0.06); }
+.quote-form { display:flex; flex-direction:column; gap:var(--s-2); margin-top:var(--s-2); }
+.quote-form textarea { width:100%; resize:vertical; }
+.post-action.like:hover, .post-action.like.on { color:#F91880; }
+.post-action.like:hover .post-icon { background:rgba(249,24,128,0.12); }
+.post-action.like.on .post-icon { fill:currentColor; animation:like-pop 260ms var(--ease); }
+.post-action.bookmark:hover:not(:disabled), .post-action.bookmark.on, .post-action.share:hover { color:#1D9BF0; }
+.post-action.bookmark.on .post-icon { fill:currentColor; background:rgba(29,155,240,0.12); }
+.post-action.share.done { color:var(--verified); }
+.post-action:disabled { opacity:0.45; cursor:default; }
+.post-action:focus-visible { outline:2px solid var(--ring); outline-offset:1px; }
+.post-actions .report-control { flex-basis:100%; padding-left:8px; font-size:var(--text-caption); }
+@keyframes like-pop { 0% { transform:scale(0.7); } 60% { transform:scale(1.2); } 100% { transform:scale(1); } }
+@media (prefers-reduced-motion: reduce) { .post-action.like.on .post-icon { animation:none; } .post-media:hover .hero-art { transform:none; } }
+.review-actions .post-action.like { min-height:28px; margin-right:var(--s-1); }
+
+/* ---------------- X-style profile header ---------------- */
+.profile-head { display:block; padding-top:0; border:1px solid var(--rule); border-radius:16px; overflow:hidden; background:var(--surface); }
+.profile-banner { position:relative; height:200px; background:linear-gradient(135deg, var(--paper-2), var(--surface-2)); overflow:hidden; }
+.profile-banner .hero-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0.85; }
+.profile-banner::after { content:""; position:absolute; inset:0; background:linear-gradient(transparent 55%, rgba(13,17,23,0.6)); }
+.profile-top { display:flex; justify-content:space-between; align-items:flex-start; gap:var(--s-3); padding:0 var(--s-5); }
+.profile-avatar { --hue:200; width:120px; height:120px; margin-top:-60px; font-size:48px; position:relative; z-index:1;
+  border:4px solid var(--surface); background:hsl(var(--hue) 45% 28%); color:hsl(var(--hue) 80% 88%); }
+.profile-top .profile-actions { grid-column:auto; justify-content:flex-end; padding-top:var(--s-3); }
+.profile-who { padding:var(--s-3) var(--s-5) var(--s-5); }
+.profile-who h1 { font-size:28px; line-height:1.15; }
+.profile-handle { margin-top:-6px; font-size:var(--text-ui); color:var(--muted); }
+.profile-stats { display:flex; flex-wrap:wrap; gap:var(--s-1) var(--s-5); margin:var(--s-2) 0 0; padding:0; list-style:none; font-size:var(--text-ui); color:var(--muted); }
+.profile-stats strong { color:var(--ink); font-weight:800; }
+
+.favorite-row { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--s-4); margin:0; padding:var(--s-3) 0 0; list-style:none; }
+.favorite { display:flex; flex-direction:column; gap:var(--s-2); min-width:0; }
+.favorite-open { position:relative; display:block; padding:0; border:0; background:none; cursor:pointer; }
+.favorite-open .cover { width:100%; border-radius:8px; }
+.favorite.crowned .cover { box-shadow:0 0 0 2px #FFC83D, 0 8px 24px rgba(255,200,61,0.25); }
+.crown { position:absolute; top:-10px; left:50%; transform:translateX(-50%); padding:2px 10px; border-radius:999px;
+  background:#FFC83D; color:#1A1200; font-size:var(--text-micro); font-weight:800; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,0.4); }
+.favorite-name { font-size:var(--text-caption); font-weight:700; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.favorite-open:focus-visible { outline:2px solid var(--ring); outline-offset:3px; border-radius:8px; }
+
+@media (max-width: 640px) {
+  .post { grid-template-columns:40px minmax(0,1fr); padding:var(--s-3); }
+  .post-avatar .avatar { width:40px; height:40px; }
+  .post-media { aspect-ratio:2 / 1; }
+  .profile-banner { height:130px; }
+  .profile-avatar { width:84px; height:84px; margin-top:-42px; font-size:34px; }
+  .profile-top, .profile-who { padding-left:var(--s-4); padding-right:var(--s-4); }
+  .favorite-row { gap:var(--s-2); }
+}
+.post-actions .report-open { color:var(--muted); font-weight:600; }
+.post-actions .report-open:hover { color:var(--danger); }
+/* Keep the bell's hit area large without crowding the mobile header. */
+.notification-bell { position: relative; flex: 0 0 44px; min-height: 44px; padding: 10px; margin-left: auto; }
+.notification-bell svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.notification-count { position: absolute; top: 0; right: 0; padding: 2px 5px; border-radius: 20px; background: var(--accent); color: var(--paper); font-size: 11px; }
+.notifications { width: 100%; max-width: 720px; margin-inline: auto; }
+.notification-row { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); padding: var(--s-4); border-bottom: 1px solid var(--rule); }
+.notification-row.unread { background: var(--surface-2); border-left: 3px solid var(--accent); }
+.notification-link { font: inherit; text-align: left; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; overflow-wrap: anywhere; }
+.notification-link:hover { text-decoration: underline; }
+.notification-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+@media (pointer: coarse) { .notification-link { min-height: 44px; display: flex; align-items: center; } }
+
+/* ---------------- verified badges ----------------
+   A check beside the name, earned from verified hours on game reviews.
+   100 hours: a green ring. 1,000: solid green. 5,000: solid gold with a glow.
+   The label and tooltip name the tier, so color is never the only signal. */
+.verified-badge { display:inline-flex; flex:none; align-self:center; width:16px; height:16px; margin-left:2px; vertical-align:-2px; color:var(--verified); cursor:help; }
+.verified-badge svg { width:100%; height:100%; overflow:visible; }
+.verified-badge circle { fill:none; stroke:currentColor; stroke-width:2; }
+.verified-badge path { fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+.verified-badge.tier-1000 circle, .verified-badge.tier-5000 circle { fill:currentColor; }
+.verified-badge.tier-1000 path, .verified-badge.tier-5000 path { stroke:#06140B; }
+.verified-badge.tier-5000 { color:#FFC83D; filter:drop-shadow(0 0 4px rgba(255,200,61,0.55)); }
+.verified-badge.tier-5000 path { stroke:#1A1200; }
+.profile-who h1 .verified-badge { width:22px; height:22px; margin-left:4px; vertical-align:-3px; }
+.review-name { display:inline-flex; align-items:center; gap:2px; min-width:0; }
+.avatar { position:relative; overflow:hidden; }
+.avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.profile-cover { width:100%; height:100%; object-fit:cover; }
+.game-room { padding:var(--s-4); border:1px solid var(--rule); border-radius:8px; background:var(--paper-2); }
+.game-room > .profile-section { margin-top:var(--s-4); }
+.room-shelf { margin-top:var(--s-5); }
+.room-shelf h3 { font-size:16px; margin-bottom:var(--s-3); }
+.room-games { display:flex; gap:var(--s-3); overflow-x:auto; padding:0 0 var(--s-3); border-bottom:8px solid var(--rule-strong); }
+.room-game { flex:0 0 105px; display:flex; flex-direction:column; gap:8px; border:0; background:none; color:var(--ink); text-align:left; cursor:pointer; }
+.room-game .cover { width:100%; aspect-ratio:2/3; transition:transform .15s; }
+.room-game:hover .cover { transform:translateY(-4px); }
+.room-game > span:last-child { font-size:12px; overflow-wrap:anywhere; }
+@media (prefers-reduced-motion:reduce) { .room-game .cover { transition:none; } .room-game:hover .cover { transform:none; } }
+.post-repost-banner .verified-badge { width:14px; height:14px; margin-left:-4px; }

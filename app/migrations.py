@@ -1,5 +1,7 @@
 """Explicit, backed-up SQLite migration entry point for local development."""
 import argparse
+from contextlib import closing
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -39,7 +41,9 @@ def sqlite_backup(engine, directory):
     os.close(descriptor)
     raw = engine.raw_connection()
     try:
-        with sqlite3.connect(name) as destination:
+        # sqlite3's own context manager only commits; closing() releases the
+        # file, which Windows otherwise keeps locked until garbage collection.
+        with closing(sqlite3.connect(name)) as destination:
             raw.driver_connection.backup(destination)
             if destination.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise RuntimeError("Backup integrity check failed; migration was not started.")
@@ -82,10 +86,12 @@ def main():
         require_current_schema(engine)
         print("Database schema is current.")
     else:
-        backup = upgrade_database(engine, ROOT / ".backups")
+        # A hosted machine points this at its persistent volume.
+        directory = Path(os.environ.get("PLAYGRAPH_BACKUP_DIR") or ROOT / ".backups")
+        backup = upgrade_database(engine, directory)
         print("Database schema is current. Existing record IDs are preserved.")
         if backup:
-            print("A verified pre-upgrade backup was saved under .backups/.")
+            print(f"A verified pre-upgrade backup was saved under {directory}.")
 
 
 if __name__ == "__main__":

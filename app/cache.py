@@ -31,16 +31,14 @@ from fastapi.encoders import jsonable_encoder
 from redis.exceptions import RedisError
 from starlette.concurrency import run_in_threadpool
 
+from app.security import app_store
+
 PREFIX = "playgraph:cache"
 CATALOG = "catalog"  # games and their metadata; changes when a library sync adds or enriches games
 REVIEWS = "reviews"  # reviews, comments and the public feed; changes on every review or comment write
 
 # One computation in flight per cache entry in this process.
 _inflight: dict[str, asyncio.Future] = {}
-
-
-def _store(request: Request):
-    return getattr(request.app.state, "arq_pool", None)
 
 
 def _entry(scope: str, generation: int, parts: tuple) -> str:
@@ -55,7 +53,7 @@ async def cached(request: Request, scope: str, parts: tuple, ttl: int, compute: 
     parts must hold every input that changes the response. A hit and a miss
     return the same JSON-shaped data, so callers never see a difference.
     """
-    store = _store(request)
+    store = app_store(request)
     entry = None
     if store is not None:
         try:
@@ -115,4 +113,4 @@ def invalidate_from_route(request: Request, scope: str) -> None:
     Called after the commit and before the response, so the client that just
     wrote never reads its own write back from a stale entry.
     """
-    anyio.from_thread.run(invalidate, _store(request), scope)
+    anyio.from_thread.run(invalidate, app_store(request), scope)

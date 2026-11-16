@@ -4,12 +4,12 @@ import sqlite3
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from sqlalchemy import create_engine, inspect, select
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session
 
 from app.database import Base
 from app.migrations import require_current_schema, upgrade_database
-from app.models import Comment, Game, LinkedAccount, Platform, PlaytimeSnapshot, Review, User
+from app.models import Comment, Game, LinkedAccount, Notification, Platform, PlaytimeSnapshot, Review, User
 
 
 @pytest.fixture
@@ -57,6 +57,58 @@ def test_empty_install_matches_application_schema(database, tmp_path):
     with database.connect() as connection:
         assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
         assert connection.exec_driver_sql("SELECT COUNT(*) FROM auth_identities").scalar() == 0
+
+
+def test_profile_image_migration_keeps_existing_data_and_limits_image_slots(database, tmp_path):
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0014_notifications")
+        connection.exec_driver_sql("INSERT INTO users (id, display_name) VALUES (1, 'Existing')")
+    before = records(database)
+    assert upgrade_database(database, tmp_path / "backups").is_file()
+    assert records(database) == before
+    require_current_schema(database)
+    with database.begin() as connection:
+        assert connection.exec_driver_sql("SELECT COUNT(*) FROM profile_images").scalar() == 0
+        connection.exec_driver_sql("INSERT INTO profile_images (user_id, kind, key, data) VALUES (1, 'avatar', 'key', X'00')")
+    for kind in ("avatar", "other"):
+        with pytest.raises(IntegrityError), database.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO profile_images (user_id, kind, key, data) VALUES (1, :kind, 'key', X'00')"), {"kind": kind})
+    with database.begin() as connection:
+        command.downgrade(migration_config(connection), "0014_notifications")
+    assert records(database) == before
+
+
+def test_notification_migration_preserves_data_and_enforces_targets(database, tmp_path):
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0013_reposts_bookmarks")
+        connection.exec_driver_sql("INSERT INTO users (id, display_name) VALUES (1, 'First'), (2, 'Second')")
+        connection.exec_driver_sql("INSERT INTO games (id, name) VALUES (1, 'Test game')")
+        connection.exec_driver_sql("INSERT INTO reviews (id, user_id, game_id, rating) VALUES (1, 1, 1, 4)")
+    before = records(database)
+    assert upgrade_database(database, tmp_path / "backups").is_file()
+    assert records(database) == before
+    require_current_schema(database)
+    with database.begin() as connection:
+        assert connection.exec_driver_sql("SELECT COUNT(*) FROM notifications").scalar() == 0
+        connection.exec_driver_sql("INSERT INTO notifications (recipient_id, actor_id, kind, review_id, created_at) "
+                                   "VALUES (1, 2, 'like', 1, '2026-11-15')")
+    for actor, kind, review in ((1, "like", 1), (2, "unknown", 1), (2, "like", None), (2, "follow", 1), (2, "comment", 1)):
+        with pytest.raises(IntegrityError), database.begin() as connection:
+            connection.execute(Notification.__table__.insert().values(
+                recipient_id=1, actor_id=actor, kind=kind, review_id=review))
+    with database.begin() as connection:
+        command.downgrade(migration_config(connection), "0013_reposts_bookmarks")
+    assert "notifications" not in inspect(database).get_table_names()
+    assert records(database) == before
 
 
 def test_review_id_migration_preserves_rows_and_never_reuses_deleted_link(database, tmp_path):
@@ -250,3 +302,141 @@ def test_upgrade_from_the_previous_revision_preserves_rows_written_by_it(databas
             "SELECT id, linked_account_id, source FROM playtime_snapshots ORDER BY id").all() == [
             (11, 9, "steam"), (12, 9, "steam")]
         assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
+
+
+def test_social_migration_keeps_users_public_and_enforces_pairs(database, tmp_path):
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0009_igdb_hero_art")
+    seed = baseline().tables
+    with database.begin() as connection:
+        connection.execute(seed["users"].insert(), [{"id": 5, "display_name": "Existing"},
+                                                    {"id": 6, "display_name": "Second"}])
+        connection.execute(seed["games"].insert(), [{"id": 7, "steam_appid": 620, "name": "Portal 2"}])
+        connection.execute(seed["reviews"].insert(), [{"id": 9, "user_id": 5, "game_id": 7, "rating": 4}])
+    before = records(database)
+    backup = upgrade_database(database, tmp_path / "backups")
+    assert backup is not None and backup.is_file()
+    assert records(database) == before
+    require_current_schema(database)
+    with database.connect() as connection:
+        assert connection.exec_driver_sql(
+            "SELECT id, bio, profile_visibility FROM users ORDER BY id").all() == [(5, None, "public"), (6, None, "public")]
+        assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
+    statements = [
+        "INSERT INTO follows (follower_id, followee_id) VALUES (5, 5)",
+        "INSERT INTO blocks (blocker_id, blocked_id) VALUES (6, 6)",
+        "INSERT INTO follows (follower_id, followee_id, status) VALUES (6, 5, 'maybe')",
+        "INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (5, 'game', 7, 'spam')",
+        "INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (5, 'review', 9, 'boring')",
+    ]
+    for statement in statements:
+        with pytest.raises(IntegrityError), database.begin() as connection:
+            connection.exec_driver_sql(statement)
+    with database.begin() as connection:
+        connection.exec_driver_sql("INSERT INTO follows (follower_id, followee_id) VALUES (5, 6)")
+        connection.exec_driver_sql("INSERT INTO follows (follower_id, followee_id, status) VALUES (6, 5, 'pending')")
+        assert connection.exec_driver_sql("SELECT status FROM follows ORDER BY follower_id").scalars().all() == [
+            "accepted", "pending"]
+        connection.exec_driver_sql("INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (6, 'review', 9, 'spam')")
+    with pytest.raises(IntegrityError), database.begin() as connection:
+        connection.exec_driver_sql("INSERT INTO follows (follower_id, followee_id) VALUES (5, 6)")
+    with pytest.raises(IntegrityError), database.begin() as connection:
+        connection.exec_driver_sql("INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (6, 'review', 9, 'hate')")
+    with database.begin() as connection:
+        # A closed report no longer blocks a new one from the same person.
+        connection.exec_driver_sql("UPDATE reports SET status = 'dismissed'")
+        connection.exec_driver_sql("INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (6, 'review', 9, 'hate')")
+
+
+def test_status_migration_adds_an_empty_table_and_enforces_one_status_per_game(database, tmp_path):
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0010_social")
+    seed = baseline().tables
+    with database.begin() as connection:
+        connection.execute(seed["users"].insert(), [{"id": 5, "display_name": "Existing"}])
+        connection.execute(seed["games"].insert(), [{"id": 7, "steam_appid": 620, "name": "Portal 2"}])
+    before = records(database)
+    backup = upgrade_database(database, tmp_path / "backups")
+    assert backup is not None and backup.is_file()
+    assert records(database) == before
+    require_current_schema(database)
+    with database.connect() as connection:
+        assert connection.exec_driver_sql("SELECT COUNT(*) FROM game_statuses").scalar() == 0
+        assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
+    insert = "INSERT INTO game_statuses (user_id, game_id, status, updated_at) VALUES (5, 7, '{}', '2026-11-15')"
+    with database.begin() as connection:
+        connection.exec_driver_sql(insert.format("playing"))
+    for statement in (insert.format("paused"), insert.format("beaten")):
+        with pytest.raises(IntegrityError), database.begin() as connection:
+            connection.exec_driver_sql(statement)
+
+
+def test_handle_migration_gives_every_player_a_unique_valid_handle(database, tmp_path):
+    from alembic import command
+    from app import handles
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0011_game_statuses")
+    seed = baseline().tables
+    names = ["Alice", "alice", "Émile Zola", "!!", "12345", "Admin", "Player", "A Very Long Display Name Here"]
+    with database.begin() as connection:
+        connection.execute(seed["users"].insert(), [{"id": 10 + i, "display_name": n} for i, n in enumerate(names)])
+    before = records(database)
+    assert upgrade_database(database, tmp_path / "backups") is not None
+    assert records(database) == before
+    require_current_schema(database)
+    with database.connect() as connection:
+        rows = dict(connection.exec_driver_sql("SELECT id, handle FROM users ORDER BY id").all())
+        assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
+    assert rows[10] == "alice" and rows[11] == "alice11" and rows[12] == "emile_zola"
+    assert rows[13] == "player" and rows[14] == "player14" and rows[15] == "player15" and rows[16] == "player16"
+    assert len(set(rows.values())) == len(rows)
+    assert all(handles.problem(handle) is None for handle in rows.values())
+
+
+def test_repost_migration_keeps_rows_and_widens_report_targets(database, tmp_path):
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0012_handles_likes_favorites")
+    seed = baseline().tables
+    with database.begin() as connection:
+        connection.execute(seed["users"].insert(), [{"id": 5, "display_name": "Existing"},
+                                                    {"id": 6, "display_name": "Second"}])
+        connection.execute(seed["games"].insert(), [{"id": 7, "steam_appid": 620, "name": "Portal 2"}])
+        connection.execute(seed["reviews"].insert(), [{"id": 9, "user_id": 5, "game_id": 7, "rating": 4}])
+        connection.exec_driver_sql(
+            "INSERT INTO reports (reporter_id, target_type, target_id, reason, status) VALUES (6, 'review', 9, 'spam', 'open')")
+    before = records(database)
+    assert upgrade_database(database, tmp_path / "backups") is not None
+    assert records(database) == before
+    require_current_schema(database)
+    with database.connect() as connection:
+        assert connection.exec_driver_sql("SELECT target_type, target_id FROM reports").all() == [("review", 9)]
+        assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
+    with database.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (5, 'repost', 1, 'spam')")
+        connection.exec_driver_sql("INSERT INTO reposts (user_id, review_id, quote) VALUES (6, 9, 'Worth playing')")
+        connection.exec_driver_sql("INSERT INTO reposts (user_id, review_id, quote) VALUES (6, 9, 'Still worth it')")
+        connection.exec_driver_sql("INSERT INTO reposts (user_id, review_id) VALUES (6, 9)")
+        connection.exec_driver_sql("INSERT INTO bookmarks (user_id, review_id) VALUES (6, 9)")
+    for statement in (
+        "INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (5, 'game', 7, 'spam')",
+        "INSERT INTO reposts (user_id, review_id) VALUES (6, 9)",
+        "INSERT INTO reposts (user_id, review_id, quote) VALUES (6, 9, '')",
+        "INSERT INTO bookmarks (user_id, review_id) VALUES (6, 9)",
+    ):
+        with pytest.raises(IntegrityError), database.begin() as connection:
+            connection.exec_driver_sql(statement)

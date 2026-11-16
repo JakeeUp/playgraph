@@ -5,12 +5,14 @@ from sqlalchemy import insert, literal, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.cache import REVIEWS, cached, invalidate_from_route
+from app.cache import REVIEWS, invalidate_from_route
 from app.database import get_db
-from app.deps import get_current_user
-from app.models import Comment, Game, PlaytimeSnapshot, Review, SnapshotSource, User, utcnow
+from app.deps import get_current_user, get_optional_user
+from app.models import Bookmark, Comment, Game, Notification, PlaytimeSnapshot, Repost, Review, ReviewLike, SnapshotSource, User, utcnow
+from app.notifications import notify
 from app.routers.parameters import MAX_OFFSET, ResourceId
 from app.schemas import CommentCreate, CommentOut, ReviewCreate, ReviewOut
+from app.visibility import blocked_either_way, for_viewer, not_hidden
 
 router = APIRouter(tags=["reviews"])
 
@@ -130,7 +132,11 @@ def delete_review(
     if row is None:
         raise HTTPException(status_code=404, detail="Review not found")
     try:
+        db.query(Notification).filter_by(review_id=review_id).delete(synchronize_session=False)
         db.query(Comment).filter_by(review_id=review_id).delete(synchronize_session=False)
+        db.query(ReviewLike).filter_by(review_id=review_id).delete(synchronize_session=False)
+        db.query(Repost).filter_by(review_id=review_id).delete(synchronize_session=False)
+        db.query(Bookmark).filter_by(review_id=review_id).delete(synchronize_session=False)
         db.query(Review).filter_by(id=review_id, user_id=user.id).delete(synchronize_session=False)
         db.commit()
     except Exception:
@@ -147,12 +153,15 @@ async def list_reviews(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0, le=MAX_OFFSET),
     db: Session = Depends(get_db),
+    viewer: User | None = Depends(get_optional_user),
 ):
-    def load():
+    def load(viewer_id):
         _require_game(db, game_id)
+        query = db.query(Review).options(joinedload(Review.user)).filter_by(game_id=game_id)
+        if viewer_id is not None:
+            query = query.filter(not_hidden(Review.user_id, viewer_id))
         rows = (
-            db.query(Review).options(joinedload(Review.user))
-            .filter_by(game_id=game_id)
+            query
             .order_by(
                 Review.verified_playtime_minutes.is_(None),
                 Review.verified_playtime_minutes.desc(),
@@ -162,7 +171,7 @@ async def list_reviews(
             .offset(offset).limit(limit).all()
         )
         return [ReviewOut.model_validate(row) for row in rows]
-    return await cached(request, REVIEWS, ("reviews", game_id, limit, offset), 30, load)
+    return await for_viewer(request, db, viewer, ("reviews", game_id, limit, offset), load)
 
 
 @router.post("/reviews/{review_id}/comments", response_model=CommentOut, status_code=201)
@@ -173,7 +182,10 @@ def create_comment(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if db.query(Review.id).filter_by(id=review_id).with_for_update().first() is None:
+    review = db.query(Review.id, Review.user_id).filter_by(id=review_id).with_for_update().first()
+    # A block either way makes the review look missing, so the reply is the
+    # same 404 as a review that does not exist.
+    if review is None or blocked_either_way(db, user.id, review.user_id):
         raise HTTPException(status_code=404, detail="Review not found")
     # The conditional insert also covers SQLite, where FOR UPDATE is a no-op:
     # if deletion won the write lock, a late comment cannot create an orphan.
@@ -186,6 +198,7 @@ def create_comment(
     if comment_id is None:
         db.rollback()
         raise HTTPException(status_code=404, detail="Review not found")
+    notify(db, review.user_id, user.id, "comment", review_id, comment_id)
     db.commit()
     invalidate_from_route(request, REVIEWS)
     return db.get(Comment, comment_id)
@@ -198,14 +211,19 @@ async def list_comments(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0, le=MAX_OFFSET),
     db: Session = Depends(get_db),
+    viewer: User | None = Depends(get_optional_user),
 ):
-    def load():
-        if db.get(Review, review_id) is None:
+    def load(viewer_id):
+        review = db.get(Review, review_id)
+        if review is None or (viewer_id is not None and blocked_either_way(db, viewer_id, review.user_id)):
             raise HTTPException(status_code=404, detail="Review not found")
+        query = db.query(Comment).options(joinedload(Comment.user)).filter_by(review_id=review_id)
+        if viewer_id is not None:
+            query = query.filter(not_hidden(Comment.user_id, viewer_id))
         rows = (
-            db.query(Comment).options(joinedload(Comment.user)).filter_by(review_id=review_id)
+            query
             .order_by(Comment.created_at, Comment.id)
             .offset(offset).limit(limit).all()
         )
         return [CommentOut.model_validate(row) for row in rows]
-    return await cached(request, REVIEWS, ("comments", review_id, limit, offset), 30, load)
+    return await for_viewer(request, db, viewer, ("comments", review_id, limit, offset), load)

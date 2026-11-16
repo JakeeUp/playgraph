@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Enum,
@@ -10,12 +11,17 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
     event,
+    exists,
+    func,
+    select,
+    text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import column_property, deferred, relationship
 
 from app.content import content_kind as classify_content
 from app.database import Base
@@ -52,9 +58,32 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     display_name = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow)
+    # Shown on the profile page only. Cleaned like display_name, at most 280 characters.
+    bio = Column(String, nullable=True)
+    # Who can open the profile page: "public", "followers" (basics only for
+    # everyone else) or "private" (nobody but the owner). Reviews stay public
+    # posts either way; this governs the profile and its follow lists.
+    profile_visibility = Column(String, nullable=False, default="public", server_default="public")
+    # The public @handle: lowercase a-z, 0-9 and underscore, 3 to 15
+    # characters, unique. Display names can repeat; handles cannot. Rules and
+    # the reserved list live in app/handles.py.
+    handle = Column(String(15), nullable=True, unique=True, index=True)
 
     linked_accounts = relationship("LinkedAccount", back_populates="user")
     reviews = relationship("Review", back_populates="user")
+
+    @property
+    def badge(self) -> int | None:
+        """The verified badge this player has earned: 100, 1000 or 5000, or None."""
+        return badge_for(self.badge_minutes)
+
+    @property
+    def avatar_url(self):
+        return f"/users/{self.id}/images/avatar?v={self.avatar_key}" if self.avatar_key else None
+
+    @property
+    def cover_url(self):
+        return f"/users/{self.id}/images/cover?v={self.cover_key}" if self.cover_key else None
 
 
 class AuthIdentity(Base):
@@ -279,6 +308,14 @@ class Review(Base):
     def author_name(self):
         return self.user.display_name
 
+    @property
+    def author_handle(self):
+        return self.user.handle
+
+    @property
+    def author_badge(self):
+        return self.user.badge
+
 
 class Comment(Base):
     __tablename__ = "comments"
@@ -295,3 +332,289 @@ class Comment(Base):
     @property
     def author_name(self):
         return self.user.display_name
+
+
+PROFILE_VISIBILITY = ("public", "followers", "private")
+REPORT_TARGETS = ("review", "comment", "user", "repost")
+REPORT_REASONS = ("spam", "harassment", "hate", "sexual", "spoilers", "other")
+REPORT_STATUSES = ("open", "dismissed", "actioned")
+
+
+def _one_of(column: str, values: tuple[str, ...]) -> str:
+    return f"{column} IN ({', '.join(repr(value) for value in values)})"
+
+
+FOLLOW_STATUSES = ("pending", "accepted")
+
+
+class Follow(Base):
+    """follower_id follows followee_id. A block removes both directions.
+
+    Following a public profile is accepted at once. Following a followers-only
+    profile starts as a pending request that the followee accepts or declines;
+    only accepted follows count for anything.
+    """
+
+    __tablename__ = "follows"
+    __table_args__ = (
+        UniqueConstraint("follower_id", "followee_id", name="uq_follows_pair"),
+        CheckConstraint("follower_id <> followee_id", name="ck_follows_not_self"),
+        CheckConstraint(_one_of("status", FOLLOW_STATUSES), name="ck_follows_status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    follower_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    followee_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    status = Column(String, nullable=False, default="accepted", server_default="accepted")
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+class Block(Base):
+    """blocker_id never sees blocked_id's reviews or comments, and the reverse.
+
+    Nobody is told they were blocked: the blocker's profile simply looks like
+    it does not exist to them.
+    """
+
+    __tablename__ = "blocks"
+    __table_args__ = (
+        UniqueConstraint("blocker_id", "blocked_id", name="uq_blocks_pair"),
+        CheckConstraint("blocker_id <> blocked_id", name="ck_blocks_not_self"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    blocker_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    blocked_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+NOTIFICATION_KINDS = ("like", "repost", "quote", "comment", "follow", "follow_accepted")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (
+        CheckConstraint(_one_of("kind", NOTIFICATION_KINDS), name="ck_notifications_kind"),
+        CheckConstraint("recipient_id <> actor_id", name="ck_notifications_not_self"),
+        CheckConstraint(
+            "(kind IN ('follow', 'follow_accepted') AND review_id IS NULL AND comment_id IS NULL) OR "
+            "(kind IN ('like', 'repost', 'quote') AND review_id IS NOT NULL AND comment_id IS NULL) OR "
+            "(kind = 'comment' AND review_id IS NOT NULL AND comment_id IS NOT NULL)",
+            name="ck_notifications_target",
+        ),
+        Index("ix_notifications_recipient_created", "recipient_id", "created_at", "id"),
+        Index("ix_notifications_created_at", "created_at"),
+        {"sqlite_autoincrement": True},
+    )
+
+    id = Column(Integer, primary_key=True)
+    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    actor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    kind = Column(String, nullable=False)
+    review_id = Column(Integer, ForeignKey("reviews.id", ondelete="CASCADE"), nullable=True)
+    comment_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class Report(Base):
+    """A player's report of a review, comment or player, for the owner to review.
+
+    target_id is not a foreign key: a report outlives the review or comment it
+    is about, so the owner can still see that something was reported and removed.
+    One open report per reporter and target; a closed one can be filed again.
+    """
+
+    __tablename__ = "reports"
+    __table_args__ = (
+        CheckConstraint(_one_of("target_type", REPORT_TARGETS), name="ck_reports_target_type"),
+        CheckConstraint(_one_of("reason", REPORT_REASONS), name="ck_reports_reason"),
+        CheckConstraint(_one_of("status", REPORT_STATUSES), name="ck_reports_status"),
+        Index("uq_reports_open_target", "reporter_id", "target_type", "target_id", unique=True,
+              sqlite_where=text("status = 'open'"), postgresql_where=text("status = 'open'")),
+    )
+
+    id = Column(Integer, primary_key=True)
+    reporter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    target_type = Column(String, nullable=False)
+    target_id = Column(Integer, nullable=False)
+    reason = Column(String, nullable=False)
+    note = Column(String(500), nullable=True)
+    status = Column(String, nullable=False, default="open", server_default="open", index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+PLAY_STATUSES = ("want_to_play", "playing", "completed", "paused", "dropped")
+
+
+class GameStatus(Base):
+    """Where a player says they are with a game: want to play, playing,
+    completed, paused or dropped. One row per player and game; no row means
+    no status.
+
+    Set by hand only. Syncs never read or write this table, so a status
+    survives every resync. It is not derived from achievements either: 100%
+    achievements is not the same as finishing a game, and plenty of finished
+    games never reach it. Any catalog game can carry one, owned or not, since
+    "want to play" is mostly games the player doesn't have yet.
+
+    completed_at is set when the status becomes completed and cleared when it
+    moves away, so a year in review can count games finished that year.
+    """
+
+    __tablename__ = "game_statuses"
+    __table_args__ = (
+        UniqueConstraint("user_id", "game_id", name="uq_game_statuses_user_game"),
+        CheckConstraint(_one_of("status", PLAY_STATUSES), name="ck_game_statuses_status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    game_id = Column(Integer, ForeignKey("games.id"), nullable=False, index=True)
+    status = Column(String, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    game = relationship("Game")
+
+
+class ReviewLike(Base):
+    """One player liking one review. Counts are public; who liked what is not
+    exposed to anyone but the player who liked it."""
+
+    __tablename__ = "review_likes"
+    __table_args__ = (UniqueConstraint("user_id", "review_id", name="uq_review_likes_pair"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    review_id = Column(Integer, ForeignKey("reviews.id"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
+# Loaded with every review, so every response that shows a review carries its
+# count without each route counting again. review_likes is indexed by review.
+Review.like_count = column_property(
+    select(func.count(ReviewLike.id)).where(ReviewLike.review_id == Review.id)
+    .correlate_except(ReviewLike).scalar_subquery()
+)
+
+MAX_FAVORITES = 4
+
+
+class Favorite(Base):
+    """A game pinned to a player's profile, in slots 1 to 4. Slot 1 wears the crown."""
+
+    __tablename__ = "favorites"
+    __table_args__ = (
+        UniqueConstraint("user_id", "position", name="uq_favorites_slot"),
+        UniqueConstraint("user_id", "game_id", name="uq_favorites_game"),
+        CheckConstraint(f"position BETWEEN 1 AND {MAX_FAVORITES}", name="ck_favorites_position"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
+    position = Column(Integer, nullable=False)
+
+    game = relationship("Game")
+
+
+QUOTE_MAX = 280
+
+
+class Repost(Base):
+    """One player sharing someone else's review.
+
+    quote is NULL for a plain repost, and one plain repost per player and
+    review. A quote review is its own row, so the same player can quote a
+    review more than once. Reposting your own review is refused in the route:
+    a check here cannot see the review's author.
+    """
+
+    __tablename__ = "reposts"
+    __table_args__ = (
+        CheckConstraint(
+            f"quote IS NULL OR (length(quote) >= 1 AND length(quote) <= {QUOTE_MAX})",
+            name="ck_reposts_quote",
+        ),
+        Index("uq_reposts_plain", "user_id", "review_id", unique=True,
+              sqlite_where=text("quote IS NULL"), postgresql_where=text("quote IS NULL")),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    review_id = Column(Integer, ForeignKey("reviews.id"), nullable=False, index=True)
+    quote = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    user = relationship("User")
+    review = relationship("Review")
+
+
+# Same idea as like_count: every review response can show it, and the cache
+# stays shared because the viewer's own repost state comes from /me/reposts.
+Review.repost_count = column_property(
+    select(func.count(Repost.id)).where(Repost.review_id == Review.id)
+    .correlate_except(Repost).scalar_subquery()
+)
+
+
+class Bookmark(Base):
+    """A private save of a review. Only the owner can list theirs. No public count."""
+
+    __tablename__ = "bookmarks"
+    __table_args__ = (UniqueConstraint("user_id", "review_id", name="uq_bookmarks_pair"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    review_id = Column(Integer, ForeignKey("reviews.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    review = relationship("Review")
+
+
+# Verified badges, in hours of verified play across a player's game reviews.
+BADGE_HOURS = (100, 1000, 5000)
+
+
+def badge_for(minutes: int | None) -> int | None:
+    """The highest badge tier these verified minutes reach, or None below the first."""
+    earned = [hours for hours in BADGE_HOURS if (minutes or 0) >= hours * 60]
+    return earned[-1] if earned else None
+
+
+# Computed on every load and never stored, so a badge can't go stale or be
+# granted by hand. It counts the play time frozen on the player's own reviews,
+# which only a Steam or PlayStation sync can write, and only while such an
+# account is linked. Reviews of software are left out, like everywhere else
+# software hours stay out of game stats: an app left running is not play.
+User.badge_minutes = column_property(
+    select(func.coalesce(func.sum(Review.verified_playtime_minutes), 0))
+    .join(Game, Game.id == Review.game_id)
+    .where(Review.user_id == User.id, Game.content_kind == "game",
+           exists().where(LinkedAccount.user_id == Review.user_id))
+    .correlate_except(Review, Game)
+    .scalar_subquery()
+)
+
+
+class ProfileImage(Base):
+    __tablename__ = "profile_images"
+    __table_args__ = (
+        UniqueConstraint("user_id", "kind", name="uq_profile_images_user_kind"),
+        CheckConstraint("kind IN ('avatar', 'cover')", name="ck_profile_images_kind"),
+    )
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    kind = Column(String, nullable=False)
+    key = Column(String(32), nullable=False)
+    data = deferred(Column(LargeBinary, nullable=False))
+
+
+User.avatar_key = column_property(select(ProfileImage.key).where(
+    ProfileImage.user_id == User.id, ProfileImage.kind == "avatar"
+).correlate_except(ProfileImage).scalar_subquery())
+User.cover_key = column_property(select(ProfileImage.key).where(
+    ProfileImage.user_id == User.id, ProfileImage.kind == "cover"
+).correlate_except(ProfileImage).scalar_subquery())
+Review.author_avatar_url = property(lambda self: self.user.avatar_url)
