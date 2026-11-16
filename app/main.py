@@ -12,12 +12,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.beta import NOT_INVITED
 from app.config import settings
 from app.database import engine
 from app.migrations import require_current_schema
 from app.demo import DemoGuard
 from app.memory_store import MemoryStore
-from app.routers import accounts, auth, catalog, demo, feed, library, news, psn, reviews
+from app.routers import accounts, auth, catalog, demo, explore, feed, library, news, psn, reviews, social
 from app.middleware import SecurityMiddleware
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
 from app.security_logging import configure_access_logging
@@ -91,7 +92,8 @@ app.add_middleware(SecurityMiddleware)
 @app.exception_handler(StarletteHTTPException)
 async def browser_login_error(request: Request, exc: StarletteHTTPException):
     if request.url.path == "/auth/steam/callback" and request.query_params.get("ui") == "1":
-        return RedirectResponse("/app?login_error=1", status_code=303)
+        reason = "invite" if exc.status_code == 403 and exc.detail == NOT_INVITED else "1"
+        return RedirectResponse(f"/app?login_error={reason}", status_code=303)
     if request.url.path == "/auth/steam/connect/callback":
         # A browser lands here from Steam; show the account page, never raw JSON.
         return RedirectResponse("/account?steam=failed", status_code=303)
@@ -111,6 +113,8 @@ app.include_router(feed.router)
 app.include_router(news.router)
 app.include_router(psn.router)
 app.include_router(demo.router)
+app.include_router(social.router)
+app.include_router(explore.router)
 
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 

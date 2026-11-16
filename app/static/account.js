@@ -1,5 +1,6 @@
 import { $ } from './dom.js';
 import { initPlayStation } from './psn-account.js';
+import { initProfile } from './profile-account.js';
 import { sendRequest, readBody, failureOf, currentSession, AUTH_HEADER } from './net.js';
 
 const status = $('#account-status');
@@ -103,7 +104,7 @@ async function start() {
   const sessionRequest = currentSession();
   sessionRequest.catch(() => {});
   // PlayStation linking works for any signed-in account, with or without Clerk.
-  sessionRequest.then((session) => { if (session) void initPlayStation(session); }, () => {});
+  sessionRequest.then((session) => { if (session) { void initPlayStation(session); void initProfile(session); } }, () => {});
   const response = await sendRequest('/auth/config');
   if (!response.ok) throw new Error('Sign-in settings could not load. Please try again.');
   const config = await response.json();

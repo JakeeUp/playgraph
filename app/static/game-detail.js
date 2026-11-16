@@ -1,6 +1,9 @@
 import { genresFor, hours, countPair, achievementPercent, isPlayStationGame, playtimeLabel, hoursContext, TROPHY_GRADES } from './library.js';
 import { $, el, button, cover, heroArt, demo, steamLink, timeLabel, formError, numbered, copyText, stamp, hoursBar } from './dom.js';
 import { createRatingPicker, starDisplay } from './rating.js';
+import { authorLink, reportControl } from './profile.js';
+import { STATUSES, withStatus } from './status.js';
+import { likeButton, loadLikes, badgeFor, avatarFor } from './post.js';
 
 // One label/value pair in a <dl>: <div><dt>label</dt><dd>value</dd></div>.
 // Digits in the value set in tabular figures; `className` tags the <dd>.
@@ -91,9 +94,34 @@ export function createGameDialog(state, api, report = () => {}) {
       else report(new Error('Could not copy the link. Try again with clipboard access enabled.'));
     });
     const links = el('div', 'detail-links'); if (store) links.append(store); links.append(share);
-    aside.append(actions, links);
+    aside.append(actions);
+    if (state.user) aside.append(statusPicker(game));
+    aside.append(links);
     if (!dialog.open) dialog.showModal(); dialog.scrollTop = 0; $('#close-dialog').focus();
     await reviews.load();
+  }
+  // Your status for this game. Saved as soon as it changes; a sync never
+  // touches it. The demo is read-only, so there it only shows.
+  function statusPicker(game) {
+    const wrap = el('div', 'status-picker');
+    const label = el('label', 'status-label', 'Your status'); const select = el('select');
+    select.id = 'game-status'; label.htmlFor = select.id;
+    select.append(new Option('No status', ''), ...STATUSES.map(({ value, label: text }) => new Option(text, value)));
+    let saved = state.statuses?.get(game.id)?.status || ''; select.value = saved;
+    const problem = el('p', 'form-error'); problem.setAttribute('role', 'alert'); problem.hidden = true;
+    const field = el('span', 'select'); field.append(select);
+    wrap.append(label, field, problem);
+    if (demo.on) { select.disabled = true; wrap.append(el('p', 'helper', 'The demo is read-only.')); return wrap; }
+    select.addEventListener('change', async () => {
+      const chosen = select.value; select.disabled = true; problem.hidden = true;
+      try {
+        const row = chosen ? await api(`/me/games/${game.id}/status`, { method: 'PUT', body: JSON.stringify({ status: chosen }) })
+          : (await api(`/me/games/${game.id}/status`, { method: 'DELETE' }), null);
+        state.statuses = withStatus(state.statuses || new Map(), game.id, row); saved = chosen;
+        document.dispatchEvent(new CustomEvent('status-changed'));
+      } catch (failure) { select.value = saved; formError(problem, failure); } finally { select.disabled = false; }
+    });
+    return wrap;
   }
   // One quiet line of facts under the title: the genres, what it is and where it is from.
   function factsRow(game, entry, psnEntry, software, playstation) {
@@ -219,6 +247,7 @@ export function createGameDialog(state, api, report = () => {}) {
         // the list comes most verified first, so the longest is always in it.
         pool = pool.concat(reviews.map((review) => review.verified_playtime_minutes));
         for (const review of reviews) list.append(reviewCard(review, false, { context: hoursContext(review.verified_playtime_minutes, pool) }));
+        if (state.user && reviews.length && state.liked) void loadLikes(api, state.liked, reviews).catch(report);
         if (!offset && reviews.length < 20) ratingSummary(ratings, reviews);
         if (!offset && !reviews.length) {
           const empty = el('div', 'review-empty'); empty.append(el('strong', '', 'No reviews for this game.'),
@@ -289,12 +318,15 @@ export function createGameDialog(state, api, report = () => {}) {
   // A review is a row, not a card: who wrote it on the left; the verified
   // stamp, the stars, the text and the actions on the right. `byline: false`
   // leaves the left column out for lists that name the author themselves.
-  function reviewCard(review, expandComments = false, { context = null, byline = true } = {}) {
+  function reviewCard(review, expandComments = false, { context = null, byline = true, like = true } = {}) {
     const card = el('article', byline ? 'review-card' : 'review-card no-byline'); const author = review.author_name || `Player ${review.user_id}`;
     if (byline) {
       const by = el('div', 'review-by'); const who = el('div');
-      who.append(el('strong', 'review-author', author), el('span', 'review-date date', timeLabel(review.created_at)));
-      by.append(el('span', 'avatar', author.slice(0, 1).toLocaleUpperCase()), who); card.append(by);
+      // Name and badge share a line; without a badge the name stands alone as before.
+      const earned = badgeFor(review.author_badge); let named = authorLink(author, review.user_id, 'review-author');
+      if (earned) { const line = el('span', 'review-name'); line.append(named, earned); named = line; }
+      who.append(named, el('span', 'review-date date', timeLabel(review.created_at)));
+      by.append(avatarFor(author, review.user_id, 'avatar', review.author_avatar_url), who); card.append(by);
     }
     const main = el('div', 'review-main'); const proof = el('div', 'review-proof');
     const minutes = review.verified_playtime_minutes; const pct = review.verified_achievement_pct;
@@ -327,8 +359,10 @@ export function createGameDialog(state, api, report = () => {}) {
         if (!card.isConnected || version !== loadVersion) return;
         if (!pageOffset) list.replaceChildren();
         for (const row of rows) {
-          const comment = el('article', 'comment'); comment.append(el('strong', '', row.author_name || `Player ${row.user_id}`),
-            el('span', 'review-date', timeLabel(row.created_at)), el('p', '', row.body)); list.append(comment);
+          const comment = el('article', 'comment'); comment.append(authorLink(row.author_name || `Player ${row.user_id}`, row.user_id, 'comment-author'),
+            el('span', 'review-date', timeLabel(row.created_at)), el('p', '', row.body));
+          if (state.user && state.user.id !== row.user_id) comment.append(reportControl(api, 'comment', row.id));
+          list.append(comment);
         }
         if (!pageOffset && !rows.length) list.append(el('p', 'helper', 'No comments yet.'));
         offset = pageOffset + rows.length; more.hidden = rows.length < 20; more.textContent = 'More comments'; comments.dataset.loaded = 'true';
@@ -360,7 +394,10 @@ export function createGameDialog(state, api, report = () => {}) {
     const copy = button('Copy link', 'text-button thread-link', async () => {
       copy.textContent = await copyText(`${location.origin}/app#review=${review.id}`) ? 'Link copied' : 'Use the discussion link to share';
     });
-    const actions = el('div', 'review-actions'); actions.append(toggle, threadLink, copy);
+    const actions = el('div', 'review-actions');
+    if (like) actions.append(likeButton(review, { api, liked: state.liked || new Set(), signedIn: () => Boolean(state.user), report }));
+    actions.append(toggle, threadLink, copy);
+    if (state.user && state.user.id !== review.user_id) actions.append(reportControl(api, 'review', review.id));
     main.append(actions, comments);
     if (expandComments) queueMicrotask(() => { if (card.isConnected) toggle.click(); });
     return card;

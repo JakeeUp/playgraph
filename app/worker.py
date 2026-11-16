@@ -19,12 +19,15 @@ Why arq and not Celery or FastAPI's BackgroundTasks:
 """
 
 import asyncio
+import json
 import logging
 
 import httpx
 
 from arq import Retry
 from arq.connections import RedisSettings
+from arq.cron import cron
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func
 
 from app.cache import CATALOG, REVIEWS, invalidate
@@ -552,13 +555,44 @@ async def sync_psn_library(ctx, user_id: int) -> dict:
         db.close()
 
 
+async def offsite_backup(ctx) -> dict | None:
+    """Daily encrypted snapshot to S3. Only scheduled when a bucket is set."""
+    from app.services import offsite_backup as backups
+    return await asyncio.to_thread(backups.backup, engine)
+
+
 async def check_database_schema(ctx):
     require_current_schema(engine)
 
 
+async def prune_notifications(ctx) -> dict:
+    from app.notifications import prune
+
+    with SessionLocal() as db:
+        removed = prune(db)
+        db.commit()
+    return {"removed": removed}
+
+
+async def refresh_trending(ctx) -> dict:
+    """Rewrite the Explore blob. A few minutes stale is the point: the page stays fast."""
+    from app.trending import TRENDING_KEY, TRENDING_TTL, compute_trending
+
+    store = ctx.get("redis")
+    if store is None:
+        return {"status": "skipped"}
+    db = SessionLocal()
+    try:
+        payload = jsonable_encoder(compute_trending(db))
+        await store.set(TRENDING_KEY, json.dumps(payload, separators=(",", ":")), ex=TRENDING_TTL)
+        return {"status": "ok", "games": len(payload["games"]), "reviews": len(payload["reviews"])}
+    finally:
+        db.close()
+
+
 class WorkerSettings:
     on_startup = check_database_schema
-    functions = [sync_steam_library, sync_psn_library, refresh_igdb_catalog]
+    functions = [sync_steam_library, sync_psn_library, refresh_igdb_catalog, refresh_trending]
     queue_name = QUEUE_NAME
     job_serializer = staticmethod(serialize)
     job_deserializer = staticmethod(deserialize)
@@ -589,3 +623,17 @@ class WorkerSettings:
     # account. Five minutes is long enough to poll a result comfortably and
     # short enough that a real re-sync is not blocked for ages.
     keep_result = 300
+
+    # arq checks the queue every 0.5 s by default, which on per-command Redis
+    # pricing (Upstash on Fly) costs more than everything else combined. A
+    # sync starting a few seconds later is invisible to the player.
+    poll_delay = 3
+
+
+# Retention runs even when nobody opens their inbox.
+WorkerSettings.cron_jobs = [
+    cron(refresh_trending, minute=set(range(0, 60, 5)), run_at_startup=True, timeout=120),
+    cron(prune_notifications, hour=4, minute=7, run_at_startup=True, timeout=120),
+]
+if settings.aws_backups_enabled:
+    WorkerSettings.cron_jobs.append(cron(offsite_backup, hour=4, minute=17, run_at_startup=False, timeout=1800))

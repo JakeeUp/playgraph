@@ -8,6 +8,15 @@ so the demo always looks recent.
 import random
 
 USERS = ["Jacob", "Mara", "Theo", "Sam", "Nico", "Jules", "Ava", "Kai"]  # Jacob is the demo player
+# Made-up @handles and bios for the made-up players.
+HANDLES = ["jacob", "mara_plays", "theo_speedruns", "samjrpg", "nico_tactics", "jules", "ava_100pct", "kai_after_dark"]
+BIOS = ["Demo player. Roguelikes, soulslikes and one very long Factorio save.",
+        "Platinum hunter. If it has a trophy list, I am finishing it.",
+        "Speedrunner. Mostly movement games.", "JRPGs and long stories.",
+        "Tactics and strategy. Turn order is everything.", "Cozy games and co-op.",
+        "Achievement completionist.", "Horror at night, puzzles by day."]
+# The demo player's pinned games, by name. The first wears the crown.
+FAVORITES = ["Hades", "ELDEN RING", "Hollow Knight", "Factorio"]
 
 GAMES = [
     (1145360, "Hades", "Action,Indie,RPG"),
@@ -135,7 +144,9 @@ def export() -> dict:
         games.append({"id": index, "steam_appid": appid, "name": name, "genres": genres,
                       "content_kind": "software" if (appid, name, genres) in SOFTWARE else "game"})
     by_name = {game["name"]: game for game in games}
-    users = [{"id": index, "display_name": name} for index, name in enumerate(USERS, 1)]
+    users = [{"id": index, "display_name": name, "handle": HANDLES[index - 1], "bio": BIOS[index - 1],
+              "has_steam": name != "Jules"}
+             for index, name in enumerate(USERS, 1)]
     user_id = {user["display_name"]: user["id"] for user in users}
 
     library = []
@@ -160,7 +171,15 @@ def export() -> dict:
         reviews.append({"id": index, "user_id": user_id[author], "game_id": game["id"], "rating": stars, "body": text,
                         "minutes_ago": days_ago * 24 * 60 + rng.randint(0, 600),
                         "verified_playtime_minutes": minutes,
-                        "verified_achievement_pct": round(pct, 1) if pct is not None else None})
+                        "verified_achievement_pct": round(pct, 1) if pct is not None else None,
+                        # Synthetic, like everything here: how many other players liked it.
+                        "like_count": rng.choice([0, 1, 2, 3, 5, 8, 12, 19, 27, 41, 66, 128, 1240])})
+
+    # Synthetic receipts make each badge tier visible without storing a badge.
+    for author, name, hours in (("Mara", "Hades", 120), ("Theo", "Hollow Knight", 1050),
+                                ("Sam", "Baldur's Gate 3", 5050)):
+        next(row for row in reviews if row["user_id"] == user_id[author]
+             and row["game_id"] == by_name[name]["id"])["verified_playtime_minutes"] = hours * 60
 
     comments = []
     for index, (review_index, author, text, hours_after) in enumerate(COMMENTS, 1):
@@ -168,5 +187,8 @@ def export() -> dict:
         comments.append({"id": index, "review_id": review["id"], "user_id": user_id[author], "body": text,
                          "minutes_ago": max(5, review["minutes_ago"] - hours_after * 60)})
 
+    favorites = [by_name[name]["id"] for name in FAVORITES if name in by_name]
+    # Who follows whom among the made-up players: everyone follows Mara; Jacob follows three.
+    follows = [[u["id"], 2] for u in users if u["id"] != 2] + [[1, 3], [1, 5]] + [[u["id"], 1] for u in users[2:6]]
     return {"users": users, "games": games, "library": library, "reviews": reviews,
-            "comments": comments, "news": NEWS}
+            "comments": comments, "news": NEWS, "favorites": favorites, "follows": follows}

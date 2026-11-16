@@ -15,15 +15,17 @@ this person spent on games with X in them."
 from typing import Literal
 
 from arq.jobs import Job
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from redis.exceptions import RedisError
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Game, LinkedAccount, Platform, PlaytimeSnapshot, SnapshotSource, User
-from app.schemas import GenreBreakdownOut, LibraryEntryOut, TrophiesOut
+from app.models import Game, GameStatus, LinkedAccount, Platform, PlaytimeSnapshot, SnapshotSource, User, utcnow
+from app.routers.parameters import ResourceId
+from app.schemas import GameStatusOut, GenreBreakdownOut, LibraryEntryOut, PlayStatus, StatusUpdate, TrophiesOut
 from app.queue_codec import QUEUE_NAME, deserialize
 from app.security import rate_limit
 from app.services import psn
@@ -179,6 +181,69 @@ def _trophies(snapshot: PlaytimeSnapshot) -> TrophiesOut | None:
         total={grade: getattr(snapshot, f"trophies_{grade}_total") or 0 for grade in psn.TROPHY_GRADES},
         progress=snapshot.trophy_progress,
     )
+
+
+# Play statuses are set by hand and never touched by a sync; see GameStatus.
+# The cap keeps GET /me/statuses bounded. It is far above any real backlog.
+MAX_STATUSES = 5000
+STATUS_WRITES_PER_HOUR = 300
+
+
+@router.get("/statuses", response_model=list[GameStatusOut])
+def get_statuses(user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                 status: PlayStatus | None = None):
+    """Every game the player has given a status, newest change first.
+    Includes games they don't own, which is the point of "want to play"."""
+    query = (db.query(GameStatus).join(Game, Game.id == GameStatus.game_id)
+             .filter(GameStatus.user_id == user.id))
+    if status is not None:
+        query = query.filter(GameStatus.status == status)
+    return query.order_by(GameStatus.updated_at.desc(), GameStatus.id.desc()).limit(MAX_STATUSES).all()
+
+
+@router.put("/games/{game_id}/status", response_model=GameStatusOut)
+async def set_status(game_id: ResourceId, change: StatusUpdate, request: Request,
+                     user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    await rate_limit(request, "status", str(user.id), STATUS_WRITES_PER_HOUR, 3600)
+    if db.get(Game, game_id) is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    row = db.query(GameStatus).filter_by(user_id=user.id, game_id=game_id).first()
+    if row is None:
+        if db.query(func.count(GameStatus.id)).filter(GameStatus.user_id == user.id).scalar() >= MAX_STATUSES:
+            raise HTTPException(status_code=409, detail="You've reached the limit of games with a status.")
+        row = GameStatus(user_id=user.id, game_id=game_id)
+        db.add(row)
+    _apply(row, change.status)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two tabs set a status for the same game at once. The unique
+        # constraint kept one row; apply this change to it.
+        db.rollback()
+        row = db.query(GameStatus).filter_by(user_id=user.id, game_id=game_id).one()
+        _apply(row, change.status)
+        db.commit()
+    db.refresh(row)
+    return row
+
+
+def _apply(row: GameStatus, status: str) -> None:
+    now = utcnow()
+    if status == "completed" and row.status != "completed":
+        row.completed_at = now
+    elif status != "completed":
+        row.completed_at = None
+    row.status = status
+    row.updated_at = now
+
+
+@router.delete("/games/{game_id}/status", status_code=204)
+async def clear_status(game_id: ResourceId, request: Request,
+                       user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    await rate_limit(request, "status", str(user.id), STATUS_WRITES_PER_HOUR, 3600)
+    db.query(GameStatus).filter_by(user_id=user.id, game_id=game_id).delete(synchronize_session=False)
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.get("/genres", response_model=list[GenreBreakdownOut])

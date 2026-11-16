@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app import handles
 from app.services.igdb import cover_url
 
 
@@ -110,6 +111,29 @@ class LibraryEntryOut(BaseModel):
     captured_at: datetime
 
 
+PlayStatus = Literal["want_to_play", "playing", "completed", "paused", "dropped"]
+
+
+class StatusUpdate(BaseModel):
+    """A play status chosen by the player. One of five fixed values, never free text."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: PlayStatus
+
+
+class GameStatusOut(BaseModel):
+    """A player's status for one game. Carries the game card so a backlog of
+    games the player doesn't own can still be drawn."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    game: GameOut
+    status: PlayStatus
+    updated_at: datetime
+    completed_at: datetime | None = None
+
+
 class GenreBreakdownOut(BaseModel):
     """One slice of the genre-by-playtime breakdown.
 
@@ -157,6 +181,15 @@ class ReviewOut(BaseModel):
     # "steam" or "psn": which store the verified numbers came from. For PSN the
     # percentage is trophies earned, not Steam achievements.
     verified_source: Literal["steam", "psn"] | None = None
+    author_handle: str | None = None
+    # The author's verified badge: 100, 1000 or 5000 verified hours, or None.
+    author_badge: int | None = None
+    author_avatar_url: str | None = None
+    # Public counts. Whether the viewer liked, reposted or saved it comes from
+    # /me/likes, /me/reposts and /me/bookmarks, so this response stays the same
+    # for everyone and can be cached. Bookmarks have no count: they are private.
+    like_count: int = 0
+    repost_count: int = 0
 
 
 class CommentCreate(BaseModel):
@@ -180,3 +213,98 @@ class CommentOut(BaseModel):
     author_name: str
     body: str
     created_at: datetime
+
+
+BIO_MAX = 280
+
+
+class ProfileUpdate(BaseModel):
+    """Only the fields sent are changed. A blank bio clears it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    bio: str | None = Field(default=None, max_length=BIO_MAX * 2)
+    profile_visibility: Literal["public", "followers", "private"] | None = None
+    handle: str | None = Field(default=None, max_length=40)
+
+    @field_validator("handle")
+    @classmethod
+    def check_handle(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        handle = handles.normalize(value)
+        if reason := handles.problem(handle):
+            raise ValueError(reason)
+        return handle
+
+    @field_validator("bio")
+    @classmethod
+    def clean_bio(cls, value: str | None) -> str | None:
+        # Same cleaning as a display name: no control or bidi characters,
+        # whitespace collapsed. The raw limit allows for whitespace that collapses.
+        if value is None:
+            return None
+        return display_name(value, "", BIO_MAX) or None
+
+
+class UserCard(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    display_name: str
+    handle: str | None = None
+    badge: int | None = None
+    avatar_url: str | None = None
+
+
+class FavoritesUpdate(BaseModel):
+    """The whole ordered list of pinned games. Slot 1 is the crowned pick."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    game_ids: list[int] = Field(max_length=4)
+
+    @field_validator("game_ids")
+    @classmethod
+    def distinct(cls, value: list[int]) -> list[int]:
+        if len(set(value)) != len(value):
+            raise ValueError("Each game can be pinned once.")
+        if any(not 1 <= game_id <= 2_147_483_647 for game_id in value):
+            raise ValueError("Unknown game.")
+        return value
+
+
+class RepostCreate(BaseModel):
+    """A missing or blank quote is a plain repost. Text makes a quote review."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    quote: str | None = Field(default=None, max_length=560)
+
+    @field_validator("quote")
+    @classmethod
+    def clean_quote(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        # Same cleaning as a bio: no control or bidi characters, whitespace collapsed.
+        return display_name(value, "", 280) or None
+
+
+class ReportCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_type: Literal["review", "comment", "user", "repost"]
+    target_id: int = Field(ge=1, le=2_147_483_647)
+    reason: Literal["spam", "harassment", "hate", "sexual", "spoilers", "other"]
+    note: str | None = Field(default=None, max_length=500)
+
+    @field_validator("note")
+    @classmethod
+    def clean_note(cls, value: str | None) -> str | None:
+        return storable((value or "").strip()) or None
+
+
+class ReportResolve(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["dismissed", "actioned"]

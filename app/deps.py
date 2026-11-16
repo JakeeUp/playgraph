@@ -7,6 +7,7 @@ import jwt
 from jwt import InvalidTokenError
 from sqlalchemy.orm import Session
 
+from app.beta import suspended
 from app.config import settings
 from app.database import get_db
 from app.models import AuthIdentity, User
@@ -56,8 +57,8 @@ async def get_current_user(
     request.state.session_expires = payload["exp"]
     request.state.session_issued = payload["iat"]
     user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=401, detail="User not found")
+    if user is None or suspended(user_id):
+        raise HTTPException(status_code=401, detail="Session expired or revoked")
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         if cookie_auth:
             supplied = request.headers.get("x-csrf-token", "")
@@ -92,3 +93,25 @@ async def get_current_user(
     elif payload.get("provider") is not None or identity is not None:
         raise HTTPException(401, "Use PlayGraph account sign-in for this account")
     return user
+
+
+async def get_optional_user(
+    request: Request,
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """The signed-in viewer of a public page, or None for a guest.
+
+    Public pages hide what a viewer has blocked, so they need to know who is
+    asking. A missing, expired or revoked session reads as a guest, exactly
+    like before. Anything else (security service down, too many requests)
+    still fails, so a block is never ignored because Redis was unreachable.
+    """
+    if "authorization" not in request.headers and not request.cookies.get(session_cookie_name()):
+        return None
+    try:
+        return await get_current_user(request, creds, db)
+    except HTTPException as error:
+        if error.status_code == 401:
+            return None
+        raise

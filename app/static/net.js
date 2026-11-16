@@ -22,7 +22,7 @@ export function failureMessage(status, detail, retryAfter, { unavailable = SECUR
 /** fetch with the project defaults. `csrf` (a token, even an empty one) adds the CSRF header. */
 export function sendRequest(path, { csrf, ...init } = {}) {
   const headers = new Headers(init.headers);
-  if (init.body) headers.set('Content-Type', 'application/json');
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   if (csrf !== undefined) headers.set(CSRF_HEADER, csrf);
   return fetch(path, { ...init, headers, credentials: 'same-origin', cache: 'no-store' });
 }

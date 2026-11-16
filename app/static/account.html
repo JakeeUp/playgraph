@@ -20,6 +20,8 @@
   <link rel="modulepreload" href="/assets/library.js">
   <link rel="modulepreload" href="/assets/jobs.js">
   <link rel="modulepreload" href="/assets/psn-account.js">
+  <link rel="modulepreload" href="/assets/profile-account.js">
+  <link rel="modulepreload" href="/assets/social.js">
   <script type="module" src="/assets/account.js"></script>
 </head>
 <body class="account-page">
@@ -100,6 +102,56 @@
             <a href="/app">See your PlayStation games</a>
           </div>
         </div>
+      </section>
+      <section id="profile-section" class="account-psn account-profile" aria-labelledby="profile-title" hidden>
+        <h3 id="profile-title">Your profile</h3>
+        <p>Your name comes from your sign-in. Your @handle, a short bio, and who can see your profile are up to you.</p>
+        <fieldset class="profile-images"><legend>Profile images</legend>
+          <p class="helper">JPEG, PNG or WebP, up to 2 MB. Still images only. Images are center-cropped, and metadata is removed. Your profile visibility applies to these images.</p>
+          <label for="profile-avatar-file">Profile picture</label><img id="profile-avatar-preview" class="image-preview avatar-preview" alt="Your profile picture" hidden>
+          <input id="profile-avatar-file" type="file" accept="image/jpeg,image/png,image/webp">
+          <div class="account-actions"><button id="profile-avatar-upload" class="button secondary" type="button">Save picture</button><button id="profile-avatar-remove" class="text-button" type="button">Use initial instead</button></div>
+          <label for="profile-cover-file">Cover image</label><img id="profile-cover-preview" class="image-preview cover-preview" alt="Your cover image" hidden>
+          <input id="profile-cover-file" type="file" accept="image/jpeg,image/png,image/webp">
+          <div class="account-actions"><button id="profile-cover-upload" class="button secondary" type="button">Save cover</button><button id="profile-cover-remove" class="text-button" type="button">Use game art instead</button></div>
+          <p id="profile-images-status" role="status" class="account-status"></p>
+        </fieldset>
+        <form id="profile-form">
+          <label for="profile-handle">Handle</label>
+          <span class="handle-field"><span aria-hidden="true">@</span><input id="profile-handle" name="handle" autocomplete="off" spellcheck="false" maxlength="16" aria-describedby="profile-handle-help"></span>
+          <p id="profile-handle-help" class="helper">3 to 15 letters, numbers or underscores. This is how people find and mention you.</p>
+          <label for="profile-bio">Bio</label>
+          <textarea id="profile-bio" name="bio" rows="3" maxlength="560" aria-describedby="profile-bio-count"></textarea>
+          <p id="profile-bio-count" class="helper"></p>
+          <label for="profile-visibility">Who can see your profile</label>
+          <span class="select"><select id="profile-visibility" name="profile_visibility" aria-describedby="profile-visibility-note"><option value="public">Everyone</option><option value="followers">Followers</option><option value="private">Only me</option></select></span>
+          <p id="profile-visibility-note" class="helper"></p>
+          <div class="account-actions">
+            <button type="submit" class="button secondary">Save profile</button>
+            <a id="profile-view" href="/app">See your profile</a>
+          </div>
+          <p id="profile-status" class="account-status" role="status" aria-live="polite"></p>
+        </form>
+        <h3 id="favorites-title">Favorite games</h3>
+        <p class="helper">Pin up to four games to the top of your profile. The first one wears the crown.</p>
+        <form id="favorites-form" aria-labelledby="favorites-title">
+          <div class="favorite-slots">
+            <label for="favorite-1">Top pick</label><span class="select"><select id="favorite-1" data-favorite></select></span>
+            <label for="favorite-2">Second</label><span class="select"><select id="favorite-2" data-favorite></select></span>
+            <label for="favorite-3">Third</label><span class="select"><select id="favorite-3" data-favorite></select></span>
+            <label for="favorite-4">Fourth</label><span class="select"><select id="favorite-4" data-favorite></select></span>
+          </div>
+          <div class="account-actions"><button type="submit" class="button secondary">Save favorites</button></div>
+          <p id="favorites-status" class="account-status" role="status" aria-live="polite"></p>
+        </form>
+        <h3>Follow requests</h3>
+        <p class="helper">With your profile set to Followers, people ask first. They aren’t told if you decline.</p>
+        <ul id="request-list" class="blocked-list"></ul>
+        <button id="request-more" type="button" class="button secondary" hidden>Show more</button>
+        <h3>Blocked players</h3>
+        <p class="helper">While signed in, you don’t see their reviews or comments and they don’t see yours. Unblocking doesn’t bring back follows.</p>
+        <ul id="blocked-list" class="blocked-list"></ul>
+        <button id="blocked-more" type="button" class="button secondary" hidden>Show more</button>
       </section>
       <noscript><p>Sign-in needs JavaScript. You can still <a href="/app">browse the catalog</a>.</p></noscript>
     </section>

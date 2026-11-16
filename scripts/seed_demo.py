@@ -25,10 +25,12 @@ import random
 import sys
 from datetime import timedelta
 
+from app import handles
 from app.database import SessionLocal
 from app.demo import DEMO_NAME, DEMO_STEAM_ID
 from app.models import (
-    Comment, Game, LinkedAccount, Platform, PlaytimeSnapshot, Review, SnapshotSource, User, utcnow,
+    Comment, Favorite, Game, GameStatus, LinkedAccount, Platform, PlaytimeSnapshot, Review, ReviewLike, SnapshotSource,
+    User, utcnow,
 )
 
 SEED = 20260916
@@ -94,6 +96,10 @@ USERS = [
     (int(DEMO_STEAM_ID), DEMO_NAME),
 ]
 DEMO = len(USERS) - 1
+
+# The demo player's play statuses: (game index, status, days ago). Games
+# outside DEMO_LIBRARY show the backlog of games you don't own yet.
+DEMO_STATUSES = [(14, "completed", 9), (3, "playing", 2), (6, "paused", 20), (2, "want_to_play", 5), (5, "want_to_play", 12)]
 
 # The demo player's library: (game index, minutes, achievements total, unlocked).
 # Three titles are owned but unplayed, and the rest span a few hours to a few
@@ -295,6 +301,27 @@ def main() -> int:
                 review.verified_source = SnapshotSource.steam.value
             db.add(review)
             reviews.append(review)
+        db.flush()
+
+        # A few play statuses for the demo player, two on games they don't own.
+        for game_idx, status, days_ago in DEMO_STATUSES:
+            changed = now - timedelta(days=days_ago)
+            db.add(GameStatus(user_id=users[DEMO].id, game_id=games[game_idx].id, status=status, updated_at=changed,
+                              completed_at=changed if status == "completed" else None))
+        db.flush()
+
+        # Handles for every made-up player, the same rule real accounts get.
+        for user in users:
+            user.handle = handles.available(db, user.display_name)
+            db.flush()
+        # Likes: each review gets a few from other made-up players.
+        for review in reviews:
+            likers = [u for u in users if u.id != review.user_id]
+            for liker in rng.sample(likers, rng.randint(0, len(likers))):
+                db.add(ReviewLike(user_id=liker.id, review_id=review.id, created_at=review.created_at + timedelta(hours=rng.randint(1, 48))))
+        # The demo player's pinned games: their four most played.
+        for position, (game, *_rest) in enumerate(sorted(libraries[DEMO], key=lambda row: -row[1])[:4], start=1):
+            db.add(Favorite(user_id=users[DEMO].id, game_id=game.id, position=position))
         db.flush()
 
         for review_idx, user_idx, body in COMMENTS:

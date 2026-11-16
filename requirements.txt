@@ -16,9 +16,15 @@ httpx>=0.27
 redis>=5.0
 arq>=0.26
 PyJWT[crypto]>=2.15.1
+# Off-site S3 backups (app/services/offsite_backup.py). Off unless
+# AWS_BACKUP_BUCKET is set.
+boto3>=1.44
+Pillow>=13.0
 
 pytest>=8.3
 pytest-asyncio>=1.4.0
+# Test only: an in-process fake of S3 and KMS, so no test reaches AWS.
+moto[s3]>=5.1
 
 # Dev only, optional. Runs the API and the worker together from the Procfile.
 # Works well on Mac and Linux. On Windows its Ctrl+C handling is broken under

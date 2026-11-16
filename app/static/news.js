@@ -1,4 +1,4 @@
-import { $, el, button, aborted } from './dom.js';
+import { $, el, button, aborted, loadingState } from './dom.js';
 import { steamArt } from './library.js';
 
 // "3 h ago" for today, a date after that.
@@ -82,7 +82,7 @@ export function createNews(state, api) {
   async function load() {
     if (items) { render(); return; }
     const request = ++requestId;
-    list.replaceChildren(el('p', 'empty-message', 'Loading headlines…'));
+    list.replaceChildren(loadingState('Loading headlines…'));
     try {
       const data = await api('/news');
       if (request !== requestId) return;

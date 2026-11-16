@@ -9,13 +9,16 @@ from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
 
 from app.config import settings
-from app.security import rate_headers, rate_limit
+from app.security import client_key, rate_headers, rate_limit
 from app.services.news import IMAGE_HOSTS
 from app.services.steam_news import CLAN_IMAGES
 
 MAX_BODY_BYTES = 65536
 REQUESTS_PER_MINUTE = 120
 LOGINS_PER_MINUTE = 10
+# Each distinct search term misses the cache and scans, so searches get their
+# own, smaller budget on top of the general one.
+SEARCHES_PER_MINUTE = 30
 NEWS_IMAGES = " ".join([*(f"https://*.{host}" for host in IMAGE_HOSTS), urlsplit(CLAN_IMAGES)._replace(path="").geturl()])
 logger = logging.getLogger("playgraph.security")
 
@@ -110,11 +113,17 @@ class SecurityMiddleware:
                 raise HTTPException(400, "HTTPS required")
             if len(scope.get("query_string", b"")) > 8192:
                 raise HTTPException(414, "Query string too long")
+            # NUL and other control characters have no business in a URL
+            # parameter, and Postgres rejects NUL in text with a 500.
+            if any(ord(ch) < 32 or ord(ch) == 127 for value in request.query_params.values() for ch in value):
+                raise HTTPException(400, "Invalid characters in query")
             length = request.headers.get("content-length")
+            body_limit = (2 * 1024 * 1024 if request.method == "PUT" and request.url.path in
+                          {"/me/profile-images/avatar", "/me/profile-images/cover"} else MAX_BODY_BYTES)
             if length is not None:
                 if not length.isascii() or not length.isdecimal():
                     raise HTTPException(400, "Invalid content length")
-                if len(length) > 10 or int(length) > MAX_BODY_BYTES:
+                if len(length) > 10 or int(length) > body_limit:
                     raise HTTPException(413, "Request body too large")
             # Static files are public and fixed, and one page load pulls in dozens of
             # them, so counting them would 429 a visitor's stylesheets on a reload.
@@ -122,10 +131,12 @@ class SecurityMiddleware:
             if request.url.path != "/health" and not static:
                 # Proxy headers are only meaningful when the ASGI server trusts the proxy.
                 # Never parse X-Forwarded-For here: a direct client can forge it.
-                address = request.client.host if request.client else "unknown"
+                address = client_key(request)
                 budget = await rate_limit(request, "requests", address, REQUESTS_PER_MINUTE, 60)
                 if request.url.path.startswith("/auth/steam/"):
                     await rate_limit(request, "login", address, LOGINS_PER_MINUTE, 60)
+                if request.query_params.get("q", "").strip():
+                    await rate_limit(request, "search", address, SEARCHES_PER_MINUTE, 60)
             body = bytearray()
             async with asyncio.timeout(10):
                 while True:
@@ -133,7 +144,7 @@ class SecurityMiddleware:
                     if message["type"] == "http.disconnect":
                         return
                     body.extend(message.get("body", b""))
-                    if len(body) > MAX_BODY_BYTES:
+                    if len(body) > body_limit:
                         raise HTTPException(413, "Request body too large")
                     if not message.get("more_body", False):
                         break

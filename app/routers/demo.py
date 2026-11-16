@@ -8,7 +8,7 @@ from app.database import get_db
 from app.demo import DEMO_STEAM_ID
 from app.models import LinkedAccount, Platform
 from app.routers.accounts import browser_cookie
-from app.security import issue_session, rate_limit
+from app.security import client_key, issue_session, rate_limit
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 
@@ -20,7 +20,7 @@ async def demo_login(request: Request, db: Session = Depends(get_db)):
     # Same browser checks as the other sign-in posts.
     if request.headers.get("origin") != settings.app_base_url or request.headers.get("x-playgraph-auth") != "1":
         raise HTTPException(403, "Start sign-in on PlayGraph in this browser")
-    await rate_limit(request, "demo-login", request.client.host if request.client else "unknown", 10, 60)
+    await rate_limit(request, "demo-login", client_key(request), 10, 60)
     link = db.query(LinkedAccount).filter_by(platform=Platform.steam, platform_user_id=DEMO_STEAM_ID).first()
     if link is None:
         raise HTTPException(503, "The demo data has not been loaded yet")

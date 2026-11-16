@@ -44,7 +44,7 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.14"
-      - run: python -m pip install -r requirements.lock
+      - run: python -m pip install -r requirements-dev.lock
       - run: python -m pip check
       - run: python -m pytest -q
       # The same suite again on Postgres, the production database, with the
@@ -58,5 +58,7 @@ jobs:
       # these ran nowhere until this step. Node ships on the runner image.
       - run: node --test tests/*.mjs
       - run: python -m pip install pip-audit==2.10.1 bandit==1.9.4
-      - run: python -m pip_audit -r requirements.lock --strict
+      # PyPI's advisory feed and OSV each miss things the other has.
+      - run: python -m pip_audit -r requirements-dev.lock --strict
+      - run: python -m pip_audit -r requirements-dev.lock --strict -s osv
       - run: python -m bandit -r app

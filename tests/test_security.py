@@ -187,6 +187,30 @@ def test_new_account_creation(client, verification, db):
     assert db.query(LinkedAccount).count() == 2
 
 
+
+def test_rejects_plain_http_claimed_id(client, verification):
+    params = begin(client)
+    params["openid.claimed_id"] = params["openid.identity"] = "http://steamcommunity.com/openid/id/76561198000000001"
+    assert callback(client, params).status_code == 401
+    assert not verification.calls
+
+
+def test_new_account_survives_steam_profile_outage(client, verification, db, monkeypatch):
+    monkeypatch.setattr(auth.steam, "get_player_summary", AsyncMock(side_effect=httpx.ConnectError("down")))
+    params = begin(client)
+    params["openid.claimed_id"] = params["openid.identity"] = "https://steamcommunity.com/openid/id/76561198000000003"
+    response = callback(client, params)
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "Player000003"
+
+
+def test_steam_login_revokes_the_previous_session(client, verification):
+    first = callback(client, begin(client)).json()["access_token"]
+    client.cookies.set(auth.session_cookie_name(), first)
+    second = callback(client, begin(client)).json()["access_token"]
+    assert client.get("/me/genres", headers={"Authorization": "Bearer " + first}).status_code == 401
+    assert client.get("/me/genres", headers={"Authorization": "Bearer " + second}).status_code == 200
+
 @pytest.mark.parametrize("claim,value", [("aud", "another-api"), ("iss", "another-app"),
                                          ("sub", None), ("sub", "-1"), ("jti", "short"),
                                          ("exp", 1), ("nbf", 9999999999), ("iat", 9999999999)])
@@ -370,7 +394,7 @@ def browser_login(client):
     assert "Domain=" not in cookie
     session = client.get("/auth/session")
     assert session.status_code == 200
-    assert session.json()["user"] == {"id": 1, "display_name": "One"}
+    assert session.json()["user"] == {"id": 1, "display_name": "One", "avatar_url": None}
     assert "access_token" not in session.text
     return session.json()["csrf_token"]
 

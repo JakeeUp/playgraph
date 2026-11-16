@@ -35,3 +35,13 @@ EXPOSE 8000
 
 # Default to the API. fly.toml overrides this for the worker process.
 CMD ["python", "-m", "app.serve"]
+
+# Private beta target (fly.beta.toml). Its SQLite database lives on a Fly
+# volume, which mounts owned by root, so this target starts as root only to
+# hand /data to the app user, then drops to that user for every process.
+FROM base AS beta
+USER root
+CMD ["sh", "-c", "chown -R 10001:10001 /data && exec setpriv --reuid=10001 --regid=10001 --clear-groups sh -c 'python -m app.migrations upgrade && (python -m arq app.worker.WorkerSettings &) && exec python -m app.serve'"]
+
+# The last stage is what a plain `docker build` and the demo deploy get.
+FROM base

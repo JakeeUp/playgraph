@@ -1,3 +1,10 @@
+.app-booting #main > :not(#page-loading) { display:none !important; }
+.app-booting .site-footer { visibility:hidden; }
+.loading-state { display:flex; align-items:center; justify-content:center; gap:12px; min-height:180px; color:var(--muted); }
+.loading-ring { display:inline-block; width:26px; height:26px; border:3px solid var(--rule); border-top-color:var(--accent); border-radius:50%; animation:loading-spin .8s linear infinite; }
+@keyframes loading-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .loading-ring { animation:none; border-right-color:var(--accent); } }
+
 /* ==========================================================================
    PlayGraph styles: "The Wall"
    Every colour, type size, space and radius used anywhere lives in the token

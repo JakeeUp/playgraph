@@ -33,8 +33,13 @@ async function demoLogin(event) {
   } catch { /* fall through */ }
   control.textContent = 'Demo unavailable, try again'; control.disabled = false;
 }
+// With PlayGraph accounts (Clerk) switched off, Steam is the only way in, so
+// every sign-in action goes straight there instead of to an account page that
+// has nothing else to offer.
+export const signIn = { steamOnly: false };
 export const steamLink = (text = 'Sign in') => {
   if (demo.on) { const control = el('button', 'button primary', 'View as demo player'); control.addEventListener('click', demoLogin); return control; }
+  if (signIn.steamOnly) { const link = el('a', 'button primary', 'Sign in with Steam'); link.href = '/auth/steam/login?ui=1'; return link; }
   const link = el('a', 'button primary', text); link.href = '/account'; return link;
 };
 export const aborted = (error) => error.name === 'AbortError';
@@ -160,6 +165,12 @@ export function timeLabel(value) {
 }
 export function formError(target, error) {
   if (!aborted(error) && target.isConnected) { target.textContent = error.message; target.hidden = false; }
+}
+
+export function loadingState(text = 'Loading…') {
+  const node = el('div', 'loading-state'); node.setAttribute('role', 'status');
+  const ring = el('span', 'loading-ring'); ring.setAttribute('aria-hidden', 'true');
+  node.append(ring, el('span', '', text)); return node;
 }
 
 // Copy text to the clipboard. True when it worked, false when the browser said no.
