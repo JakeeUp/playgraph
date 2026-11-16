@@ -150,8 +150,10 @@ def test_duplicate_callback_parameters_rejected(client, verification):
 
 
 @pytest.mark.parametrize("seconds", [-601, 61])
-def test_expired_or_future_nonce_rejected(client, verification, seconds):
-    nonce = (utcnow() + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ") + "nonce"
+def test_expired_or_future_nonce_rejected(client, verification, seconds, monkeypatch):
+    now = utcnow().replace(microsecond=0)
+    monkeypatch.setattr(auth, "utcnow", lambda: now)
+    nonce = (now + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ") + "nonce"
     assert callback(client, begin(client, nonce)).status_code == 401
     assert not verification.calls
 
