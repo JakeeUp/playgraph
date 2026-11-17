@@ -715,3 +715,12 @@ select option { background:var(--surface); color:var(--ink); }
 .replay-game strong { overflow-wrap: anywhere; }
 .replay-game .cover { width: 100%; }
 .replay-note { line-height: 1.6; margin-block: 32px; }
+/* Missing-game search stays separate from private library filters. */
+.game-search { margin-bottom: 2rem; padding: 1rem; border: 1px solid var(--rule-strong); border-radius: 4px; }
+.game-search-fields { display: flex; flex-wrap: wrap; gap: .75rem; margin: .75rem 0; }
+.game-search-fields input { flex: 1 1 220px; min-width: 0; min-height: 42px; padding: .65rem .8rem; background: var(--surface); border: 1px solid var(--rule-strong); border-radius: 4px; }
+.game-search-result { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: .85rem 0; }
+.game-search-result .cover { width: 56px; }
+.game-search-result h4 { margin: 0; overflow-wrap: anywhere; }
+.game-search-result .helper { margin: .35rem 0; }
+@media (max-width: 520px) { .game-search-result { grid-template-columns: 48px minmax(0, 1fr); } .game-search-result .button { grid-column: 2; justify-self: start; } }

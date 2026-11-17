@@ -70,7 +70,7 @@ def run(coro):
     return asyncio.run(coro)
 
 
-RAW_GAME = {"id": 1942, "name": "The Witcher 3: Wild Hunt", "slug": "the-witcher-3-wild-hunt",
+RAW_GAME = {"id": 1942, "game_type": {"type": "Main Game"}, "name": "The Witcher 3: Wild Hunt", "slug": "the-witcher-3-wild-hunt",
             "summary": "Geralt hunts.", "first_release_date": 1431993600,
             "cover": {"id": 1, "image_id": "co1wyy"}, "genres": [{"id": 12, "name": "Role-playing (RPG)"}],
             "artworks": [{"id": 3, "image_id": "ar1abc"}], "screenshots": [{"id": 4, "image_id": "sc1abc"}],
@@ -191,6 +191,38 @@ def test_normalize_game_keeps_only_safe_values():
 
 # Catalog refresh -----------------------------------------------------------
 
+@pytest.mark.parametrize('kind', ['DLC', 'Expansion', 'Bundle', 'Mod', 'Episode', 'Season', 'Unknown'])
+def test_search_and_import_reject_unapproved_types(kind):
+    fake = FakeIGDB()
+    fake.routes['games'] = httpx.Response(200, json=[{**RAW_GAME, 'game_type': {'type': kind}}])
+    client = make_client(fake)
+    assert run(client.search('witcher')) == []
+    assert run(client.import_game(1942)) is None
+
+
+def test_import_rejects_editions_wrong_ids_and_missing_types():
+    fake = FakeIGDB()
+    fake.routes['games'] = httpx.Response(200, json=[{**RAW_GAME, 'version_parent': 1},
+        {**RAW_GAME, 'id': 9}, {**RAW_GAME, 'game_type': None}])
+    assert run(make_client(fake).import_game(1942)) is None
+
+
+def test_api_and_worker_share_three_expiring_provider_slots():
+    fake = FakeIGDB()
+    fake.routes['games'] = httpx.Response(200, json=[])
+    store = MemoryRedis()
+    clients = [make_client(fake) for _ in range(4)]
+    for client in clients:
+        client._store = store
+    for client in clients[:3]:
+        run(client.query('games', 'fields name; limit 1;'))
+    with pytest.raises(IGDBRateLimitedError):
+        run(clients[3].query('games', 'fields name; limit 1;'))
+    assert len(fake.bodies('games')) == 3
+    store.now += 1
+    run(clients[3].query('games', 'fields name; limit 1;'))
+    assert len(fake.bodies('games')) == 4
+
 @pytest.fixture
 def catalog(monkeypatch):
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
@@ -220,7 +252,7 @@ def catalog(monkeypatch):
     fake.routes["external_games"] = external_games
     fake.routes["games"] = httpx.Response(200, json=[RAW_GAME])
     monkeypatch.setattr(igdb_catalog, "SessionLocal", Session)
-    monkeypatch.setattr(igdb_catalog.igdb, "IGDBClient", lambda: make_client(fake))
+    monkeypatch.setattr(igdb_catalog.igdb, "IGDBClient", lambda **kwargs: make_client(fake))
     monkeypatch.setattr(settings, "igdb_client_id", CLIENT_ID)
     monkeypatch.setattr(settings, "igdb_client_secret", SecretStr(SECRET))
     return Session, fake

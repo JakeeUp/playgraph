@@ -27,6 +27,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 
 import httpx
+from redis.exceptions import RedisError
 
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"  # nosec B105 - a URL, not a secret
 API_BASE = "https://api.igdb.com/v4"
@@ -50,6 +51,10 @@ SOURCE_PLAYSTATION_STORE = "PlayStation Store US"
 
 GAME_FIELDS = ("name,slug,summary,first_release_date,cover.image_id,genres.name,"
                "platforms.slug,platforms.name,platforms.abbreviation,artworks.image_id,screenshots.image_id")
+# Checked against /game_types on 2026-11-16. Names avoid depending on enum IDs.
+IMPORT_TYPES = ("Main Game", "Remake", "Remaster", "Expanded Game", "Port")
+IMPORT_FIELDS = GAME_FIELDS + ",game_type.type,version_parent"
+IMPORT_WHERE = 'version_parent = null & game_type.type = (' + ','.join(f'"{name}"' for name in IMPORT_TYPES) + ')'
 IMAGE_ID_RE = re.compile(r"[a-z0-9]{1,40}")
 SLUG_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,60}")
 # Control characters and the Apicalypse string delimiters never reach a query.
@@ -141,6 +146,14 @@ def normalize_game(raw: dict) -> dict | None:
     }
 
 
+def importable_game(raw: dict) -> dict | None:
+    if (not isinstance(raw, dict) or raw.get("version_parent") is not None
+            or not isinstance(raw.get("game_type"), dict)
+            or raw["game_type"].get("type") not in IMPORT_TYPES):
+        return None
+    return normalize_game(raw)
+
+
 class _State:
     """Process-wide token cache and request pacing, shared by every client."""
 
@@ -175,7 +188,8 @@ class IGDBClient:
 
     def __init__(self, client_id: str | None = None, client_secret=None, *,
                  client: httpx.AsyncClient | None = None, state: _State | None = None,
-                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep, timeout: float = 15):
+                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep, timeout: float = 15,
+                 store=None):
         if client_id is None or client_secret is None:
             from app.config import settings
             client_id = settings.igdb_client_id if client_id is None else client_id
@@ -188,6 +202,7 @@ class IGDBClient:
         self._timeout = timeout
         self._state = state or _shared_state
         self._sleep = sleep
+        self._store = store
 
     async def __aenter__(self) -> IGDBClient:
         return self
@@ -263,6 +278,7 @@ class IGDBClient:
             token = await self.access_token()
             async with open_requests:
                 await self._pace()
+                await self._shared_budget()
                 try:
                     response = await self.http.post(f"{API_BASE}/{endpoint}", content=body.encode(), headers={
                         "Client-ID": self._client_id, "Authorization": f"Bearer {token}",
@@ -291,6 +307,20 @@ class IGDBClient:
         if not isinstance(data, list):
             raise IGDBError("IGDB returned an unexpected shape", status=200)
         return data
+
+    async def _shared_budget(self):
+        if self._store is None:
+            return
+        # Expiring slots bound every API/worker retry to three starts per rolling second.
+        for _ in range(5):
+            try:
+                for slot in range(3):
+                    if await self._store.set(f"playgraph:igdb:request:{slot}", "1", nx=True, ex=1):
+                        return
+            except (RedisError, OSError):
+                raise IGDBError("IGDB request budget unavailable") from None
+            await self._sleep(1)
+        raise IGDBRateLimitedError("IGDB request budget busy", status=429)
 
     # Reads -------------------------------------------------------------
 
@@ -330,13 +360,17 @@ class IGDBClient:
         text = search_text(text)
         if len(text) < 2:
             return []
-        where = ["version_parent = null"]
+        where = [IMPORT_WHERE]
         slugs = [s for s in platform_slugs if isinstance(s, str) and SLUG_RE.fullmatch(s)]
         if slugs:
             where.append("platforms.slug = (" + ",".join(f'"{s}"' for s in slugs) + ")")
-        rows = await self.query("games", (f'search "{text}"; fields {GAME_FIELDS}; '
+        rows = await self.query("games", (f'search "{text}"; fields {IMPORT_FIELDS}; '
                                           f"where {' & '.join(where)}; limit {max(1, min(int(limit), 50))};"))
-        return [game for game in map(normalize_game, rows) if game]
+        return [game for game in map(importable_game, rows) if game]
+
+    async def import_game(self, game_id: int) -> dict | None:
+        rows = await self.query("games", f"fields {IMPORT_FIELDS}; where id = {int(game_id)} & {IMPORT_WHERE}; limit 1;")
+        return next((game for row in rows if (game := importable_game(row)) and game["igdb_id"] == game_id), None)
 
 
 def _retry_after(response: httpx.Response, attempt: int) -> float:

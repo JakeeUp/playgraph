@@ -1,4 +1,4 @@
-import { steamArt, isPlayStationGame, storeArt } from './library.js';
+import { steamArt, storeArt } from './library.js';
 import { placeholderFor } from './covers.js';
 import { sendRequest, AUTH_HEADER } from './net.js';
 export const $ = (selector) => document.querySelector(selector);
@@ -100,9 +100,8 @@ export function placeholder(game) {
 // hero art when it has some, otherwise its generated scene stretched wide and
 // softened. Always decorative.
 export function heroArt(game) {
-  const appid = game?.steam_appid; const playstation = isPlayStationGame(game);
-  const other = playstation ? storeArt(game) : null;
-  if ((playstation && !other.hero) || (demo.on && !other?.hero)) {
+  const appid = game?.steam_appid; const other = appid == null ? storeArt(game) : null;
+  if ((other && !other.hero) || (demo.on && !other?.hero)) {
     const scene = placeholder(game); scene.classList.add('hero-art', 'scene');
     // Stretched wide, the landscape squashes into a low horizon instead of
     // being cropped to nothing but ground.
@@ -139,8 +138,8 @@ export function cover(game) {
   // Games from other stores have no Steam art. They use IGDB's cover, then
   // Sony's own image, then the title placeholder. The demo's synthetic Steam
   // ids have no art either, so it never asks Steam for any.
-  const other = isPlayStationGame(game) ? storeArt(game).cover : null;
-  if ((isPlayStationGame(game) && !other) || (demo.on && !other)) return frame;
+  const other = game?.steam_appid == null ? storeArt(game).cover : null;
+  if ((game?.steam_appid == null && !other) || (demo.on && !other)) return frame;
   const img = el('img');
   // loading is set before src: Firefox ignores lazy loading set after src.
   img.alt = `${game.name} cover art`; img.width = 600; img.height = 900;

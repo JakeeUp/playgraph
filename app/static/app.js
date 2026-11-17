@@ -13,6 +13,7 @@ import { createProfile } from './profile.js';
 import { userFromHash, viewFromHash, profileHref } from './social.js';
 import { avatarFor } from './post.js';
 import { createExplore } from './explore.js';
+import { createGameSearch } from './game-search.js';
 import { createNotifications } from './notifications.js';
 import { createReplay } from './replay.js';
 import { STATUSES, statusLabel, indexStatuses, filterByStatus, statusCounts } from './status.js';
@@ -82,6 +83,7 @@ const news = createNews(state, api);
 const feed = createFeed(state, api, gameDialog, () => navigate(state.user ? 'library' : 'explore'), report);
 const profile = createProfile(state, api, gameDialog, report);
 const explore = createExplore(state, api, gameDialog, report);
+const gameSearch = createGameSearch(state, api, gameDialog);
 const notifications = createNotifications(state, api, gameDialog, report);
 const replay = createReplay(state, api, gameDialog, report);
 document.addEventListener('review-changed', () => {
@@ -115,6 +117,7 @@ function stopPolling() {
   $('#sync-button').disabled = false; $('#sync-button').textContent = 'Sync Steam';
 }
 function clearSession() {
+  gameSearch.clear();
   replay.clear();
   notifications.clear();
   stopPolling(); clearTimeout(state.expiryTimer); clearTimeout(state.searchTimer);
@@ -156,6 +159,7 @@ function renderShell() {
   $('.search').hidden = isNotifications || isReplay;
   $('#nav-count').textContent = state.user ? integer(gameLibrary().length) : '';
   const isExplore = state.view === 'explore';
+  gameSearch.show(isExplore);
   $('#welcome').hidden = Boolean(state.user) || software || isFeed || isNews || isProfile || isExplore || isNotifications || isReplay;
   $('#cta-band').hidden = $('#welcome').hidden;
   $('#summary').hidden = !own || !shelfLibrary().length;

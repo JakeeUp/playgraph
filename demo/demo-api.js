@@ -29,6 +29,7 @@
   }
   let state;
   try { state = JSON.parse(sessionStorage.getItem(KEY)) || fresh(); } catch { state = fresh(); }
+  for (const row of state.importedGames || []) games.set(row.id, row);
   const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private mode: keep it in memory */ } };
 
   function notificationRows() {
@@ -354,6 +355,19 @@
       csrf_token: 'demo', expires_at: Math.floor(Date.now() / 1000) + 12 * 3600 })],
     ['POST', /^\/auth\/logout$/, () => { state.signedIn = false; save(); return respond(204); }],
 
+    ['GET', /^\/games\/search$/, (_, params) => {
+      const q = (params.get('q') || '').trim().toLowerCase(); const platform = params.get('platform');
+      const match = (row) => row.name.toLowerCase().includes(q) && (!platform || row.platforms?.some((p) => p.slug === platform));
+      return respond(200, { local: [...games.values()].filter(match).slice(0, 20),
+        external: state.signedIn ? (DATA.importable_games || []).filter(match).map((row) => ({ ...row, game_id: games.has(row.id) ? row.id : null })) : [] });
+    }],
+    ['POST', /^\/games\/import$/, (_, params, init) => {
+      const denied = needSession(); if (denied) return denied;
+      const row = (DATA.importable_games || []).find((item) => item.igdb_id === readBody(init).igdb_id);
+      if (!row) return missing('Game');
+      if (!games.has(row.id)) { games.set(row.id, row); state.importedGames = [...(state.importedGames || []), row]; save(); }
+      return respond(200, row);
+    }],
     ['GET', /^\/games$/, (_, params) => {
       const kind = params.get('kind') || 'game';
       const rows = [...games.values()].filter((item) => item.content_kind === kind && matches(item.id, params.get('q')));
@@ -369,7 +383,7 @@
       }
       return respond(200, { total: rows.length, games: page(rows, params, 48) });
     }],
-    ['GET', /^\/games\/(\d+)$/, ([id]) => game(+id) ? respond(200, { ...game(+id), summary: null, platforms: [] }) : missing('Game')],
+    ['GET', /^\/games\/(\d+)$/, ([id]) => game(+id) ? respond(200, { summary: null, platforms: [], ...game(+id) }) : missing('Game')],
     ['GET', /^\/games\/(\d+)\/reviews$/, ([id], params) => {
       const rows = state.reviews.filter((review) => review.game_id === +id).sort((a, b) =>
         (b.verified_playtime_minutes ?? -1) - (a.verified_playtime_minutes ?? -1) || newestFirst(a, b));
@@ -662,7 +676,7 @@
 
   // Controls on the demo banner and the demo account page.
   window.playgraphDemo = {
-    reset() { try { sessionStorage.removeItem(KEY); } catch { /* nothing saved */ } state = fresh(); },
+    reset() { try { sessionStorage.removeItem(KEY); } catch { /* nothing saved */ } for (const row of state.importedGames || []) games.delete(row.id); state = fresh(); },
     signIn() { state.signedIn = true; save(); },
     signOut() { state.signedIn = false; save(); },
   };

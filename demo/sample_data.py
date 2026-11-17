@@ -215,5 +215,10 @@ def export() -> dict:
         replays[str(year)] = report
     # Who follows whom among the made-up players: everyone follows Mara; Jacob follows three.
     follows = [[u["id"], 2] for u in users if u["id"] != 2] + [[1, 3], [1, 5]] + [[u["id"], 1] for u in users[2:6]]
-    return {"users": users, "games": games, "library": library, "reviews": reviews,
+    importable = [{"id": 9001, "igdb_id": 900001, "name": "Moonlit Harbor", "steam_appid": None,
+        "catalog_source": "igdb", "content_kind": "game", "genres": "Adventure,Indie",
+        "header_image_url": None, "cover_url": None, "hero_url": None,
+        "first_release_date": "2025-08-12T00:00:00Z", "summary": "A synthetic game for trying the add-game flow. No IGDB request is made in this preview.",
+        "platforms": [{"slug": "win", "name": "PC", "abbreviation": "PC"}, {"slug": "switch", "name": "Nintendo Switch", "abbreviation": "Switch"}]}]
+    return {"users": users, "games": games, "importable_games": importable, "library": library, "reviews": reviews,
             "comments": comments, "news": NEWS, "favorites": favorites, "follows": follows, "replays": replays}
