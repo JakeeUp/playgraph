@@ -704,3 +704,14 @@ select option { background:var(--surface); color:var(--ink); }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation:none !important; }
   .game-card > button:hover .cover, .front-cover:hover .cover, .ticker-item:hover .cover { transform:none; }
 }
+.replay { max-width: 1000px; margin-inline: auto; }
+.replay-summary, .replay-platform { margin-block: 24px 40px; }
+.replay-summary .stat-strip { margin-block: 24px; }
+.replay-platform { border-top: 1px solid var(--rule); padding-top: 24px; }
+.replay-platform h3 { margin-block: 28px 14px; }
+.replay-total { font-size: clamp(2rem, 6vw, 4rem); font-weight: 700; line-height: 1.2; }
+.replay-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 16px; }
+.replay-game { display: flex; flex-direction: column; gap: 8px; text-align: left; min-width: 0; background: none; border: 0; color: inherit; padding: 0; cursor: pointer; }
+.replay-game strong { overflow-wrap: anywhere; }
+.replay-game .cover { width: 100%; }
+.replay-note { line-height: 1.6; margin-block: 32px; }

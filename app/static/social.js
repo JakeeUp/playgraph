@@ -33,7 +33,7 @@ const PROFILE_ROOT = '/app';
 export const profileHref = (id) => `${PROFILE_ROOT}#user=${Number(id)}`;
 
 export function viewFromHash(hash) {
-  const match = /^#view=(library|software|stats|feed|news|explore|notifications)$/.exec(hash || '');
+  const match = /^#view=(library|software|stats|feed|news|explore|notifications|replay)$/.exec(hash || '');
   return match?.[1] || null;
 }
 

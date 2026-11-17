@@ -14,12 +14,15 @@ import { userFromHash, viewFromHash, profileHref } from './social.js';
 import { avatarFor } from './post.js';
 import { createExplore } from './explore.js';
 import { createNotifications } from './notifications.js';
+import { createReplay } from './replay.js';
 import { STATUSES, statusLabel, indexStatuses, filterByStatus, statusCounts } from './status.js';
 
 // Page copy per view. pageKey() folds the signed-out library and playtime
 // views into the welcome copy, which is what they have always shown. `tab`
 // names the page in the browser tab.
 const PAGE_COPY = {
+  replay: { title: 'Year in Review', tab: 'Year in Review', subtitle: 'Your year in games, measured from synced changes. Private to you.',
+    search: 'Search games', searchLabel: 'Search games' },
   welcome: { title: 'Games on PlayGraph', tab: 'Games',
     subtitle: 'Everything imported so far. Open a game to read its reviews.',
     search: 'Search games', searchLabel: 'Search games' },
@@ -72,7 +75,7 @@ const shelfLibrary = () => state.view === 'software'
   ? state.library.filter((entry) => entry.game.content_kind === 'software') : psnShelf() ? state.psnLibrary : gameLibrary();
 const shelfCopy = () => SHELF[state.view === 'software' ? 'software' : 'game'];
 const pageKey = () => state.view === 'feed' && !state.user ? 'feedGuest'
-  : ['feed', 'news', 'software', 'explore', 'profile', 'notifications'].includes(state.view) ? state.view
+  : ['feed', 'news', 'software', 'explore', 'profile', 'notifications', 'replay'].includes(state.view) ? state.view
   : state.user ? (state.view === 'stats' ? 'stats' : 'library') : 'welcome';
 const gameDialog = createGameDialog(state, api, report);
 const news = createNews(state, api);
@@ -80,7 +83,11 @@ const feed = createFeed(state, api, gameDialog, () => navigate(state.user ? 'lib
 const profile = createProfile(state, api, gameDialog, report);
 const explore = createExplore(state, api, gameDialog, report);
 const notifications = createNotifications(state, api, gameDialog, report);
-document.addEventListener('review-changed', () => { if (state.view === 'feed') void feed.load(); else feed.invalidate(); });
+const replay = createReplay(state, api, gameDialog, report);
+document.addEventListener('review-changed', () => {
+  if (state.view === 'replay') void replay.load();
+  if (state.view === 'feed') void feed.load(); else feed.invalidate();
+});
 const sessionChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('playgraph-session') : null;
 let sessionReady = false;
 let checkingSession = false;
@@ -108,6 +115,7 @@ function stopPolling() {
   $('#sync-button').disabled = false; $('#sync-button').textContent = 'Sync Steam';
 }
 function clearSession() {
+  replay.clear();
   notifications.clear();
   stopPolling(); clearTimeout(state.expiryTimer); clearTimeout(state.searchTimer);
   state.controller.abort(); state.controller = new AbortController(); state.generation += 1; state.catalogRequest += 1;
@@ -124,6 +132,9 @@ function renderShell() {
   const isNews = state.view === 'news';
   const isProfile = state.view === 'profile';
   const isNotifications = state.view === 'notifications';
+  const isReplay = state.view === 'replay';
+  $('#replay').hidden = !isReplay;
+  $('#replay-open').hidden = !state.user || state.view !== 'stats';
   const onPsn = psnShelf();
   document.querySelectorAll('[data-view]').forEach((item) => {
     const active = item.dataset.view === state.view; item.classList.toggle('active', active);
@@ -142,17 +153,17 @@ function renderShell() {
   else account.append(steamLink('Sign in'));
   $('#notification-bell').hidden = !state.user;
   $('#notifications').hidden = !isNotifications;
-  $('.search').hidden = isNotifications;
+  $('.search').hidden = isNotifications || isReplay;
   $('#nav-count').textContent = state.user ? integer(gameLibrary().length) : '';
   const isExplore = state.view === 'explore';
-  $('#welcome').hidden = Boolean(state.user) || software || isFeed || isNews || isProfile || isExplore || isNotifications;
+  $('#welcome').hidden = Boolean(state.user) || software || isFeed || isNews || isProfile || isExplore || isNotifications || isReplay;
   $('#cta-band').hidden = $('#welcome').hidden;
   $('#summary').hidden = !own || !shelfLibrary().length;
   $('#insights').hidden = !own || software || !(onPsn ? state.psnLibrary : gameLibrary()).length;
-  $('#collection').hidden = isFeed || isNews || isProfile || isNotifications || (state.view === 'stats' && Boolean(state.user) && gameLibrary().length > 0);
+  $('#collection').hidden = isFeed || isNews || isProfile || isNotifications || isReplay || (state.view === 'stats' && Boolean(state.user) && gameLibrary().length > 0);
   $('#feed').hidden = !isFeed; $('#news').hidden = !isNews; $('#profile').hidden = !isProfile;
   $('#explore-social').hidden = !isExplore;
-  $('#sync-button').hidden = demo.on || !state.user || !state.hasSteam || onPsn || isNotifications; $('#filters').hidden = !own;
+  $('#sync-button').hidden = demo.on || !state.user || !state.hasSteam || onPsn || isNotifications || isReplay; $('#filters').hidden = !own;
   $('#sort').disabled = !own; $('#sort').value = own ? state.sort : 'name';
   const copy = PAGE_COPY[pageKey()]; const shelf = shelfCopy();
   // The welcome hero has its own headline, so the plain page heading steps aside.
@@ -471,7 +482,7 @@ async function loadLibrary() {
   renderShell(); if (privateView()) renderCollection();
 }
 function navigate(view, remember = true) {
-  if (view === 'notifications' && !state.user) view = 'library';
+  if (['notifications', 'replay'].includes(view) && !state.user) view = 'library';
   feed.invalidate();
   if (remember && location.hash !== `#view=${view}`) history.pushState(null, '', `#view=${view}`);
   Object.assign(state, { view, query: '', genre: '', filter: 'all', status: '', shown: 48 }); state.catalogRequest += 1;
@@ -479,6 +490,7 @@ function navigate(view, remember = true) {
   $('#search').value = ''; $('#genre').value = ''; clearTimeout(state.searchTimer); renderShell();
   if (view === 'feed') return feed.load(); else if (view === 'news') return news.load();
   else if (view === 'notifications') return notifications.load();
+  else if (view === 'replay') return replay.load();
   else if (view === 'explore') return Promise.all([explore.load(), loadCatalog()]);
   else if (privateView()) renderCollection(); else return loadCatalog();
 }
@@ -522,6 +534,7 @@ document.querySelectorAll('[data-filter]').forEach((node) => node.addEventListen
 $('#status-filter').addEventListener('change', (event) => { state.status = event.target.value; state.shown = 48; renderCollection(); });
 document.addEventListener('status-changed', () => {
   if (privateView()) renderCollection();
+  else if (state.view === 'replay') void replay.load();
   else if (state.view === 'profile' && state.user?.id === userFromHash(location.hash)) void profile.open(state.user.id);
 });
 $('#platform-pc').addEventListener('click', () => { if (state.platform !== 'steam') selectPlatform('steam'); });

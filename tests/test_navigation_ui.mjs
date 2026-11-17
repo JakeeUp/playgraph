@@ -4,7 +4,7 @@ import { viewFromHash } from '../app/static/social.js';
 import { sendRequest } from '../app/static/net.js';
 
 test('only app tabs can be restored from the address', () => {
-  for (const view of ['library', 'software', 'stats', 'feed', 'news', 'explore', 'notifications']) {
+  for (const view of ['library', 'software', 'stats', 'feed', 'news', 'explore', 'notifications', 'replay']) {
     assert.equal(viewFromHash(`#view=${view}`), view);
   }
   for (const hash of ['', null, '#view=admin', '#view=feed&user=1', '#user=1', '#view=Feed']) {

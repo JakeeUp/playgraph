@@ -480,6 +480,23 @@
         total: events.length, before, repost_before: repostBefore, mode: 'following' });
     }],
     ['GET', /^\/me\/library$/, () => needSession() || respond(200, library())],
+    ['GET', /^\/me\/replay$/, (_, params) => {
+      const denied = needSession(); if (denied) return denied;
+      const year = params.get('year') || String(new Date().getUTCFullYear());
+      if (!/^\d{4}$/.test(year) || !DATA.replays?.[year]) return respond(422, { detail: 'Choose an available year.' });
+      const result = JSON.parse(JSON.stringify(DATA.replays[year]));
+      const inYear = (stamp) => stamp && new Date(stamp).getUTCFullYear() === Number(year);
+      const written = state.reviews.filter((row) => row.user_id === ME.id && inYear(row.created_at)
+        && game(row.game_id)?.content_kind === 'game');
+      const best = [...written].sort((a, b) => b.rating - a.rating || a.game_id - b.game_id)[0];
+      result.reviews = { count: written.length, average_rating: written.length
+        ? Math.round(written.reduce((sum, row) => sum + row.rating, 0) / written.length * 100) / 100 : null,
+        highest_rated: best ? { game: game(best.game_id), rating: best.rating } : null };
+      result.completed_count = statusRows().filter((row) => row.status === 'completed' && inYear(row.completed_at)
+        && game(row.game_id)?.content_kind === 'game').length;
+      result.has_data = Boolean(result.sources.length || written.length || result.completed_count);
+      return respond(200, result);
+    }],
     // A few sample play statuses, including two games the demo player doesn't own.
     ['GET', /^\/users\/by-handle\/([^/]+)$/, ([handle]) => {
       const wanted = decodeURIComponent(handle).replace(/^@/, '').toLowerCase();

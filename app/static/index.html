@@ -31,6 +31,7 @@
   <link rel="modulepreload" href="/assets/social.js">
   <link rel="modulepreload" href="/assets/explore.js">
   <link rel="modulepreload" href="/assets/notifications.js">
+  <link rel="modulepreload" href="/assets/replay.js">
   <script type="module" src="/assets/app.js"></script>
 </head>
 <body class="app-booting">
@@ -59,6 +60,7 @@
       <section class="page-heading">
         <div class="heading-copy"><h1 id="page-title">Games on PlayGraph</h1><p id="page-subtitle" class="subtitle">Everything imported so far. Open a game to read its reviews.</p></div>
         <button id="sync-button" class="button secondary" hidden>Sync Steam</button>
+        <button id="replay-open" class="button secondary" data-view="replay" hidden>Year in Review</button>
         <dl id="summary" class="stat-strip" aria-label="Your library at a glance" hidden></dl>
       </section>
       <section id="welcome" class="welcome" aria-labelledby="welcome-title">
@@ -92,6 +94,7 @@
         </section>
       </section>
       <section id="insights" class="insights" hidden></section>
+      <section id="replay" class="replay" hidden aria-label="Your private Year in Review" aria-live="polite"></section>
       <section id="news" class="news" hidden aria-label="Gaming news">
         <div class="news-main">
           <div class="section-heading"><h2>Latest in gaming</h2><span class="helper">Steam updates · PC Gamer · Eurogamer · Rock Paper Shotgun</span></div>
