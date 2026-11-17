@@ -39,8 +39,9 @@ class GameOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    # NULL for games from other stores (PlayStation); those have no Steam page or art.
+    # Other sources have no Steam page or Steam art.
     steam_appid: int | None
+    catalog_source: Literal["steam", "psn", "igdb"] = "steam"
     name: str
     genres: str | None
     header_image_url: str | None

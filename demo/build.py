@@ -19,6 +19,7 @@ STATIC = ROOT / "app" / "static"
 DEMO = Path(__file__).resolve().parent
 MARKER = ".playgraph-demo"
 sys.path.insert(0, str(DEMO))
+sys.path.insert(0, str(ROOT))
 import sample_data  # noqa: E402
 
 # Pages that live at the site root, and scripts the demo has no use for

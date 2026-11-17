@@ -143,7 +143,7 @@ async def refresh_igdb_catalog(ctx, force: bool = False) -> dict:
         return {"status": "skipped", "detail": "IGDB is not configured"}
     db = SessionLocal(expire_on_commit=False)
     try:
-        async with igdb.IGDBClient() as client:
+        async with igdb.IGDBClient(store=ctx.get("redis")) as client:
             sources = await client.external_game_sources()
             stats = await map_store_games(db, client, sources, "steam")
             stats.update(await map_store_games(db, client, sources, "psn"))

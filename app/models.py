@@ -162,6 +162,12 @@ class Game(Base):
     cover_image_id = Column(String, nullable=True)  # IGDB image ID, never a URL
     hero_image_id = Column(String, nullable=True)  # IGDB artwork/screenshot ID for banners
     igdb_refreshed_at = Column(DateTime(timezone=True), nullable=True)
+    added_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    added_at = Column(DateTime(timezone=True), nullable=True)
+
+    @property
+    def catalog_source(self):
+        return "steam" if self.steam_appid is not None else "igdb" if self.added_at is not None else "psn"
 
     playtime_snapshots = relationship("PlaytimeSnapshot", back_populates="game")
     reviews = relationship("Review", back_populates="game")

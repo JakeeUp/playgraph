@@ -1,3 +1,5 @@
+import asyncio
+import json
 import time
 from datetime import UTC, datetime
 
@@ -10,6 +12,8 @@ from pydantic import SecretStr
 from app.config import settings
 from app.routers import news as news_router
 from app.services import news, steam_news
+from app.models import Game, PlaytimeSnapshot, Review, User
+from tests.security_helpers import MemoryRedis
 
 
 def iso(seconds_ago: float) -> str:
@@ -48,7 +52,7 @@ def upstream(monkeypatch):
 
 @pytest.fixture
 def steam(monkeypatch):
-    """Answer Steam news requests per appid; the most played games are fixed."""
+    """Answer Steam news requests per appid; public review games are fixed."""
     sent, posts, status = [], {}, {"code": 200}
     real_client = httpx.AsyncClient
 
@@ -58,7 +62,7 @@ def steam(monkeypatch):
         return httpx.Response(status["code"], json={"appnews": {"appid": appid, "newsitems": posts.get(appid, [])}})
 
     monkeypatch.setattr(steam_news.httpx, "AsyncClient", lambda **kwargs: real_client(transport=httpx.MockTransport(handle), **kwargs))
-    monkeypatch.setattr(news_router, "_most_played", lambda limit: [(730, "Counter-Strike 2"), (39210, "FINAL FANTASY XIV Online")])
+    monkeypatch.setattr(news_router, "_public_games", lambda limit: [(730, "Counter-Strike 2"), (39210, "FINAL FANTASY XIV Online")])
     return sent, posts, status
 
 
@@ -170,6 +174,48 @@ def test_each_source_is_fetched_once_per_refresh_window(client, upstream, steam,
     clock[0] += news_router.REFRESH["apitube"]
     client.get("/news")
     assert len(sent) == 2
+
+
+def test_news_selection_uses_only_public_reviews_not_private_library_stats(db, monkeypatch):
+    db.add_all([User(id=1, display_name="Public"), User(id=2, display_name="Private", profile_visibility="private"),
+        User(id=3, display_name="Followers", profile_visibility="followers"),
+        Game(id=1, name="Only privately owned", steam_appid=10),
+        Game(id=2, name="Reviewed in public", steam_appid=20),
+        Game(id=3, name="Private review", steam_appid=30),
+        Game(id=4, name="Followers review", steam_appid=40),
+        Game(id=5, name="Software", steam_appid=431960), Game(id=6, name="Non-Steam")])
+    db.flush()
+    db.add_all([PlaytimeSnapshot(user_id=1, game_id=1, playtime_minutes=999999),
+        PlaytimeSnapshot(user_id=2, game_id=1, playtime_minutes=999999),
+        Review(user_id=1, game_id=2, rating=4), Review(user_id=2, game_id=3, rating=4),
+        Review(user_id=3, game_id=4, rating=4), Review(user_id=1, game_id=5, rating=4),
+        Review(user_id=1, game_id=6, rating=4)])
+    db.commit()
+    monkeypatch.setattr(news_router, 'SessionLocal', lambda: db)
+    assert news_router._public_games(30) == [(20, 'Reviewed in public')]
+    db.get(User, 1).profile_visibility = 'private'
+    db.commit()
+    assert news_router._public_games(30) == []
+
+
+def test_public_news_order_and_limit_are_review_based(db, monkeypatch):
+    db.add(User(id=1, display_name="Public"))
+    db.add_all([Game(id=1, name='First', steam_appid=10), Game(id=2, name='Second', steam_appid=20)])
+    db.flush()
+    db.add_all([Review(user_id=1, game_id=1, rating=4, created_at=datetime(2026, 1, 1, tzinfo=UTC)),
+        Review(user_id=1, game_id=2, rating=4, created_at=datetime(2026, 2, 1, tzinfo=UTC))])
+    db.commit()
+    monkeypatch.setattr(news_router, 'SessionLocal', lambda: db)
+    assert news_router._public_games(1) == [(20, 'Second')]
+
+
+def test_news_retires_cached_private_library_selection():
+    store = MemoryRedis()
+    old_key = f'{news_router.PREFIX}:news:steam'
+    asyncio.run(store.set(old_key, json.dumps({'items': [{'title': 'Old private selection'}], 'fetched_at': time.time()})))
+    async def public_news():
+        return []
+    assert asyncio.run(news_router._latest(store, 'steam', public_news)) == []
 
 
 def test_a_failed_refresh_serves_old_headlines_and_waits_before_retrying(client, upstream, steam, monkeypatch):

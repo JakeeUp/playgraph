@@ -34,6 +34,11 @@ def test_demo_ships_sample_data_and_leaves_out_real_sign_in(tmp_path):
     data = json.loads(raw.removeprefix("window.PLAYGRAPH_DEMO = ").rstrip().rstrip(";"))
     games = {game["id"]: game for game in data["games"]}
     users = {user["id"] for user in data["users"]}
+    assert len(data["replays"]) == 2
+    for replay in data["replays"].values():
+        assert replay["sources"][0]["total_minutes"] > 0
+        assert len(replay["sources"][0]["months"]) == 12
+        assert all(row["game"]["content_kind"] == "game" for row in replay["sources"][0]["top_games"])
     # Steam games only: no IGDB covers, no PlayStation entries.
     assert all(game["steam_appid"] and not game.get("cover_url") for game in games.values())
     assert all(entry["game_id"] in games for entry in data["library"])

@@ -30,7 +30,9 @@
   <link rel="modulepreload" href="/assets/profile.js">
   <link rel="modulepreload" href="/assets/social.js">
   <link rel="modulepreload" href="/assets/explore.js">
+  <link rel="modulepreload" href="/assets/game-search.js">
   <link rel="modulepreload" href="/assets/notifications.js">
+  <link rel="modulepreload" href="/assets/replay.js">
   <script type="module" src="/assets/app.js"></script>
 </head>
 <body class="app-booting">
@@ -59,6 +61,7 @@
       <section class="page-heading">
         <div class="heading-copy"><h1 id="page-title">Games on PlayGraph</h1><p id="page-subtitle" class="subtitle">Everything imported so far. Open a game to read its reviews.</p></div>
         <button id="sync-button" class="button secondary" hidden>Sync Steam</button>
+        <button id="replay-open" class="button secondary" data-view="replay" hidden>Year in Review</button>
         <dl id="summary" class="stat-strip" aria-label="Your library at a glance" hidden></dl>
       </section>
       <section id="welcome" class="welcome" aria-labelledby="welcome-title">
@@ -92,6 +95,7 @@
         </section>
       </section>
       <section id="insights" class="insights" hidden></section>
+      <section id="replay" class="replay" hidden aria-label="Your private Year in Review" aria-live="polite"></section>
       <section id="news" class="news" hidden aria-label="Gaming news">
         <div class="news-main">
           <div class="section-heading"><h2>Latest in gaming</h2><span class="helper">Steam updates · PC Gamer · Eurogamer · Rock Paper Shotgun</span></div>
@@ -129,6 +133,18 @@
         </div>
       </section>
       <section id="collection" aria-labelledby="collection-title">
+        <section id="game-search" class="game-search" aria-label="Find a missing game" hidden>
+          <button id="game-search-open" class="text-link" type="button">Can't find it? Search all games.</button>
+          <form id="game-search-form" hidden>
+            <label for="game-search-query">Game title</label>
+            <div class="game-search-fields"><input id="game-search-query" type="search" minlength="2" maxlength="120" required placeholder="Search IGDB">
+              <label class="select"><span class="sr-only">Release platform</span><select id="game-search-platform"><option value="">All platforms</option><option value="win">PC</option><option value="ps4--1">PlayStation 4</option><option value="ps5">PlayStation 5</option><option value="switch">Nintendo Switch</option><option value="switch-2">Nintendo Switch 2</option><option value="xboxone">Xbox One</option><option value="series-x-s">Xbox Series X/S</option></select></label>
+              <button id="game-search-submit" class="button primary" type="submit">Search games</button></div>
+            <p class="helper">Main games, remakes, remasters, expanded games and ports. No DLC or editions. Added games have no verified hours.</p>
+            <p class="helper">Game data from <a href="https://www.igdb.com/" target="_blank" rel="noopener noreferrer">IGDB</a>.</p>
+            <div id="game-search-results" aria-live="polite"></div>
+          </form>
+        </section>
         <div class="section-heading"><div class="heading-with-count"><h2 id="collection-title">Games in the catalog</h2><span id="result-count" class="count-label num"></span></div><div class="display-controls"><div class="platform-switch filter-chips" role="group" aria-label="Platform" hidden><button id="platform-pc" class="chip selected" aria-pressed="true">PC</button><button id="platform-psn" class="chip" aria-pressed="false">PlayStation</button></div><div class="kind-switch filter-chips" role="group" aria-label="Library content"><button class="chip nav-item active" data-view="library">Games</button><button class="chip nav-item" data-view="software">Software</button></div></div></div>
         <div class="toolbar">
           <div id="filters" class="filters" hidden><div id="play-filters" class="tabs" role="group" aria-label="Play status"><button data-filter="all" class="tab selected" aria-pressed="true">All games</button><button data-filter="played" class="tab" aria-pressed="false">Played</button><button data-filter="unplayed" class="tab" aria-pressed="false">Yet to play</button></div><label class="select"><span class="sr-only">Filter by genre</span><select id="genre"><option value="">All genres</option></select></label><label class="select"><span class="sr-only">Filter by your status</span><select id="status-filter"><option value="">Any status</option><option value="want_to_play">Want to play</option><option value="playing">Playing</option><option value="completed">Completed</option><option value="paused">Paused</option><option value="dropped">Dropped</option><option value="none">No status</option></select></label></div>

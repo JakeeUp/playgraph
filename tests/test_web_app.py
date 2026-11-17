@@ -48,7 +48,7 @@ def test_public_catalog_bounds_search_and_no_private_fields(web, db):
     result = web.get("/games", params={"limit": 2, "offset": 1}).json()
     assert result["total"] == 3
     assert [game["name"] for game in result["games"]] == ["A Game", "B Game"]
-    assert set(result["games"][0]) == {"id", "steam_appid", "name", "genres", "header_image_url", "content_kind",
+    assert set(result["games"][0]) == {"id", "steam_appid", "catalog_source", "name", "genres", "header_image_url", "content_kind",
                                        "first_release_date", "cover_url", "hero_url"}
     assert web.get("/games", params={"q": "%"}).json()["total"] == 1
     assert web.get("/games", params={"q": "a game"}).json()["total"] == 1
@@ -73,7 +73,7 @@ def test_single_game_link_returns_only_public_metadata(web, db):
     response = web.get("/games/23")
     assert response.status_code == 200
     assert response.json() == {
-        "id": 23, "name": "Linkable game", "steam_appid": 100, "genres": None, "header_image_url": None,
+        "id": 23, "name": "Linkable game", "steam_appid": 100, "catalog_source": "steam", "genres": None, "header_image_url": None,
         "content_kind": "game", "first_release_date": None, "summary": "A short summary.",
         "cover_url": "https://images.igdb.com/igdb/image/upload/t_cover_big/co1abc.jpg",
         "hero_url": "https://images.igdb.com/igdb/image/upload/t_1080p/ar1abc.jpg",

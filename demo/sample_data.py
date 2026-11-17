@@ -6,6 +6,9 @@ are real, so the covers load from Steam. Times are stored as "this long ago"
 so the demo always looks recent.
 """
 import random
+from datetime import datetime, timedelta, timezone
+
+from app.replay import build_replay
 
 USERS = ["Jacob", "Mara", "Theo", "Sam", "Nico", "Jules", "Ava", "Kai"]  # Jacob is the demo player
 # Made-up @handles and bios for the made-up players.
@@ -188,7 +191,34 @@ def export() -> dict:
                          "minutes_ago": max(5, review["minutes_ago"] - hours_after * 60)})
 
     favorites = [by_name[name]["id"] for name in FAVORITES if name in by_name]
+    now = datetime.now(timezone.utc)
+    captures = [datetime(now.year - 2, 12, 31, tzinfo=timezone.utc)]
+    captures += [datetime(year, month, 1, tzinfo=timezone.utc)
+        for year in (now.year - 1, now.year) for month in range(1, 13)
+        if datetime(year, month, 1, tzinfo=timezone.utc) < now]
+    snapshots = []
+    for entry in library:
+        for step, captured in enumerate(captures, 1):
+            fraction = step / len(captures)
+            snapshots.append({"id": len(snapshots) + 1, "game": games[entry["game_id"] - 1], "source": "steam",
+                "captured_at": captured, "playtime_minutes": round(entry["playtime_minutes"] * fraction),
+                "achievements_unlocked": round(entry["achievements_unlocked"] * fraction)
+                    if entry["achievements_unlocked"] is not None else None})
+    replay_reviews = [{"game": games[row["game_id"] - 1], "rating": row["rating"],
+        "created_at": now - timedelta(minutes=row["minutes_ago"])} for row in reviews if row["user_id"] == 1]
+    replays = {}
+    for year in (now.year, now.year - 1):
+        report = build_replay(year, snapshots, replay_reviews, now=now, first_sync=captures[0])
+        report["available_years"] = [now.year, now.year - 1]
+        report["as_of"] = report["as_of"].isoformat()
+        report["tracked_since"] = report["tracked_since"].isoformat() if report["tracked_since"] else None
+        replays[str(year)] = report
     # Who follows whom among the made-up players: everyone follows Mara; Jacob follows three.
     follows = [[u["id"], 2] for u in users if u["id"] != 2] + [[1, 3], [1, 5]] + [[u["id"], 1] for u in users[2:6]]
-    return {"users": users, "games": games, "library": library, "reviews": reviews,
-            "comments": comments, "news": NEWS, "favorites": favorites, "follows": follows}
+    importable = [{"id": 9001, "igdb_id": 900001, "name": "Moonlit Harbor", "steam_appid": None,
+        "catalog_source": "igdb", "content_kind": "game", "genres": "Adventure,Indie",
+        "header_image_url": None, "cover_url": None, "hero_url": None,
+        "first_release_date": "2025-08-12T00:00:00Z", "summary": "A synthetic game for trying the add-game flow. No IGDB request is made in this preview.",
+        "platforms": [{"slug": "win", "name": "PC", "abbreviation": "PC"}, {"slug": "switch", "name": "Nintendo Switch", "abbreviation": "Switch"}]}]
+    return {"users": users, "games": games, "importable_games": importable, "library": library, "reviews": reviews,
+            "comments": comments, "news": NEWS, "favorites": favorites, "follows": follows, "replays": replays}

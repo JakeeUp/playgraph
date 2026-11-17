@@ -53,8 +53,7 @@ export const steamArt = (appid, file) => `${STEAM_APPS}/${Number(appid)}/${file}
 // Library entries carry a source. Steam and PlayStation numbers are never
 // added together: each source has its own shelf, totals and labels.
 export const TROPHY_GRADES = ['platinum', 'gold', 'silver', 'bronze'];
-/** A game from another store has no Steam app id, so no Steam art or page. */
-export const isPlayStationGame = (game) => game?.steam_appid == null;
+export const isPlayStationGame = (game) => game?.steam_appid == null && game?.catalog_source !== 'igdb';
 // Sony's own image for a PlayStation game: the last resort before a title
 // placeholder. Only hosts the /app CSP allows are used.
 const SONY_IMAGE_HOSTS = new Set(['image.api.playstation.com', 'psnobj.prod.dl.playstation.net']);

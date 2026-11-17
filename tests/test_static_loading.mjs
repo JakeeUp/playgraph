@@ -46,6 +46,16 @@ test('a PlayStation game keeps the title placeholder and never requests Steam ar
   assert.equal(frame.children[0]['aria-hidden'], 'true');
 });
 
+test('IGDB-only search results and games use IGDB art without inventing Steam art', async () => {
+  const { cover, heroArt } = await import('../app/static/dom.js');
+  const game = { name: 'IGDB game', steam_appid: null, catalog_source: 'igdb',
+    cover_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co123.jpg',
+    hero_url: 'https://images.igdb.com/igdb/image/upload/t_1080p/ar123.jpg' };
+  assert.equal(cover(game).children.find((node) => node.tagName === 'IMG').src, game.cover_url);
+  assert.equal(heroArt(game).src, game.hero_url);
+  assert.equal(cover({ name: 'No art', catalog_source: 'igdb' }).children.some((node) => node.tagName === 'IMG'), false);
+});
+
 test('in demo mode a Steam game gets the placeholder and no Steam request', async () => {
   const { cover, demo } = await import('../app/static/dom.js');
   demo.on = true;

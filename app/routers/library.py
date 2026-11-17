@@ -13,24 +13,65 @@ this person spent on games with X in them."
 """
 
 from typing import Literal
+from datetime import datetime, timezone
 
 from arq.jobs import Job
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from sqlalchemy import case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from redis.exceptions import RedisError
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Game, GameStatus, LinkedAccount, Platform, PlaytimeSnapshot, SnapshotSource, User, utcnow
+from app.models import Game, GameStatus, LinkedAccount, Platform, PlaytimeSnapshot, Review, SnapshotSource, User, utcnow
 from app.routers.parameters import ResourceId
-from app.schemas import GameStatusOut, GenreBreakdownOut, LibraryEntryOut, PlayStatus, StatusUpdate, TrophiesOut
+from app.schemas import GameOut, GameStatusOut, GenreBreakdownOut, LibraryEntryOut, PlayStatus, StatusUpdate, TrophiesOut
+from app.replay import build_replay
 from app.queue_codec import QUEUE_NAME, deserialize
 from app.security import rate_limit
 from app.services import psn
 
 router = APIRouter(prefix="/me", tags=["library"])
+
+
+@router.get("/replay")
+def get_replay(year: int | None = Query(None, ge=2000, le=9998),
+               user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    now = utcnow()
+    year = year if year is not None else now.year
+    if year > now.year:
+        raise HTTPException(422, "Choose the current year or an earlier year")
+    start = datetime(year, 1, 1, tzinfo=timezone.utc)
+    end = min(datetime(year + 1, 1, 1, tzinfo=timezone.utc), now)
+    snapshot = PlaytimeSnapshot
+    rank = func.row_number().over(partition_by=(snapshot.game_id, snapshot.source,
+        case((snapshot.captured_at < start, 0), else_=1)),
+        order_by=(snapshot.captured_at.desc(), snapshot.id.desc()))
+    ranked = (db.query(snapshot.id.label("id"), rank.label("position"))
+        .join(Game, Game.id == snapshot.game_id).filter(snapshot.user_id == user.id,
+            snapshot.captured_at < end, Game.content_kind == "game").subquery())
+    rows = (db.query(snapshot, Game).join(Game, Game.id == snapshot.game_id)
+        .join(ranked, snapshot.id == ranked.c.id)
+        .filter(or_(snapshot.captured_at >= start, ranked.c.position == 1)).all())
+    game_out = lambda game: GameOut.model_validate(game).model_dump(mode="json")
+    snapshots = [{**{column.name: getattr(row, column.name) for column in snapshot.__table__.columns},
+        "game": game_out(game)} for row, game in rows]
+    first = (db.query(func.min(snapshot.captured_at)).join(Game, Game.id == snapshot.game_id)
+        .filter(snapshot.user_id == user.id, snapshot.captured_at < now, Game.content_kind == "game").scalar())
+    reviews = [{"game": game_out(game), "rating": review.rating, "created_at": review.created_at}
+        for review, game in db.query(Review, Game).join(Game, Game.id == Review.game_id)
+        .filter(Review.user_id == user.id, Review.created_at >= start, Review.created_at < end,
+            Game.content_kind == "game").all()]
+    completed = [{"game": game_out(game), "completed_at": status.completed_at}
+        for status, game in db.query(GameStatus, Game).join(Game, Game.id == GameStatus.game_id)
+        .filter(GameStatus.user_id == user.id, GameStatus.status == "completed",
+            GameStatus.completed_at >= start, GameStatus.completed_at < end, Game.content_kind == "game").all()]
+    # Private mutable data stays uncached, just like /library and /statuses.
+    result = build_replay(year, snapshots, reviews, completed, now=now, first_sync=first)
+    first_year = min(user.created_at.year, first.year if first else now.year, year)
+    result["available_years"] = list(range(now.year, max(2000, first_year) - 1, -1))
+    return result
 
 
 def _latest_snapshots(db: Session, user_id: int, before_id: int | None = None,

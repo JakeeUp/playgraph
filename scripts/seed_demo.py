@@ -17,13 +17,13 @@ over real data. It also creates the fixed demo player that POST /demo/login
 signs in as (see app/demo.py).
 
 The random generator has a fixed seed, so the same code always writes the
-same games, ratings, review text and comments. Timestamps are placed relative
-to the moment the seed runs (the last 60 days), so those differ by run.
+same games, ratings, review text and comments. Reviews are from the last 60
+days; snapshots span the prior and current year so replay charts have history.
 """
 
 import random
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from app import handles
 from app.database import SessionLocal
@@ -268,20 +268,24 @@ def main() -> int:
                 entries.append((games[g], total, achievements, unlocked))
             libraries[idx] = entries
 
-        # Append-only snapshots, three per owned game, oldest first, so playtime
-        # visibly grows and the latest-snapshot query has more than one row to pick from.
+        # Monthly history lets both replay years show measured changes, not lifetime totals.
         final = {}
+        captures = [datetime(now.year - 2, 12, 31, tzinfo=timezone.utc)]
+        captures += [datetime(year, month, 1, tzinfo=timezone.utc)
+            for year in (now.year - 1, now.year) for month in range(1, 13)
+            if datetime(year, month, 1, tzinfo=timezone.utc) < now]
+        captures.append(now)
         for idx, user in enumerate(users):
             for game, total, achievements, unlocked in libraries[idx]:
-                for step, weeks_ago in enumerate((6, 3, 0)):
-                    fraction = (step + 1) / 3
+                for step, captured in enumerate(captures, 1):
+                    fraction = step / len(captures)
                     db.add(PlaytimeSnapshot(
                         user_id=user.id, game_id=game.id, linked_account_id=links[idx].id,
                         source=SnapshotSource.steam.value,
                         playtime_minutes=int(total * fraction),
                         achievements_unlocked=None if unlocked is None else int(unlocked * fraction),
                         achievements_total=achievements,
-                        captured_at=now - timedelta(weeks=weeks_ago),
+                        captured_at=captured,
                     ))
                 final[(idx, game.id)] = (total, achievements, unlocked)
         db.flush()

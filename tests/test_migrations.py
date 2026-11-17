@@ -59,6 +59,27 @@ def test_empty_install_matches_application_schema(database, tmp_path):
         assert connection.exec_driver_sql("SELECT COUNT(*) FROM auth_identities").scalar() == 0
 
 
+def test_catalog_import_migration_preserves_games_and_rolls_back_cleanly(database, tmp_path):
+    from alembic import command
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0015_profile_images")
+        connection.exec_driver_sql("INSERT INTO users (id, display_name) VALUES (1, 'Existing')")
+        connection.exec_driver_sql("INSERT INTO games (id, name, steam_appid) VALUES (1, 'Existing game', 20)")
+        connection.exec_driver_sql("INSERT INTO reviews (id, user_id, game_id, rating) VALUES (1, 1, 1, 4)")
+    before = records(database)
+    assert upgrade_database(database, tmp_path / 'backups').is_file()
+    require_current_schema(database)
+    assert records(database) == before
+    with database.begin() as connection:
+        assert connection.exec_driver_sql('SELECT added_at, added_by_user_id FROM games').one() == (None, None)
+        connection.exec_driver_sql("UPDATE games SET added_by_user_id = 1, added_at = '2026-11-16'")
+        command.downgrade(migration_config(connection), '0015_profile_images')
+    assert records(database) == before
+    assert 'added_by_user_id' not in {column['name'] for column in inspect(database).get_columns('games')}
+
+
 def test_profile_image_migration_keeps_existing_data_and_limits_image_slots(database, tmp_path):
     from alembic import command
     from sqlalchemy.exc import IntegrityError

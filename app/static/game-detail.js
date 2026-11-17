@@ -29,7 +29,7 @@ function renderStats(state, game, entry, psnEntry) {
   }
   if (!entry && !psnEntry) {
     stats.append(statCell('Your library', !state.user ? 'Sign in to see your hours'
-      : isPlayStationGame(game) ? 'Not in your PlayStation library' : 'Not in your Steam library'));
+      : game.catalog_source === 'igdb' ? 'No verified hours' : isPlayStationGame(game) ? 'Not in your PlayStation library' : 'Not in your Steam library'));
   }
   return stats;
 }
@@ -38,9 +38,9 @@ function renderStats(state, game, entry, psnEntry) {
 // list is returned too, as IGDB replaces it once the game details arrive.
 function renderMetadata(game, software, playstation) {
   const fields = el('dl', 'metadata-table');
-  const platforms = el('ul', 'platform-badges'); platforms.append(el('li', 'platform-badge', playstation ? 'PlayStation' : 'PC'));
+  const platforms = el('ul', 'platform-badges'); platforms.append(el('li', 'platform-badge', game.catalog_source === 'igdb' ? 'See game details' : playstation ? 'PlayStation' : 'PC'));
   const rows = [['Genres', genresFor(game).join(', ') || 'Not listed'], ['Category', software ? 'Software' : 'Game'],
-    ['Platforms', platforms], ['Source', playstation ? 'Public PSN profile' : 'Steam']];
+    ['Platforms', platforms], ['Source', game.catalog_source === 'igdb' ? 'IGDB' : playstation ? 'Public PSN profile' : 'Steam']];
   for (const [name, value] of rows) {
     const dd = el('dd'); dd.append(value); fields.append(el('dt', '', name), dd);
   }
@@ -74,7 +74,7 @@ export function createGameDialog(state, api, report = () => {}) {
     if (psnEntry?.trophies) aside.append(trophyGrades(psnEntry.trophies));
     const { fields, platforms } = renderMetadata(game, software, playstation);
     const about = el('div', 'detail-about');
-    info.append(fields, about, ...syncNotes(entry, psnEntry, playstation));
+    info.append(fields, about, ...(game.catalog_source === 'igdb' ? [el('p', 'helper', 'Added from IGDB. Reviews have no verified hours until a linked store supplies them.')] : syncNotes(entry, psnEntry, playstation)));
     void loadDetails(game, request, { platforms, fields, about });
     header.append(info); main.append(header); profile.append(aside, main);
     // The page opens on the game's own art, darkened into the room.
@@ -85,7 +85,7 @@ export function createGameDialog(state, api, report = () => {}) {
     const actions = el('div', 'detail-actions');
     actions.append(button(state.user ? 'Your review' : 'Write a review', 'button primary', () => { reviews.selectTab(1); reviews.controls[1].focus(); }));
     let store = null;
-    if (!playstation && !demo.on) {
+    if (game.steam_appid != null && !demo.on) {
       store = el('a', 'text-link', 'View on Steam'); store.href = `https://store.steampowered.com/app/${Number(game.steam_appid)}/`;
       store.target = '_blank'; store.rel = 'noopener noreferrer';
     }
@@ -127,7 +127,7 @@ export function createGameDialog(state, api, report = () => {}) {
   function factsRow(game, entry, psnEntry, software, playstation) {
     const facts = el('p', 'detail-facts');
     const genres = genresFor(game).slice(0, 3).join(', ');
-    const parts = [...(genres ? [genres] : []), software ? 'Software' : 'Game', ...(playstation ? ['PlayStation'] : ['PC', 'Steam'])];
+    const parts = [...(genres ? [genres] : []), software ? 'Software' : 'Game', ...(game.catalog_source === 'igdb' ? ['IGDB'] : playstation ? ['PlayStation'] : ['PC', 'Steam'])];
     for (const part of parts) facts.append(el('span', '', part));
     return facts;
   }
@@ -178,7 +178,7 @@ export function createGameDialog(state, api, report = () => {}) {
       fields.append(el('dt', '', 'Released'), el('dd', 'date', released));
     }
     if (details.summary) about.append(el('p', 'detail-summary', details.summary));
-    if (details.summary || details.platforms?.length || details.first_release_date) {
+    if (game.catalog_source === 'igdb' || details.summary || details.platforms?.length || details.first_release_date) {
       const credit = el('a', 'text-link detail-credit', 'Game details from IGDB');
       credit.href = 'https://www.igdb.com/'; credit.target = '_blank'; credit.rel = 'noopener noreferrer';
       about.append(credit);
