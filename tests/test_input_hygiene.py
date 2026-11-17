@@ -91,7 +91,7 @@ def test_latest_treats_a_hung_source_as_a_failure_and_releases_the_lock(monkeypa
 
     async def run():
         items = await news_router._latest(None, "steam", hang)
-        saved = news_router._memory[f"{news_router.PREFIX}:news:steam"]
+        saved = news_router._memory[f"{news_router.PREFIX}:news:steam:public-reviews-v1"]
         return items, saved, news_router._locks["steam"].locked()
 
     items, saved, locked = asyncio.run(run())
