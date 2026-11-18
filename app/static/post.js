@@ -34,6 +34,8 @@ export function badgeLabel(hours) {
 /** The count after a like or repost is toggled, never below zero. */
 export const nextLikeCount = (count, liked) => Math.max(0, (Number(count) || 0) + (liked ? 1 : -1));
 
+export const actionCountLabel = (label, count, noun) => `${label}, ${compactCount(count)} ${noun}${count >= 1000 ? ` (${integer(count)} total)` : ''}`;
+
 /** A quote with the same limits the server stores: collapsed whitespace, 280 characters, or '' for a plain repost. */
 export function quoteText(value) {
   const text = String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().replace(/\s+/g, ' ');
@@ -94,7 +96,7 @@ export function likeButton(review, { api, liked, signedIn, report = () => {} }) 
   const paint = () => {
     const on = liked.has(review.id);
     control.classList.toggle('on', on); control.setAttribute('aria-pressed', String(on));
-    control.setAttribute('aria-label', `${on ? 'Unlike' : 'Like'}, ${count} ${count === 1 ? 'like' : 'likes'}`);
+    control.setAttribute('aria-label', actionCountLabel(on ? 'Unlike' : 'Like', count, count === 1 ? 'like' : 'likes'));
     control.querySelector('.post-count').textContent = count > 0 ? compactCount(count) : '';
   };
   control.addEventListener('likes-changed', paint);
@@ -185,7 +187,7 @@ function repostControl(review, { api, reposted, signedIn, report }) {
     const on = reposted.has(review.id);
     control.classList.toggle('on', on); control.setAttribute('aria-pressed', String(on));
     const noun = count === 1 ? 'repost' : 'reposts';
-    control.setAttribute('aria-label', `${on ? 'Undo repost' : 'Repost'}, ${count} ${noun}`);
+    control.setAttribute('aria-label', actionCountLabel(on ? 'Undo repost' : 'Repost', count, noun));
     paintCount(control, count); plain.textContent = on ? 'Undo repost' : 'Repost';
   };
   const showLeft = () => { const n = 280 - quoteText(field.value).length; left.textContent = `${n} characters left`; };
@@ -270,7 +272,7 @@ export function actionBar(review, { api, liked, reposted, bookmarked, signedIn, 
     share);
   bar.setReplies = (count) => {
     reply.querySelector('.post-count').textContent = count > 0 ? compactCount(count) : '';
-    reply.setAttribute('aria-label', `Reply, ${count} ${count === 1 ? 'comment' : 'comments'}`);
+    reply.setAttribute('aria-label', actionCountLabel('Reply', count, count === 1 ? 'comment' : 'comments'));
   };
   return bar;
 }
@@ -278,6 +280,7 @@ export function actionBar(review, { api, liked, reposted, bookmarked, signedIn, 
 /** A round initial with a color picked from the player's ID, the same everywhere. */
 export function avatarFor(name, id, className = 'avatar', url = null) {
   const face = el('span', className, (name || '?').slice(0, 1).toLocaleUpperCase());
+  face.setAttribute('aria-hidden', 'true');
   if (url) {
     const image = el('img'); image.alt = ''; image.src = url; image.referrerPolicy = 'no-referrer';
     image.addEventListener('error', () => image.remove(), { once: true }); face.append(image);

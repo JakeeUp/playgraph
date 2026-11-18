@@ -44,13 +44,13 @@ export function barList(rows) {
     const hit = el(row.onSelect ? 'button' : 'div', 'bar-hit');
     if (row.onSelect) { hit.type = 'button'; hit.addEventListener('click', row.onSelect); }
     else hit.tabIndex = 0;
-    hit.setAttribute('aria-label', row.name ?? `${row.label}, ${row.text}, ${row.detail}`);
     const track = el('span', 'bar-track');
     const bar = el('span', 'bar');
     bar.style.setProperty('--fraction', String(barFraction(row.value, max)));
     track.append(bar, numbered('span', 'bar-value', row.text));
-    if (row.lead) hit.append(row.lead);
+    if (row.lead) { row.lead.setAttribute('aria-hidden', 'true'); hit.append(row.lead); }
     hit.append(el('span', 'bar-label', row.label), track);
+    if (row.detail) hit.append(el('span', 'sr-only', row.detail));
     for (const [event, action] of [['pointerenter', () => showTip(hit, row)], ['focus', () => showTip(hit, row)],
       ['pointerleave', hideTip], ['blur', hideTip]]) hit.addEventListener(event, action);
     const item = el('li', 'bar-row'); item.append(hit); list.append(item);
