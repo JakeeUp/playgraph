@@ -105,6 +105,25 @@
 ::selection { background:rgba(255,122,0,0.4); color:var(--ink); }
 
 html { background:var(--paper); scroll-padding-block:calc(var(--sticky-header-size,var(--header-h)) + 16px) 80px; }
+
+/* Scrollbars: a slim slate thumb on the dark page that warms to the accent on
+   hover. Chrome, Edge and Safari draw the ::-webkit-scrollbar rules, which
+   allow the hover color; they ignore them once scrollbar-color is set, so that
+   property is only given to Firefox. Forced-colors mode keeps the system bar. */
+@media not (forced-colors:active) {
+  ::-webkit-scrollbar { width:12px; height:12px; }
+  ::-webkit-scrollbar-track { background:var(--paper); }
+  ::-webkit-scrollbar-corner { background:var(--paper); }
+  ::-webkit-scrollbar-thumb { background:var(--rule-strong); border:3px solid var(--paper); border-radius:999px; min-height:40px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--accent); }
+  ::-webkit-scrollbar-thumb:active { background:#FF9A3D; }
+  dialog::-webkit-scrollbar-track, dialog::-webkit-scrollbar-corner { background:var(--surface); }
+  dialog::-webkit-scrollbar-thumb { border-color:var(--surface); }
+  @supports (-moz-appearance:none) {
+    html { scrollbar-width:thin; scrollbar-color:var(--rule-strong) var(--paper); }
+    dialog { scrollbar-width:thin; scrollbar-color:var(--rule-strong) var(--surface); }
+  }
+}
 body {
   margin:0; background:var(--paper); color:var(--ink-2);
   font-family:var(--font-sans); font-size:var(--text-body); line-height:1.55;
