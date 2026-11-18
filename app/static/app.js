@@ -1,6 +1,6 @@
 import { genresFor, hours, integer, achievementPercent, selectLibrary, summarize, genreBreakdown,
   splitBySource, playStationSummary, playtimeLabel, plural, hoursContext } from './library.js';
-import { $, el, button, steamLink, demo, cover, coverWall, aborted, numbered, setNumbers, timeLabel, skeletonGrid, emptyState,
+import { $, el, button, steamLink, demo, cover, coverWall, backdropGames, aborted, numbered, setNumbers, timeLabel, skeletonGrid, emptyState,
   stamp, hoursBar, loadingState } from './dom.js';
 import { starDisplay } from './rating.js';
 import { createGameDialog } from './game-detail.js';
@@ -173,7 +173,7 @@ function renderShell() {
   // The welcome hero has its own headline, so the plain page heading steps aside.
   // A profile carries its own heading, the player's name.
   $('.page-heading').hidden = pageKey() === 'welcome' || isProfile;
-  if ($('#welcome').hidden === false) void loadFrontReviews();
+  if ($('#welcome').hidden === false) { fillWalls(); void loadFrontReviews(); }
   // Your own shelf is named for you: it is a library to show off.
   const first = state.user?.display_name?.trim().split(/\s+/)[0];
   $('#page-title').textContent = own && first && pageKey() === 'library' && !software ? `${first}’s library` : copy.title;
@@ -322,8 +322,11 @@ function renderInsights() {
 // Your library heading sits on a tilted wall of your own covers, most played
 // first, drifting slowly behind your name.
 function setHero(games) {
-  const list = ['library', 'stats'].includes(state.view) ? (games || []).filter(Boolean).slice(0, 27) : [];
-  const heading = $('.page-heading'); const key = list.map((game) => game.id).join(',');
+  const publicPage = ['explore', 'feed', 'news'].includes(state.view);
+  const list = publicPage ? backdropGames(state.catalog)
+    : ['library', 'stats'].includes(state.view) ? (games || []).filter(Boolean).slice(0, 27) : [];
+  const heading = $('.page-heading'); const key = list.map((game) => game.id ?? game.steam_appid).join(',');
+  heading.classList.toggle('public-backdrop', publicPage);
   if (heading.dataset.hero === key) return;
   heading.dataset.hero = key; heading.querySelector('.cover-wall')?.remove();
   heading.classList.toggle('has-hero', Boolean(key));
@@ -331,8 +334,8 @@ function setHero(games) {
 }
 // The front door and the closing band share one wall built from the catalog.
 function fillWalls() {
-  const games = state.catalog.slice(0, 27); const key = games.map((game) => game.id).join(',');
-  if (!key || $('#welcome').dataset.wall === key) return;
+  const games = backdropGames(state.catalog); const key = games.map((game) => game.id ?? game.steam_appid).join(',');
+  if ($('#welcome').dataset.wall === key) return;
   $('#welcome').dataset.wall = key;
   $('#welcome-wall').replaceChildren(coverWall(games));
   $('#cta-wall').replaceChildren(coverWall([...games].reverse(), { rows: 2 }));
@@ -463,7 +466,7 @@ async function loadCatalog(append = false) {
     const data = await api(`/games?kind=${state.view === 'software' ? 'software' : 'game'}&limit=48&offset=${offset}&q=${encodeURIComponent(state.query)}`);
     if (request !== state.catalogRequest || generation !== state.generation || privateView()) return;
     state.catalog = append ? state.catalog.concat(data.games) : data.games; state.total = data.total; renderCollection();
-    if (!append && state.view === 'library') fillWalls();
+    if (!append) { if (!$('#welcome').hidden) fillWalls(); setHero(null); }
   } catch (error) {
     if (request !== state.catalogRequest || aborted(error)) return;
     if (!append) {

@@ -122,6 +122,16 @@ export function heroArt(game) {
 // The signature: a tilted wall of covers drifting slowly behind a heading.
 // Each row holds its covers twice, so sliding it by half its width loops
 // without a seam; alternate rows run the other way. Decorative only.
+const BACKDROP_GAMES = [
+  [1145360, 'Hades'], [1245620, 'ELDEN RING'], [1086940, "Baldur's Gate 3"],
+  [367520, 'Hollow Knight'], [413150, 'Stardew Valley'], [504230, 'Celeste'],
+  [620, 'Portal 2'], [753640, 'Outer Wilds'], [1091500, 'Cyberpunk 2077'],
+  [292030, 'The Witcher 3: Wild Hunt'], [2379780, 'Balatro'], [427520, 'Factorio'],
+  [588650, 'Dead Cells'],
+].map(([steam_appid, name]) => ({ steam_appid, name }));
+// Artwork must not turn an empty catalog into invented community activity.
+export const backdropGames = (games) => (games.length ? games : BACKDROP_GAMES).slice(0, 27);
+
 export function coverWall(games, { rows = 3, perRow = 9 } = {}) {
   const wall = el('div', 'cover-wall'); wall.setAttribute('aria-hidden', 'true');
   const pool = games.filter(Boolean); if (!pool.length) return wall;

@@ -298,6 +298,8 @@ button.text-link:hover { color:var(--accent-hover); text-decoration:underline; t
 .page-heading.has-hero { margin-top:calc(var(--s-7) * -1); padding-top:clamp(96px,14vw,180px); padding-bottom:calc(var(--slant) + var(--s-5)); }
 .page-heading.has-hero h1 { font-size:clamp(44px,6.4vw,84px); text-shadow:0 2px 30px rgba(0,0,0,0.7); }
 .page-heading.has-hero .cover-wall { inset:-60% -10% -60% 30%; }
+.page-heading.public-backdrop { padding-top:var(--s-7); padding-bottom:calc(var(--slant) + var(--s-5)); }
+.page-heading.public-backdrop h1 { font-size:var(--text-h1); }
 /* The numbers sit low in the band, so the bottom fades harder there. */
 .page-heading.has-hero::after {
   background:
