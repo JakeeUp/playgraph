@@ -63,7 +63,28 @@ def steam(monkeypatch):
 
     monkeypatch.setattr(steam_news.httpx, "AsyncClient", lambda **kwargs: real_client(transport=httpx.MockTransport(handle), **kwargs))
     monkeypatch.setattr(news_router, "_public_games", lambda limit: [(730, "Counter-Strike 2"), (39210, "FINAL FANTASY XIV Online")])
+    monkeypatch.setattr(news_router, "STARTER_GAMES", ())
     return sent, posts, status
+
+
+def test_empty_community_still_gets_real_starter_headlines(client, steam, monkeypatch):
+    sent, posts, _ = steam
+    monkeypatch.setattr(settings, "apitube_api_key", SecretStr(""))
+    monkeypatch.setattr(news_router, "_public_games", lambda limit: [])
+    monkeypatch.setattr(news_router, "STARTER_GAMES", ((730, "Counter-Strike 2"),))
+    posts[730] = [post("Real developer announcement")]
+    body = client.get("/news").json()
+    assert body["items"][0]["title"] == "Real developer announcement"
+    assert len(sent) == 1
+
+
+def test_starter_news_deduplicates_public_games_and_bounds_requests(client, steam, monkeypatch):
+    sent, _, _ = steam
+    monkeypatch.setattr(settings, "apitube_api_key", SecretStr(""))
+    monkeypatch.setattr(news_router, "STARTER_GAMES", ((730, "Duplicate"), (620, "Portal 2")))
+    monkeypatch.setattr(news_router, "STEAM_GAMES", 2)
+    assert client.get("/news").status_code == 200
+    assert sorted(int(request.url.params["appid"]) for request in sent) == [730, 39210]
 
 
 def post(title, seconds_ago=3600, contents="", url=None):

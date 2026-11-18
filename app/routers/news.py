@@ -5,7 +5,7 @@ Two sources, each refreshed on its own clock and shared by every visitor:
 - APITube allows 100 requests a day on the free plan, so its headlines are
   refreshed at most every two hours.
 - Steam announcements cost nothing but one request per game, so they are
-  refreshed every half hour, for games reviewed by public profiles.
+  refreshed every half hour, for public reviews and editorial starter games.
 
 Each source's last good result is saved in Redis so an API restart does not
 spend a request, and when a source fails its saved copy is served while the
@@ -28,6 +28,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
 
 from app.cache import PREFIX
+from app.catalog_starters import STARTER_GAMES
 from app.database import SessionLocal
 from app.models import Game, Review, User
 from app.security import app_store
@@ -73,7 +74,7 @@ async def _write(store, key: str, saved: dict) -> None:
 async def _latest(store, name: str, fetch: Callable[[], Awaitable[list]]) -> list | None:
     """The source's saved items, refreshed first when due. None if it has never succeeded."""
     # Retire Steam results that were selected from private library activity.
-    key = f"{PREFIX}:news:{name}" + (":public-reviews-v1" if name == "steam" else "")
+    key = f"{PREFIX}:news:{name}" + (":public-curated-v2" if name == "steam" else "")
     async with _locks[name]:
         saved, now = await _read(store, key), time.time()
         if now - saved.get("fetched_at", 0) >= REFRESH[name] and now - saved.get("failed_at", 0) >= RETRY:
@@ -101,7 +102,11 @@ def _public_games(limit: int) -> list[tuple[int, str]]:
 
 
 async def _steam() -> list[dict]:
-    return await steam_news.fetch(await run_in_threadpool(_public_games, STEAM_GAMES))
+    public = await run_in_threadpool(_public_games, STEAM_GAMES)
+    games = dict(public)
+    for appid, name in STARTER_GAMES:
+        games.setdefault(appid, name)
+    return await steam_news.fetch(list(games.items())[:STEAM_GAMES])
 
 
 async def _apitube() -> list[dict]:
