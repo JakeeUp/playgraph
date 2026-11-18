@@ -381,7 +381,12 @@
       } else {
         rows.sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id);
       }
-      return respond(200, { total: rows.length, games: page(rows, params, 48) });
+        const after = Number(params.get('after')) || 0;
+        const start = after ? rows.findIndex((row) => row.id === after) + 1 : Number(params.get('offset')) || 0;
+        const end = start + (Number(params.get('limit')) || 48);
+        const selected = rows.slice(start, end);
+        return respond(200, { total: rows.length, games: selected,
+          next_after: end < rows.length ? selected.at(-1)?.id ?? null : null });
     }],
     ['GET', /^\/games\/(\d+)$/, ([id]) => game(+id) ? respond(200, { summary: null, platforms: [], ...game(+id) }) : missing('Game')],
     ['GET', /^\/games\/(\d+)\/reviews$/, ([id], params) => {

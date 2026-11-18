@@ -46,6 +46,16 @@ test('a PlayStation game keeps the title placeholder and never requests Steam ar
   assert.equal(frame.children[0]['aria-hidden'], 'true');
 });
 
+test('missing Steam art tries the real IGDB cover before the store header', async () => {
+  const { cover } = await import('../app/static/dom.js');
+  const fallback = 'https://images.igdb.com/igdb/image/upload/t_cover_big/co123.jpg';
+  const frame = cover({ name: 'Old release', steam_appid: 620, cover_url: fallback });
+  const img = frame.children.find((node) => node.tagName === 'IMG');
+  img.listeners.error(); assert.equal(img.src, fallback);
+  img.listeners.error(); assert.match(img.src, /\/620\/header\.jpg$/);
+  img.listeners.error(); assert.equal(img.removed, true);
+});
+
 test('IGDB-only search results and games use IGDB art without inventing Steam art', async () => {
   const { cover, heroArt } = await import('../app/static/dom.js');
   const game = { name: 'IGDB game', steam_appid: null, catalog_source: 'igdb',
@@ -141,6 +151,30 @@ test('the cover wall is decorative rows that hold each set of covers twice', asy
     assert.deepEqual(titles.slice(4), titles.slice(0, 4));
   }
   assert.equal(coverWall([]).children.length, 0);
+});
+
+test('empty public backdrops have game art without inventing catalog rows or activity', async () => {
+  const { backdropGames, coverWall } = await import('../app/static/dom.js');
+  const catalog = [];
+  const games = backdropGames(catalog);
+  assert.deepEqual(catalog, []);
+  assert.ok(games.length >= 9);
+  assert.ok(games.every((game) => Object.keys(game).sort().join(',') === 'name,steam_appid'));
+  assert.ok(games.every((game) => Number.isInteger(game.steam_appid) && game.steam_appid > 0));
+  const wall = coverWall(games);
+  assert.equal(wall['aria-hidden'], 'true');
+  assert.equal(wall.children.length, 3);
+  games.pop();
+  assert.equal(backdropGames([]).length, 13);
+});
+
+test('real public games replace decorative fallback art without changing their catalog', async () => {
+  const { backdropGames } = await import('../app/static/dom.js');
+  const catalog = [{ id: 1, name: 'A real imported game', steam_appid: null }];
+  assert.deepEqual(backdropGames(catalog), catalog);
+  const many = Array.from({ length: 40 }, (_, id) => ({ id, name: `Game ${id}` }));
+  assert.equal(backdropGames(many).length, 27);
+  assert.equal(many.length, 40);
 });
 
 test('the verified stamp and hours bar carry their numbers', async () => {

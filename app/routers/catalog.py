@@ -4,7 +4,7 @@ import json
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
@@ -16,7 +16,7 @@ from app.database import get_db
 from app.deps import get_current_user, get_optional_user
 from app.igdb_catalog import apply_metadata
 from app.models import Game, GameExternalId, GamePlatform, Review, User, utcnow
-from app.routers.parameters import MAX_OFFSET, ResourceId
+from app.routers.parameters import MAX_OFFSET, MAX_RESOURCE_ID, ResourceId
 from app.schemas import GameDetailOut, GameOut
 from app.security import app_store, rate_limit, redis_call, state_key
 from app.services.igdb import IGDBClient, IGDBError, IGDBRateLimitedError, cover_url, search_text
@@ -123,10 +123,13 @@ async def catalog(
     kind: Literal["game", "software", "all"] = "game",
     limit: int = Query(48, ge=1, le=100),
     offset: int = Query(0, ge=0, le=MAX_OFFSET),
+    after: int | None = Query(None, ge=1, le=MAX_RESOURCE_ID),
     sort: Literal["name", "newest", "reviewed"] = "name",
     platform: str = Query("", pattern=r"^([a-z0-9][a-z0-9-]{0,60})?$"),
     db: Session = Depends(get_db),
 ):
+    if after is not None and (offset or sort != "name"):
+        raise HTTPException(422, "Title cursors cannot be combined with offsets or another sort")
     # Every order here uses public data only. Ranking by how many people own
     # or play a game would, with a handful of players, publish one person's
     # private library, so there is deliberately no "most played" order.
@@ -139,6 +142,11 @@ async def catalog(
         if platform:
             query = query.filter(Game.platforms.any(GamePlatform.slug == platform))
         total = query.count()
+        if after is not None:
+            anchor = db.get(Game, after)
+            if anchor is None:
+                raise HTTPException(400, "Catalog changed. Start again from the first page.")
+            query = query.filter(or_(Game.name > anchor.name, (Game.name == anchor.name) & (Game.id > anchor.id)))
         if sort == "newest":
             order = (Game.first_release_date.is_(None), Game.first_release_date.desc(), Game.name, Game.id)
         elif sort == "reviewed":
@@ -147,6 +155,8 @@ async def catalog(
             order = (reviews.desc(), Game.name, Game.id)
         else:
             order = (Game.name, Game.id)
-        games = query.order_by(*order).offset(offset).limit(limit).all()
-        return {"total": total, "games": [GameOut.model_validate(game) for game in games]}
-    return await cached(request, CATALOG, ("games", kind, limit, offset, q.strip(), sort, platform), 60, load)
+        games = query.order_by(*order).offset(offset).limit(limit + 1).all()
+        next_after = games[limit - 1].id if sort == "name" and len(games) > limit else None
+        return {"total": total, "games": [GameOut.model_validate(game) for game in games[:limit]],
+                "next_after": next_after}
+    return await cached(request, CATALOG, ("games", kind, limit, offset, q.strip(), sort, platform, after), 60, load)

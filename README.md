@@ -155,6 +155,34 @@ python -m http.server -d _site 8800
 
 GitHub Pages publishes it from `main` through `.github/workflows/demo.yml`.
 
+### A larger game catalog
+
+The public catalog is separate from player libraries, reviews and verified hours.
+After a backed-up migration through `0017_catalog_sync`, an operator can set
+`IGDB_CATALOG_SYNC_ENABLED=true` alongside the existing IGDB credentials and
+restart the worker. It is off by default and never runs in demo mode.
+
+The single worker imports up to five 500-game pages per minute, using exact
+IGDB and Steam identities. Each page commits its metadata and cursor together.
+Interrupted jobs resume from that cursor. Existing store conflicts become
+review proposals, never automatic merges. No users or activity are fabricated.
+
+After the initial scan, six-hourly windows fetch new and changed eligible games.
+The same main-game, remake, remaster, expanded-game and port filters as search
+exclude DLC and editions. Metadata is stored locally; images stay on provider
+CDNs. SQLite imports stop before free disk space falls below 256 MiB.
+
+```bash
+python -m app.catalog_sync --status
+python -m app.catalog_sync
+```
+
+The second command queues one bounded batch rather than bypassing the worker.
+Explore uses title cursors, so browsing can continue past 100,000 games without
+raising public offset limits. This does not replace the reviewed store-merge
+workflow or remove games when the provider deletes or reclassifies them.
+Keep the existing IGDB attribution and commercial-partnership launch gate.
+
 ## Tests
 
 Node.js is needed for the browser-module checks.

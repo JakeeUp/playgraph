@@ -372,6 +372,41 @@ class IGDBClient:
         rows = await self.query("games", f"fields {IMPORT_FIELDS}; where id = {int(game_id)} & {IMPORT_WHERE}; limit 1;")
         return next((game for row in rows if (game := importable_game(row)) and game["igdb_id"] == game_id), None)
 
+    async def catalog_page(self, *, after_id: int, updated_after: int, window_end: int) -> dict:
+        rows = await self.query("games", (
+            f"fields {IMPORT_FIELDS},updated_at; where {IMPORT_WHERE} & id > {int(after_id)}"
+            f" & updated_at >= {int(updated_after)} & updated_at <= {int(window_end)};"
+            f" sort id asc; limit {PAGE_LIMIT};"))
+        ids = [row.get("id") if isinstance(row, dict) else None for row in rows]
+        if any(type(value) is not int or value <= after_id for value in ids) or ids != sorted(set(ids)):
+            raise IGDBError("IGDB returned an invalid catalog cursor")
+        return {"games": [game for row in rows if (game := importable_game(row))],
+                "after_id": ids[-1] if ids else after_id, "complete": len(rows) < PAGE_LIMIT}
+
+    async def steam_ids(self, game_ids, source: int) -> dict[int, list[int]]:
+        """Exact Steam identities prevent a bulk import duplicating an existing library game."""
+        wanted = set(game_ids)
+        if not wanted:
+            return {}
+        found: dict[int, list[int]] = {}
+        after_id = 0
+        while True:
+            rows = await self.query("external_games", (
+                f"fields id,uid,game; where external_game_source = {int(source)}"
+                f" & game = ({_id_list(wanted)}) & id > {after_id}; sort id asc; limit {PAGE_LIMIT};"))
+            ids = [row.get("id") if isinstance(row, dict) else None for row in rows]
+            if any(type(value) is not int or value <= after_id for value in ids) or ids != sorted(set(ids)):
+                raise IGDBError("IGDB returned an invalid store cursor")
+            for row in rows:
+                uid = row.get("uid")
+                if row.get("game") in wanted and isinstance(uid, str) and uid.isascii() and uid.isdigit():
+                    appid = int(uid)
+                    if 0 < appid <= 2147483647:
+                        found.setdefault(row["game"], []).append(appid)
+            if len(rows) < PAGE_LIMIT:
+                return {key: sorted(set(values)) for key, values in found.items()}
+            after_id = ids[-1]
+
 
 def _retry_after(response: httpx.Response, attempt: int) -> float:
     try:

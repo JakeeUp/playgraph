@@ -47,6 +47,23 @@ test('an IGDB-only game is not a PlayStation import or a verified review', () =>
   assert.equal(reviewVerification({ verified_source: null, verified_playtime_minutes: null, verified_achievement_pct: null }), null);
 });
 
+test('demo catalog follows title cursors instead of deep offsets', async () => {
+  const games = Array.from({ length: 105 }, (_, index) => ({ id: index + 1,
+    name: `Game ${String(index + 1).padStart(3, '0')}`, content_kind: 'game' }));
+  const context = vm.createContext({ window: { PLAYGRAPH_DEMO: { users: [{ id: 1 }], games, library: [], reviews: [], comments: [] },
+    fetch: () => { throw new Error('Unexpected network'); } },
+    sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    location: { href: 'http://localhost/', origin: 'http://localhost' },
+    document: { addEventListener: () => {} }, URL, Response, setTimeout: (fn) => fn() });
+  vm.runInContext(await readFile(new URL('../demo/demo-api.js', import.meta.url), 'utf8'), context);
+  const first = await (await context.window.fetch('/games?limit=48')).json();
+  assert.equal(first.total, 105); assert.equal(first.next_after, 48);
+  const second = await (await context.window.fetch(`/games?limit=48&after=${first.next_after}`)).json();
+  assert.equal(second.games[0].id, 49); assert.equal(second.next_after, 96);
+  const last = await (await context.window.fetch(`/games?limit=48&after=${second.next_after}`)).json();
+  assert.equal(last.games.length, 9); assert.equal(last.next_after, null);
+});
+
 test('search errors connect before display and stale searches cannot restore results', async () => {
   class Node {
     constructor() { this.children = []; this.listeners = {}; this.hidden = false; this.isConnected = false; this.value = 'Moonlit'; }

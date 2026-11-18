@@ -22,6 +22,7 @@ import sys
 from datetime import timedelta
 
 from sqlalchemy import or_
+from sqlalchemy.orm import selectinload
 
 from app.cache import CATALOG, invalidate
 from app.config import settings
@@ -35,10 +36,11 @@ JOB_ID = "igdb-refresh"
 REFRESH_DAYS = 30
 
 
-def _igdb_owners(db) -> dict[int, int]:
-    """{IGDB game id: PlayGraph game id} for every mapped game."""
+def _igdb_owners(db, ids) -> dict[int, int]:
+    """Only this batch's identities belong in memory, not the full catalog."""
     return {int(external_id): game_id for game_id, external_id in
-            db.query(GameExternalId.game_id, GameExternalId.external_id).filter_by(provider=PROVIDER)}
+            db.query(GameExternalId.game_id, GameExternalId.external_id).filter(
+                GameExternalId.provider == PROVIDER, GameExternalId.external_id.in_([str(value) for value in ids]))}
 
 
 def _propose(db, game_id: int, igdb_id: int, reason: str) -> bool:
@@ -51,12 +53,13 @@ def _propose(db, game_id: int, igdb_id: int, reason: str) -> bool:
 
 def _unmapped_store_ids(db, store: str) -> list[tuple[int, str]]:
     """(game id, store uid) for games with no IGDB ID yet, oldest game first."""
-    mapped = {game_id for (game_id,) in db.query(GameExternalId.game_id).filter_by(provider=PROVIDER)}
+    mapped = db.query(GameExternalId.game_id).filter_by(provider=PROVIDER)
     if store == "steam":
-        rows = db.query(Game.id, Game.steam_appid).filter(Game.steam_appid.is_not(None))
+        rows = db.query(Game.id, Game.steam_appid).filter(Game.steam_appid.is_not(None), ~Game.id.in_(mapped))
     else:
-        rows = db.query(GameExternalId.game_id, GameExternalId.external_id).filter_by(provider="psn_concept")
-    return sorted((game_id, str(uid)) for game_id, uid in rows if game_id not in mapped)
+        rows = db.query(GameExternalId.game_id, GameExternalId.external_id).filter(
+            GameExternalId.provider == "psn_concept", ~GameExternalId.game_id.in_(mapped))
+    return sorted((game_id, str(uid)) for game_id, uid in rows)
 
 
 async def map_store_games(db, client: igdb.IGDBClient, sources: dict[str, int], store: str) -> dict:
@@ -71,7 +74,7 @@ async def map_store_games(db, client: igdb.IGDBClient, sources: dict[str, int], 
     if not candidates:
         return empty
     matches = await client.external_games(source, [uid for _, uid in candidates])
-    owners = _igdb_owners(db)
+    owners = _igdb_owners(db, matches.values())
     mapped = proposed = 0
     for game_id, uid in candidates:
         igdb_id = matches.get(uid)
@@ -120,20 +123,25 @@ async def refresh_metadata(db, client: igdb.IGDBClient, *, force: bool = False) 
     proposed = (db.query(Game, IgdbMatchCandidate.igdb_id)
                 .join(IgdbMatchCandidate, IgdbMatchCandidate.game_id == Game.id)
                 .filter(IgdbMatchCandidate.reason == "igdb_taken", IgdbMatchCandidate.status == "pending"))
-    by_igdb: dict[int, list[Game]] = {}
+    refreshed = 0
     for query in (mapped, proposed):
         if not force:
             query = query.filter(or_(Game.igdb_refreshed_at.is_(None), Game.igdb_refreshed_at < cutoff))
-        for game, igdb_id in query:
-            by_igdb.setdefault(int(igdb_id), []).append(game)
-    if not by_igdb:
-        return 0
-    refreshed = 0
-    for details in await client.games(by_igdb):
-        for game in by_igdb.get(details["igdb_id"], []):
-            apply_metadata(db, game, details)
-            refreshed += 1
-    db.commit()
+        after_id = 0
+        while rows := (query.filter(Game.id > after_id).order_by(Game.id).limit(500)
+                       .options(selectinload(Game.platforms)).all()):
+            by_igdb: dict[int, list[Game]] = {}
+            for game, igdb_id in rows:
+                by_igdb.setdefault(int(igdb_id), []).append(game)
+            for details in await client.games(by_igdb):
+                for game in by_igdb.get(details["igdb_id"], []):
+                    apply_metadata(db, game, details)
+                    refreshed += 1
+            after_id = rows[-1][0].id
+            db.commit()
+            # A library sync must not queue a full-catalog refresh ahead of other players.
+            if not force:
+                break
     return refreshed
 
 
