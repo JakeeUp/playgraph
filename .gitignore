@@ -43,4 +43,5 @@ Thumbs.db
 
 # Demo site build output (demo/build.py)
 /_site/
+/mocktest/
 beta-secrets*.env
