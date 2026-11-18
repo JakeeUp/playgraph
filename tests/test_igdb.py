@@ -207,6 +207,20 @@ def test_import_rejects_editions_wrong_ids_and_missing_types():
     assert run(make_client(fake).import_game(1942)) is None
 
 
+def test_import_skips_erotic_themes_excluded_keywords_and_restricted_pages():
+    assert igdb.importable_game(RAW_GAME)["igdb_id"] == 1942
+    kept = {**RAW_GAME, "themes": [1], "keywords": [{"slug": "souls-like"}]}
+    assert igdb.importable_game(kept)["name"] == RAW_GAME["name"]
+    blocked = [
+        {**RAW_GAME, "themes": [igdb.EROTIC_THEME_ID]},
+        {**RAW_GAME, "themes": [{"id": igdb.EROTIC_THEME_ID, "slug": "erotic"}]},
+        {**RAW_GAME, "keywords": [{"id": 1, "slug": "eroge"}]},
+        {**RAW_GAME, "keywords": [{"id": 2, "slug": "DIGB"}]},
+        {**RAW_GAME, "summary": "This content violates our content policy."},
+    ]
+    assert all(igdb.importable_game(raw) is None for raw in blocked)
+
+
 def test_api_and_worker_share_three_expiring_provider_slots():
     fake = FakeIGDB()
     fake.routes['games'] = httpx.Response(200, json=[])

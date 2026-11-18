@@ -53,8 +53,15 @@ GAME_FIELDS = ("name,slug,summary,first_release_date,cover.image_id,genres.name,
                "platforms.slug,platforms.name,platforms.abbreviation,artworks.image_id,screenshots.image_id")
 # Checked against /game_types on 2026-11-16. Names avoid depending on enum IDs.
 IMPORT_TYPES = ("Main Game", "Remake", "Remaster", "Expanded Game", "Port")
-IMPORT_FIELDS = GAME_FIELDS + ",game_type.type,version_parent"
-IMPORT_WHERE = 'version_parent = null & game_type.type = (' + ','.join(f'"{name}"' for name in IMPORT_TYPES) + ')'
+IMPORT_FIELDS = GAME_FIELDS + ",game_type.type,version_parent,themes,keywords.slug"
+# IGDB's documented erotic theme. Backloggd hides that theme and the eroge
+# keyword from browse, and leaves out pages IGDB restricts with the digb keyword.
+EROTIC_THEME_ID = 42
+EXCLUDED_KEYWORD_SLUGS = frozenset({"digb", "eroge"})
+RESTRICTED_SUMMARY = "violates our content policy"
+IMPORT_WHERE = ('version_parent = null & game_type.type = ('
+                + ','.join(f'"{name}"' for name in IMPORT_TYPES)
+                + f') & themes != ({EROTIC_THEME_ID})')
 IMAGE_ID_RE = re.compile(r"[a-z0-9]{1,40}")
 SLUG_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,60}")
 # Control characters and the Apicalypse string delimiters never reach a query.
@@ -146,10 +153,23 @@ def normalize_game(raw: dict) -> dict | None:
     }
 
 
+def _excluded(raw: dict) -> bool:
+    for theme in raw.get("themes") or []:
+        if theme == EROTIC_THEME_ID or (isinstance(theme, dict) and (
+                theme.get("id") == EROTIC_THEME_ID or str(theme.get("slug") or "").casefold() == "erotic")):
+            return True
+    for keyword in raw.get("keywords") or []:
+        slug = keyword.get("slug") if isinstance(keyword, dict) else None
+        if isinstance(slug, str) and slug.casefold() in EXCLUDED_KEYWORD_SLUGS:
+            return True
+    summary = raw.get("summary")
+    return isinstance(summary, str) and RESTRICTED_SUMMARY in summary.casefold()
+
+
 def importable_game(raw: dict) -> dict | None:
     if (not isinstance(raw, dict) or raw.get("version_parent") is not None
             or not isinstance(raw.get("game_type"), dict)
-            or raw["game_type"].get("type") not in IMPORT_TYPES):
+            or raw["game_type"].get("type") not in IMPORT_TYPES or _excluded(raw)):
         return None
     return normalize_game(raw)
 

@@ -323,9 +323,16 @@ function renderInsights() {
 }
 // Your library heading sits on a tilted wall of your own covers, most played
 // first, drifting slowly behind your name.
+// A signed-in wall uses that account's most played games. Signed out, it stays
+// the fixed top-rated Steam set instead of whatever the catalog lists first.
+function backdropList() {
+  const own = state.user ? [...gameLibrary()].sort((a, b) => (b.playtime_minutes || 0) - (a.playtime_minutes || 0))
+    .map((entry) => entry.game).filter(Boolean) : [];
+  return (own.length ? own : backdropGames()).slice(0, 27);
+}
 function setHero(games) {
   const publicPage = ['explore', 'feed', 'news'].includes(state.view);
-  const list = publicPage ? backdropGames(state.catalog)
+  const list = publicPage ? backdropList()
     : ['library', 'stats'].includes(state.view) ? (games || []).filter(Boolean).slice(0, 27) : [];
   const heading = $('.page-heading'); const key = list.map((game) => game.id ?? game.steam_appid).join(',');
   heading.classList.toggle('public-backdrop', publicPage);
@@ -334,9 +341,9 @@ function setHero(games) {
   heading.classList.toggle('has-hero', Boolean(key));
   if (key) heading.prepend(coverWall(list));
 }
-// The front door and the closing band share one wall built from the catalog.
+// The front door and the closing band share the signed-out wall.
 function fillWalls() {
-  const games = backdropGames(state.catalog); const key = games.map((game) => game.id ?? game.steam_appid).join(',');
+  const games = backdropGames(); const key = games.map((game) => game.id ?? game.steam_appid).join(',');
   if ($('#welcome').dataset.wall === key) return;
   $('#welcome').dataset.wall = key;
   $('#welcome-wall').replaceChildren(coverWall(games));

@@ -153,28 +153,23 @@ test('the cover wall is decorative rows that hold each set of covers twice', asy
   assert.equal(coverWall([]).children.length, 0);
 });
 
-test('empty public backdrops have game art without inventing catalog rows or activity', async () => {
+test('signed-out backdrops stay the top-rated Steam set', async () => {
   const { backdropGames, coverWall } = await import('../app/static/dom.js');
-  const catalog = [];
-  const games = backdropGames(catalog);
-  assert.deepEqual(catalog, []);
-  assert.ok(games.length >= 9);
+  const games = backdropGames();
+  assert.equal(games.length, 27);
   assert.ok(games.every((game) => Object.keys(game).sort().join(',') === 'name,steam_appid'));
   assert.ok(games.every((game) => Number.isInteger(game.steam_appid) && game.steam_appid > 0));
+  assert.equal(games[0].name, 'Hades');
+  assert.equal(games[1].steam_appid, 1245620);
   const wall = coverWall(games);
   assert.equal(wall['aria-hidden'], 'true');
   assert.equal(wall.children.length, 3);
   games.pop();
-  assert.equal(backdropGames([]).length, 13);
-});
-
-test('real public games replace decorative fallback art without changing their catalog', async () => {
-  const { backdropGames } = await import('../app/static/dom.js');
+  assert.equal(backdropGames().length, 27);
+  // The catalog is alphabetical. It must not replace this set.
   const catalog = [{ id: 1, name: 'A real imported game', steam_appid: null }];
-  assert.deepEqual(backdropGames(catalog), catalog);
-  const many = Array.from({ length: 40 }, (_, id) => ({ id, name: `Game ${id}` }));
-  assert.equal(backdropGames(many).length, 27);
-  assert.equal(many.length, 40);
+  assert.equal(backdropGames()[0].name, 'Hades');
+  assert.equal(catalog.length, 1);
 });
 
 test('the verified stamp and hours bar carry their numbers', async () => {

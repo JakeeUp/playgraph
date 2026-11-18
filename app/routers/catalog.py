@@ -19,7 +19,7 @@ from app.models import Game, GameExternalId, GamePlatform, Review, User, utcnow
 from app.routers.parameters import MAX_OFFSET, MAX_RESOURCE_ID, ResourceId
 from app.schemas import GameDetailOut, GameOut
 from app.security import app_store, rate_limit, redis_call, state_key
-from app.services.igdb import IGDBClient, IGDBError, IGDBRateLimitedError, cover_url, search_text
+from app.services.igdb import IGDBClient, IGDBError, IGDBRateLimitedError, RESTRICTED_SUMMARY, cover_url, search_text
 
 router = APIRouter(tags=["games"])
 
@@ -44,6 +44,17 @@ def imports_enabled():
         raise HTTPException(status_code=404, detail="Not found")
 
 
+def browseable(query):
+    # IGDB keeps a restricted page as a title plus this sentence. Those pages
+    # stay out of search and the catalog. A direct library link is unchanged.
+    hidden = Game.summary.ilike("%" + RESTRICTED_SUMMARY + "%")
+    return query.filter(or_(Game.summary.is_(None), ~hidden))
+
+
+def restricted(game) -> bool:
+    return bool(game.summary and RESTRICTED_SUMMARY in game.summary.casefold())
+
+
 @router.get("/games/search", dependencies=[Depends(imports_enabled)])
 async def search_games(request: Request, q: str = Query(..., min_length=2, max_length=120),
                        platform: str = Query("", pattern=r"^([a-z0-9][a-z0-9-]{0,60})?$"),
@@ -51,7 +62,7 @@ async def search_games(request: Request, q: str = Query(..., min_length=2, max_l
     text = search_text(q).casefold()
     if len(text) < 2:
         raise HTTPException(status_code=422, detail="Enter at least two letters")
-    query = db.query(Game).filter(Game.content_kind == "game", Game.name.icontains(text, autoescape=True))
+    query = browseable(db.query(Game).filter(Game.content_kind == "game", Game.name.icontains(text, autoescape=True)))
     if platform:
         query = query.filter(Game.platforms.any(GamePlatform.slug == platform))
     local = query.order_by(Game.name, Game.id).limit(20).all()
@@ -110,7 +121,7 @@ async def import_game(body: GameImport, request: Request, user: User = Depends(g
 async def game_details(game_id: ResourceId, request: Request, db: Session = Depends(get_db)):
     def load():
         game = db.get(Game, game_id)
-        if game is None:
+        if game is None or restricted(game):
             raise HTTPException(status_code=404, detail="Game not found")
         return GameDetailOut.model_validate(game)
     return await cached(request, CATALOG, ("game-detail", game_id), 300, load)
@@ -134,7 +145,7 @@ async def catalog(
     # or play a game would, with a handful of players, publish one person's
     # private library, so there is deliberately no "most played" order.
     def load():
-        query = db.query(Game)
+        query = browseable(db.query(Game))
         if kind != "all":
             query = query.filter(Game.content_kind == kind)
         if q.strip():
