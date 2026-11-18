@@ -42,8 +42,10 @@ def test_static_assets_revalidate_while_api_responses_are_never_stored(web):
 
 
 def test_public_catalog_bounds_search_and_no_private_fields(web, db):
+    blocked = Game(name="Restricted page", steam_appid=103,
+                   summary="This content Violates Our Content Policy and stays hidden.")
     db.add_all([Game(name="100% Game", steam_appid=100), Game(name="A Game", steam_appid=101),
-                Game(name="B Game", steam_appid=102)])
+                Game(name="B Game", steam_appid=102), blocked])
     db.commit()
     result = web.get("/games", params={"limit": 2, "offset": 1}).json()
     assert result["total"] == 3
@@ -52,6 +54,8 @@ def test_public_catalog_bounds_search_and_no_private_fields(web, db):
                                        "first_release_date", "cover_url", "hero_url"}
     assert web.get("/games", params={"q": "%"}).json()["total"] == 1
     assert web.get("/games", params={"q": "a game"}).json()["total"] == 1
+    assert web.get("/games", params={"q": "restricted"}).json()["total"] == 0
+    assert web.get(f"/games/{blocked.id}").status_code == 404
     assert web.get("/games", params={"offset": 100}).json()["games"] == []
     for params in [{"limit": 101}, {"limit": 0}, {"offset": -1}, {"offset": 10001}, {"q": "x" * 121}]:
         assert web.get("/games", params=params).status_code == 422

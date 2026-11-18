@@ -267,6 +267,7 @@ def test_catalog_api_pages_are_filtered_bounded_and_validate_progress():
     body = fake.bodies("games")[0]
     assert "id > 100" in body and "updated_at >= 400" in body and "updated_at <= 600" in body
     assert 'version_parent = null' in body and 'game_type.type' in body
+    assert 'themes != (42)' in body
     assert "sort id asc; limit 500" in body
     assert result["complete"] and result["after_id"] == 1942
     fake.routes["games"] = httpx.Response(200, json=[raw, raw])

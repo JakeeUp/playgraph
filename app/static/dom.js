@@ -123,15 +123,21 @@ export function heroArt(game) {
 // The signature: a tilted wall of covers drifting slowly behind a heading.
 // Each row holds its covers twice, so sliding it by half its width loops
 // without a seam; alternate rows run the other way. Decorative only.
+// Signed-out walls use this set. The catalog is ordered by title, so its
+// first page is not a rating and is the wrong art for a front door.
 const BACKDROP_GAMES = [
   [1145360, 'Hades'], [1245620, 'ELDEN RING'], [1086940, "Baldur's Gate 3"],
-  [367520, 'Hollow Knight'], [413150, 'Stardew Valley'], [504230, 'Celeste'],
-  [620, 'Portal 2'], [753640, 'Outer Wilds'], [1091500, 'Cyberpunk 2077'],
-  [292030, 'The Witcher 3: Wild Hunt'], [2379780, 'Balatro'], [427520, 'Factorio'],
-  [588650, 'Dead Cells'],
+  [1091500, 'Cyberpunk 2077'], [1174180, 'Red Dead Redemption 2'],
+  [292030, 'The Witcher 3: Wild Hunt'], [814380, 'Sekiro: Shadows Die Twice'],
+  [374320, 'DARK SOULS III'], [367520, 'Hollow Knight'], [413150, 'Stardew Valley'],
+  [105600, 'Terraria'], [427520, 'Factorio'], [620, 'Portal 2'], [400, 'Portal'],
+  [220, 'Half-Life 2'], [504230, 'Celeste'], [753640, 'Outer Wilds'],
+  [2379780, 'Balatro'], [646570, 'Slay the Spire'], [588650, 'Dead Cells'],
+  [1794680, 'Vampire Survivors'], [548430, 'Deep Rock Galactic'],
+  [632360, 'Risk of Rain 2'], [391540, 'Undertale'], [1151640, 'Horizon Zero Dawn'],
+  [1593500, 'God of War'], [1817070, "Marvel's Spider-Man Remastered"],
 ].map(([steam_appid, name]) => ({ steam_appid, name }));
-// Artwork must not turn an empty catalog into invented community activity.
-export const backdropGames = (games) => (games.length ? games : BACKDROP_GAMES).slice(0, 27);
+export const backdropGames = () => BACKDROP_GAMES.slice();
 
 export function coverWall(games, { rows = 3, perRow = 9 } = {}) {
   const wall = el('div', 'cover-wall'); wall.setAttribute('aria-hidden', 'true');
