@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     # IGDB game metadata and search. Both empty turns IGDB off.
     igdb_client_id: str = Field(default="", repr=False)
     igdb_client_secret: SecretStr = SecretStr("")
+    igdb_catalog_sync_enabled: bool = False
 
     # Optional. Encrypted off-site backups to Amazon S3, see docs/AWS_BACKUPS.md.
     # An empty bucket turns them off. AWS credentials are never settings: boto3

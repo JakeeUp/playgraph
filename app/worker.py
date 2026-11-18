@@ -36,6 +36,7 @@ from app.database import SessionLocal, engine
 from app.migrations import require_current_schema
 from app import psn_status
 from app.igdb_catalog import queue_refresh, refresh_igdb_catalog
+from app.catalog_sync import JOB_ID as CATALOG_SYNC_JOB_ID, sync_igdb_catalog
 from app.models import (Game, GameExternalId, LinkedAccount, Platform, PlaytimeSnapshot, SnapshotSource,
                         utcnow)
 from app.services import psn, steam
@@ -592,7 +593,7 @@ async def refresh_trending(ctx) -> dict:
 
 class WorkerSettings:
     on_startup = check_database_schema
-    functions = [sync_steam_library, sync_psn_library, refresh_igdb_catalog, refresh_trending]
+    functions = [sync_steam_library, sync_psn_library, refresh_igdb_catalog, refresh_trending, sync_igdb_catalog]
     queue_name = QUEUE_NAME
     job_serializer = staticmethod(serialize)
     job_deserializer = staticmethod(deserialize)
@@ -637,3 +638,7 @@ WorkerSettings.cron_jobs = [
 ]
 if settings.aws_backups_enabled:
     WorkerSettings.cron_jobs.append(cron(offsite_backup, hour=4, minute=17, run_at_startup=False, timeout=1800))
+if settings.igdb_enabled and settings.igdb_catalog_sync_enabled:
+    # Long player syncs must not accumulate one waiting catalog job per minute.
+    WorkerSettings.cron_jobs.append(cron(sync_igdb_catalog, minute=set(range(60)), run_at_startup=True,
+        timeout=180, job_id=CATALOG_SYNC_JOB_ID))

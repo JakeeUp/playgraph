@@ -65,7 +65,7 @@ const SHELF = {
 // state.library holds Steam entries only, so every Steam view and total is
 // exactly what it was. PlayStation entries sit apart in state.psnLibrary and
 // get their own shelf behind the platform switch; the two are never summed.
-const state = { user: null, csrf: '', library: [], psnLibrary: [], platform: 'steam', genres: [], catalog: [], total: 0,
+const state = { user: null, csrf: '', library: [], psnLibrary: [], platform: 'steam', genres: [], catalog: [], catalogAfter: null, total: 0,
   view: viewFromHash(location.hash) || (userFromHash(location.hash) ? 'profile' : 'library'), query: '', filter: 'all', status: '', genre: '', sort: 'playtime', shown: 48, statuses: new Map(), liked: new Set(), reposted: new Set(), bookmarked: new Set(),
   controller: new AbortController(), generation: 0, catalogRequest: 0,
   expiryTimer: null, searchTimer: null, syncing: false };
@@ -402,7 +402,7 @@ function renderCollection() {
       actions });
     grid.append(empty);
   }
-  $('#result-count').textContent = integer(total); $('#load-more').hidden = visible.length >= total;
+  $('#result-count').textContent = integer(total); $('#load-more').hidden = own ? visible.length >= total : state.catalogAfter === null;
   setNumbers($('#shown-count'), total ? `${integer(visible.length)} of ${integer(total)} ${shelf.plural}` : '');
   document.querySelectorAll('[data-filter]').forEach((chip) => { chip.classList.toggle('selected', chip.dataset.filter === state.filter); chip.setAttribute('aria-pressed', String(chip.dataset.filter === state.filter)); });
 }
@@ -459,13 +459,15 @@ function renderFilterCounts(shelf) {
   });
 }
 async function loadCatalog(append = false) {
-  const request = ++state.catalogRequest; const generation = state.generation; const offset = append ? state.catalog.length : 0;
+  if (append && state.catalogAfter === null) return;
+  const request = ++state.catalogRequest; const generation = state.generation;
+  const cursor = append ? `&after=${state.catalogAfter}` : '';
   $('#load-more').disabled = true;
-  if (!append) { state.catalog = []; state.total = 0; $('#result-count').textContent = ''; const games = $('#games'); games.setAttribute('aria-busy', 'true'); games.replaceChildren(loadingState('Loading games…'), ...skeletonGrid()); }
+  if (!append) { state.catalog = []; state.catalogAfter = null; state.total = 0; $('#result-count').textContent = ''; const games = $('#games'); games.setAttribute('aria-busy', 'true'); games.replaceChildren(loadingState('Loading games…'), ...skeletonGrid()); }
   try {
-    const data = await api(`/games?kind=${state.view === 'software' ? 'software' : 'game'}&limit=48&offset=${offset}&q=${encodeURIComponent(state.query)}`);
+    const data = await api(`/games?kind=${state.view === 'software' ? 'software' : 'game'}&limit=48${cursor}&q=${encodeURIComponent(state.query)}`);
     if (request !== state.catalogRequest || generation !== state.generation || privateView()) return;
-    state.catalog = append ? state.catalog.concat(data.games) : data.games; state.total = data.total; renderCollection();
+    state.catalog = append ? state.catalog.concat(data.games) : data.games; state.catalogAfter = data.next_after ?? null; state.total = data.total; renderCollection();
     if (!append) { if (!$('#welcome').hidden) fillWalls(); setHero(null); }
   } catch (error) {
     if (request !== state.catalogRequest || aborted(error)) return;

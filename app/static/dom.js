@@ -159,12 +159,13 @@ export function cover(game) {
     frame.append(img); return frame;
   }
   img.src = steamArt(game.steam_appid, 'library_600x900.jpg');
-  // Not every app has portrait library art. The landscape store header exists
-  // for nearly all of them, so it is the one fallback before the text placeholder.
-  let fallbackUsed = false;
+  // Older Steam releases can lose their store art while IGDB still has a cover.
+  const header = steamArt(game.steam_appid, 'header.jpg');
+  const fallbacks = [game.cover_url, header].filter(Boolean);
   img.addEventListener('error', () => {
-    if (fallbackUsed) { img.remove(); return; }
-    fallbackUsed = true; img.classList.add('header-fallback'); img.src = steamArt(game.steam_appid, 'header.jpg');
+    const next = fallbacks.shift();
+    if (!next) { img.remove(); return; }
+    img.classList.toggle('header-fallback', next === header); img.src = next;
   });
   frame.append(img); return frame;
 }

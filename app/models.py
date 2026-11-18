@@ -147,6 +147,7 @@ class Game(Base):
     """
 
     __tablename__ = "games"
+    __table_args__ = (Index("ix_games_catalog_name", "content_kind", "name", "id"),)
 
     id = Column(Integer, primary_key=True)
     steam_appid = Column(Integer, unique=True, nullable=True, index=True)
@@ -188,6 +189,18 @@ class GamePlatform(Base):
     abbreviation = Column(String, nullable=True)
 
     game = relationship("Game", back_populates="platforms")
+
+
+class CatalogSyncState(Base):
+    """One durable IGDB cursor, committed with each page of public metadata."""
+
+    __tablename__ = "catalog_sync_state"
+
+    id = Column(Integer, primary_key=True)
+    after_id = Column(Integer, nullable=False, default=0, server_default="0")
+    updated_after = Column(Integer, nullable=False, default=0, server_default="0")
+    window_end = Column(Integer, nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class IgdbMatchCandidate(Base):

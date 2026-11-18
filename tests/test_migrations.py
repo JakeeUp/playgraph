@@ -19,6 +19,24 @@ def database(tmp_path):
     engine.dispose()
 
 
+def test_catalog_sync_migration_keeps_games_and_rolls_back_cleanly(database, tmp_path):
+    from alembic import command
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0016_catalog_imports")
+        connection.exec_driver_sql("INSERT INTO games (id, name, steam_appid) VALUES (1, 'Existing', 620)")
+    upgrade_database(database, tmp_path / "backups")
+    with database.begin() as connection:
+        assert connection.exec_driver_sql("SELECT name FROM games WHERE id=1").scalar() == "Existing"
+        connection.exec_driver_sql("INSERT INTO catalog_sync_state (id, after_id, updated_after, window_end) VALUES (1, 500, 0, 100000)")
+        assert connection.exec_driver_sql("SELECT after_id FROM catalog_sync_state WHERE id=1").scalar() == 500
+        assert "ix_games_catalog_name" in {index["name"] for index in inspect(connection).get_indexes("games")}
+        command.downgrade(migration_config(connection), "0016_catalog_imports")
+        assert "catalog_sync_state" not in inspect(connection).get_table_names()
+        assert connection.exec_driver_sql("SELECT name FROM games WHERE id=1").scalar() == "Existing"
+
+
 def baseline():
     from app.migrations import BASELINE, migration_config
     from alembic.script import ScriptDirectory
