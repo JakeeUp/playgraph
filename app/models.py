@@ -17,6 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     event,
     exists,
+    false,
     func,
     select,
     text,
@@ -147,7 +148,12 @@ class Game(Base):
     """
 
     __tablename__ = "games"
-    __table_args__ = (Index("ix_games_catalog_name", "content_kind", "name", "id"),)
+    __table_args__ = (
+        Index("ix_games_catalog_name", "content_kind", "name", "id"),
+        # Public browse filters this flag on every page. It has to live in the
+        # index or the first load walks every summary.
+        Index("ix_games_public_catalog", "content_kind", "excluded", "name", "id"),
+    )
 
     id = Column(Integer, primary_key=True)
     steam_appid = Column(Integer, unique=True, nullable=True, index=True)
@@ -165,6 +171,10 @@ class Game(Base):
     igdb_refreshed_at = Column(DateTime(timezone=True), nullable=True)
     added_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     added_at = Column(DateTime(timezone=True), nullable=True)
+    # Public browse, search, and the public game page skip these. A player's
+    # own library is not filtered. Set from IGDB's erotic theme, the eroge and
+    # digb keywords, or IGDB's restricted-page sentence.
+    excluded = Column(Boolean, nullable=False, default=False, server_default=false())
 
     @property
     def catalog_source(self):
@@ -200,6 +210,18 @@ class CatalogSyncState(Base):
     after_id = Column(Integer, nullable=False, default=0, server_default="0")
     updated_after = Column(Integer, nullable=False, default=0, server_default="0")
     window_end = Column(Integer, nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class CatalogRestrictionState(Base):
+    """Cursor for hiding games IGDB already labels restricted. Separate from
+    the import cursor so the two jobs cannot overwrite each other."""
+
+    __tablename__ = "catalog_restriction_state"
+
+    id = Column(Integer, primary_key=True)
+    phase = Column(String, nullable=False, default="theme", server_default="theme")
+    after_id = Column(Integer, nullable=False, default=0, server_default="0")
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
 
@@ -247,6 +269,11 @@ class GameExternalId(Base):
 @event.listens_for(Game, "before_update")
 def _classify_game(_mapper, _connection, game):
     game.content_kind = classify_content(game.steam_appid, game.genres)
+    # Same sentence IGDB leaves on a restricted page. app.services.igdb
+    # keeps the constant; this stays local so model import does not pull the client.
+    summary = game.summary
+    if isinstance(summary, str) and "violates our content policy" in summary.casefold():
+        game.excluded = True
 
 
 class PlaytimeSnapshot(Base):

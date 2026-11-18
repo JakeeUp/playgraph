@@ -10,7 +10,10 @@ from sqlalchemy.exc import IntegrityError
 
 from app import catalog_sync as sync
 from app.config import settings
-from app.models import CatalogSyncState, Game, GameExternalId, IgdbMatchCandidate, PlaytimeSnapshot, Review, User, utcnow
+from app.models import (
+    CatalogRestrictionState, CatalogSyncState, Game, GameExternalId, IgdbMatchCandidate,
+    PlaytimeSnapshot, Review, User, utcnow,
+)
 from app.services import igdb
 from tests.security_helpers import MemoryRedis
 from tests.test_igdb import RAW_GAME, FakeIGDB, make_client
@@ -97,6 +100,38 @@ def test_provider_failure_preserves_last_committed_cursor(db, setup):
     provider.fail = False
     assert run(store)["added"] == 2
     assert db.get(CatalogSyncState, 1).after_id == 4
+
+
+def test_restricted_ids_already_stored_are_hidden_and_the_cursor_advances(db, setup, monkeypatch):
+    kept = Game(name="Kept", added_at=utcnow())
+    hidden = Game(name="Hidden", added_at=utcnow(), summary="This content violates our content policy.")
+    linked = Game(name="Linked adult", added_at=utcnow())
+    linked.external_ids.append(GameExternalId(provider="igdb", external_id="10"))
+    db.add_all([kept, hidden, linked])
+    db.commit()
+    assert hidden.excluded is True and kept.excluded is False
+
+    class Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def keyword_ids(self, slugs):
+            return {slug: 3 for slug in slugs}
+
+        async def restriction_page(self, *, after_id, theme_id=None, keyword_id=None):
+            assert theme_id == 42 and after_id == 0
+            return {"ids": [10, 99], "after_id": 99, "complete": True}
+
+    monkeypatch.setattr(sync.igdb, "IGDBClient", lambda **kwargs: Client())
+    result = asyncio.run(sync.exclude_restricted_catalog({"redis": setup[1]}))
+    assert result["status"] == "ok" and result["phase"] == "digb" and result["excluded"] == 1
+    assert db.query(Game).filter_by(name="Linked adult").one().excluded is True
+    assert db.query(Game).filter_by(name="Kept").one().excluded is False
+    assert db.get(CatalogRestrictionState, 1).phase == "digb"
+    assert asyncio.run(sync.exclude_restricted_catalog({"redis": None}))["status"] == "skipped"
 
 
 def test_worker_yields_after_its_page_budget(db, setup, monkeypatch):

@@ -207,6 +207,29 @@ def test_import_rejects_editions_wrong_ids_and_missing_types():
     assert run(make_client(fake).import_game(1942)) is None
 
 
+def test_catalog_page_reports_restricted_rows_separately():
+    fake = FakeIGDB()
+    blocked = {**RAW_GAME, "id": 50, "themes": [42], "updated_at": 500}
+    kept = {**RAW_GAME, "id": 60, "updated_at": 500}
+    fake.routes["games"] = httpx.Response(200, json=[blocked, kept])
+    result = run(make_client(fake).catalog_page(after_id=40, updated_after=400, window_end=600))
+    assert result["excluded_ids"] == [50]
+    assert [game["igdb_id"] for game in result["games"]] == [60]
+    assert result["after_id"] == 60 and result["complete"]
+
+
+def test_restriction_pages_ask_for_the_erotic_theme_and_keyword_ids():
+    fake = FakeIGDB()
+    fake.routes["keywords"] = httpx.Response(200, json=[{"id": 9, "slug": "digb"}, {"id": 4, "slug": "other"}])
+    fake.routes["games"] = httpx.Response(200, json=[{"id": 15}])
+    client = make_client(fake)
+    assert run(client.keyword_ids(["digb", "nope"])) == {"digb": 9}
+    assert 'slug = ("digb")' in fake.bodies("keywords")[0]
+    page = run(client.restriction_page(after_id=10, theme_id=42))
+    assert page == {"ids": [15], "after_id": 15, "complete": True}
+    assert "themes = (42)" in fake.bodies("games")[0] and "id > 10" in fake.bodies("games")[0]
+
+
 def test_import_skips_erotic_themes_excluded_keywords_and_restricted_pages():
     assert igdb.importable_game(RAW_GAME)["igdb_id"] == 1942
     kept = {**RAW_GAME, "themes": [1], "keywords": [{"slug": "souls-like"}]}

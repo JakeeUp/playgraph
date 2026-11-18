@@ -20,7 +20,7 @@ from app.cache import CATALOG, REVIEWS, invalidate
 from app.config import settings
 from app.database import SessionLocal
 from app.igdb_catalog import _propose, apply_metadata
-from app.models import CatalogSyncState, Game, GameExternalId, utcnow
+from app.models import CatalogRestrictionState, CatalogSyncState, Game, GameExternalId, utcnow
 from app.queue_codec import QUEUE_NAME, deserialize, serialize
 from app.services import igdb
 
@@ -29,6 +29,8 @@ PAGES_PER_JOB = 5
 REFRESH_SECONDS = 6 * 3600
 MIN_FREE_BYTES = 256 * 1024 * 1024
 JOB_ID = "igdb-catalog-sync"
+RESTRICT_JOB_ID = "igdb-catalog-restrictions"
+RESTRICT_PAGES = 4
 
 
 def upsert_page(db, rows: list[dict], steam_ids: dict[int, list[int]]) -> dict:
@@ -81,6 +83,44 @@ def upsert_page(db, rows: list[dict], steam_ids: dict[int, list[int]]) -> dict:
     return stats
 
 
+def exclude_known(db, igdb_ids) -> int:
+    """Hide games we already stored once IGDB says they are erotic or restricted."""
+    ids = [str(value) for value in igdb_ids if type(value) is int and value > 0]
+    changed = 0
+    for start in range(0, len(ids), 500):
+        chunk = ids[start:start + 500]
+        games = (db.query(Game).join(GameExternalId)
+                 .filter(GameExternalId.provider == "igdb",
+                         GameExternalId.external_id.in_(chunk),
+                         Game.excluded.is_(False)).all())
+        for game in games:
+            game.excluded = True
+            changed += 1
+    return changed
+
+
+def hide_restricted_summaries(db, after_id: int, limit: int = 500):
+    rows = db.query(Game).filter(Game.id > after_id).order_by(Game.id).limit(limit).all()
+    if not rows:
+        return after_id, 0, True
+    changed = 0
+    for game in rows:
+        summary = game.summary
+        if (not game.excluded and isinstance(summary, str)
+                and igdb.RESTRICTED_SUMMARY in summary.casefold()):
+            game.excluded = True
+            changed += 1
+    return rows[-1].id, changed, False
+
+
+def _next_phase(phase: str) -> str:
+    order = ("theme", "digb", "eroge", "summary", "done")
+    try:
+        return order[order.index(phase) + 1]
+    except (ValueError, IndexError):
+        return "done"
+
+
 def has_disk_space(db) -> bool:
     url = db.get_bind().url
     if url.get_backend_name() != "sqlite" or not url.database or url.database == ":memory:":
@@ -94,7 +134,7 @@ async def sync_igdb_catalog(ctx) -> dict:
     store = ctx.get("redis")
     if store is None:
         return {"status": "skipped", "detail": "Shared provider budget is required"}
-    stats = {"added": 0, "refreshed": 0, "proposed": 0, "pages": 0}
+    stats = {"added": 0, "refreshed": 0, "proposed": 0, "excluded": 0, "pages": 0}
     with SessionLocal(expire_on_commit=False) as db:
         state = db.get(CatalogSyncState, 1)
         now = int(time.time())
@@ -120,6 +160,7 @@ async def sync_igdb_catalog(ctx) -> dict:
                         updated_after=max(0, state.updated_after - 1), window_end=state.window_end)
                     links = await client.steam_ids([row["igdb_id"] for row in page["games"]], source)
                     changes = upsert_page(db, page["games"], links)
+                    stats["excluded"] += exclude_known(db, page.get("excluded_ids") or [])
                     state.after_id = page["after_id"]
                     if page["complete"]:
                         state.updated_after = state.window_end
@@ -140,6 +181,68 @@ async def sync_igdb_catalog(ctx) -> dict:
             return {"status": "retry", **stats}
         logger.info("Catalog batch: %d added, %d refreshed, %d pages", stats["added"], stats["refreshed"], stats["pages"])
         return {"status": "ok", "after_id": state.after_id, "complete": state.window_end is None, **stats}
+
+
+async def exclude_restricted_catalog(ctx) -> dict:
+    """Hide games already imported before IGDB's erotic and restricted labels were applied."""
+    if not settings.igdb_enabled or not settings.igdb_catalog_sync_enabled:
+        return {"status": "skipped"}
+    store = ctx.get("redis")
+    if store is None:
+        return {"status": "skipped", "detail": "Shared provider budget is required"}
+    stats = {"excluded": 0, "pages": 0}
+    with SessionLocal(expire_on_commit=False) as db:
+        state = db.get(CatalogRestrictionState, 1)
+        if state is None:
+            state = CatalogRestrictionState(id=1)
+            db.add(state)
+            db.commit()
+        if state.phase == "done":
+            return {"status": "current"}
+        try:
+            if state.phase == "summary":
+                for _ in range(RESTRICT_PAGES):
+                    after, changed, complete = hide_restricted_summaries(db, state.after_id)
+                    stats["excluded"] += changed
+                    stats["pages"] += 1
+                    state.after_id = after
+                    if complete:
+                        state.phase = "done"
+                        state.after_id = 0
+                        state.completed_at = utcnow()
+                        break
+                db.commit()
+            else:
+                async with igdb.IGDBClient(store=store) as client:
+                    keyword_id = None
+                    if state.phase in ("digb", "eroge"):
+                        keyword_id = (await client.keyword_ids([state.phase])).get(state.phase)
+                        if keyword_id is None:
+                            state.phase = _next_phase(state.phase)
+                            state.after_id = 0
+                            db.commit()
+                            return {"status": "ok", "phase": state.phase, **stats}
+                    for _ in range(RESTRICT_PAGES):
+                        if state.phase == "theme":
+                            page = await client.restriction_page(after_id=state.after_id,
+                                theme_id=igdb.EROTIC_THEME_ID)
+                        else:
+                            page = await client.restriction_page(after_id=state.after_id, keyword_id=keyword_id)
+                        stats["excluded"] += exclude_known(db, page["ids"])
+                        stats["pages"] += 1
+                        state.after_id = page["after_id"]
+                        if page["complete"]:
+                            state.phase = _next_phase(state.phase)
+                            state.after_id = 0
+                            break
+                    db.commit()
+            if stats["excluded"]:
+                await invalidate(store, CATALOG)
+        except (igdb.IGDBError, SQLAlchemyError) as error:
+            db.rollback()
+            logger.warning("Restriction batch deferred: %s", type(error).__name__)
+            return {"status": "retry", **stats}
+        return {"status": "ok", "phase": state.phase, **stats}
 
 
 async def _main():

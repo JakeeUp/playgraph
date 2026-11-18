@@ -400,8 +400,45 @@ class IGDBClient:
         ids = [row.get("id") if isinstance(row, dict) else None for row in rows]
         if any(type(value) is not int or value <= after_id for value in ids) or ids != sorted(set(ids)):
             raise IGDBError("IGDB returned an invalid catalog cursor")
-        return {"games": [game for row in rows if (game := importable_game(row))],
+        games = []
+        excluded_ids = []
+        for row in rows:
+            if isinstance(row, dict) and _excluded(row):
+                excluded_ids.append(row["id"])
+                continue
+            game = importable_game(row) if isinstance(row, dict) else None
+            if game:
+                games.append(game)
+        return {"games": games, "excluded_ids": excluded_ids,
                 "after_id": ids[-1] if ids else after_id, "complete": len(rows) < PAGE_LIMIT}
+
+    async def keyword_ids(self, slugs) -> dict[str, int]:
+        wanted = [slug for slug in slugs if slug in EXCLUDED_KEYWORD_SLUGS]
+        if not wanted:
+            return {}
+        listed = ",".join(f'"{slug}"' for slug in wanted)
+        rows = await self.query("keywords", f"fields id,slug; where slug = ({listed}); limit 10;")
+        found = {}
+        for row in rows:
+            slug = row.get("slug") if isinstance(row, dict) else None
+            if slug in EXCLUDED_KEYWORD_SLUGS and type(row.get("id")) is int:
+                found[slug] = row["id"]
+        return found
+
+    async def restriction_page(self, *, after_id: int, theme_id: int | None = None, keyword_id: int | None = None) -> dict:
+        """Ids IGDB labels erotic or restricted. The caller hides rows we already stored."""
+        if theme_id is not None:
+            clause = f"themes = ({int(theme_id)})"
+        elif keyword_id is not None:
+            clause = f"keywords = ({int(keyword_id)})"
+        else:
+            raise IGDBError("Missing restriction filter")
+        rows = await self.query("games", (
+            f"fields id; where {clause} & id > {int(after_id)}; sort id asc; limit {PAGE_LIMIT};"))
+        ids = [row.get("id") if isinstance(row, dict) else None for row in rows]
+        if any(type(value) is not int or value <= after_id for value in ids) or ids != sorted(set(ids)):
+            raise IGDBError("IGDB returned an invalid catalog cursor")
+        return {"ids": ids, "after_id": ids[-1] if ids else after_id, "complete": len(rows) < PAGE_LIMIT}
 
     async def steam_ids(self, game_ids, source: int) -> dict[int, list[int]]:
         """Exact Steam identities prevent a bulk import duplicating an existing library game."""

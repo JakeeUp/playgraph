@@ -19,6 +19,24 @@ def database(tmp_path):
     engine.dispose()
 
 
+def test_restriction_migration_hides_nothing_until_a_later_pass_and_rolls_back(database, tmp_path):
+    from alembic import command
+    from app.migrations import migration_config
+
+    with database.begin() as connection:
+        command.upgrade(migration_config(connection), "0017_catalog_sync")
+        connection.exec_driver_sql(
+            "INSERT INTO games (id, name, steam_appid, summary) VALUES (1, 'Existing', 620, 'A normal game.')")
+    upgrade_database(database, tmp_path / "backups")
+    with database.begin() as connection:
+        assert connection.exec_driver_sql("SELECT excluded FROM games WHERE id=1").scalar() in (0, False)
+        assert "ix_games_public_catalog" in {index["name"] for index in inspect(connection).get_indexes("games")}
+        assert "catalog_restriction_state" in inspect(connection).get_table_names()
+        command.downgrade(migration_config(connection), "0017_catalog_sync")
+        assert "excluded" not in {column["name"] for column in inspect(connection).get_columns("games")}
+        assert connection.exec_driver_sql("SELECT name FROM games WHERE id=1").scalar() == "Existing"
+
+
 def test_catalog_sync_migration_keeps_games_and_rolls_back_cleanly(database, tmp_path):
     from alembic import command
     from app.migrations import migration_config
