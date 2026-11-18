@@ -11,6 +11,12 @@ dialog {
   width:min(1100px,calc(100vw - var(--s-7))); max-height:90vh; overflow:auto; scroll-padding-block:64px 20px;
 }
 dialog::backdrop { background:var(--scrim); }
+/* While a game is open the page behind it stays put. The wheel scrolls the
+   dialog and stops at its end instead of carrying on into the page, and the
+   page itself cannot scroll. The scrollbar keeps its space (styles.css), so
+   hiding it does not shift the layout sideways. */
+dialog { overscroll-behavior:contain; }
+html:has(dialog[open]) { overflow:hidden; }
 dialog[open] { animation:dialog-in var(--dur-3) var(--ease); }
 @keyframes dialog-in { from { opacity:0; transform:translateY(10px); } }
 .dialog-bar { position:sticky; top:0; z-index:6; height:0; }
