@@ -26,6 +26,11 @@ COPY migrations ./migrations
 COPY app ./app
 COPY scripts/__init__.py scripts/seed_demo.py ./scripts/
 
+# The mock-data interview demo, served at /mocktest/. Built from the same
+# static files as the app, with sample data and a stand-in API in the browser.
+COPY demo ./demo
+RUN python demo/build.py mocktest --base /mocktest/
+
 # Never run as root. The app writes nothing to disk outside /tmp.
 RUN useradd --system --uid 10001 --home /srv playgraph \
  && chown -R playgraph:playgraph /srv

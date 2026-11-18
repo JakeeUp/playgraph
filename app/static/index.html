@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/assets/details.css">
   <link rel="stylesheet" href="/assets/social.css">
   <link rel="modulepreload" href="/assets/library.js">
+  <link rel="modulepreload" href="/assets/accessibility.js">
   <link rel="modulepreload" href="/assets/jobs.js">
   <link rel="modulepreload" href="/assets/status.js">
   <link rel="modulepreload" href="/assets/post.js">
@@ -53,11 +54,13 @@
         <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="search" type="search" placeholder="Search games" maxlength="120" aria-label="Search games"><kbd>/</kbd></label>
         <button id="notification-bell" class="notification-bell nav-item" data-view="notifications" aria-label="Notifications" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9 21h6"/></svg><span id="notification-count" class="notification-count num" hidden></span></button>
         <div id="account" class="account"><a class="button primary" href="/account">Sign in</a></div>
+        <button id="accessibility-open" class="accessibility-open" type="button" aria-label="Accessibility settings" title="Accessibility settings" aria-controls="accessibility-settings" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="6.5" r="1.5"/><path d="M6 10h12M12 9v6m0 0-4 5m4-5 4 5"/></svg></button>
       </div>
     </header>
     <main id="main" tabindex="-1">
       <div id="page-loading" class="loading-state" role="status"><span class="loading-ring" aria-hidden="true"></span><span>Loading PlayGraph…</span></div>
       <div id="notice" class="notice" role="status" hidden></div>
+      <div id="error-notice" class="notice error" role="alert" hidden></div>
       <section class="page-heading">
         <div class="heading-copy"><h1 id="page-title">Games on PlayGraph</h1><p id="page-subtitle" class="subtitle">Everything imported so far. Open a game to read its reviews.</p></div>
         <button id="sync-button" class="button secondary" hidden>Sync Steam</button>
@@ -99,7 +102,8 @@
       <section id="news" class="news" hidden aria-label="Gaming news">
         <div class="news-main">
           <div class="section-heading"><h2>Latest in gaming</h2><span class="helper">Steam updates · PC Gamer · Eurogamer · Rock Paper Shotgun</span></div>
-          <div id="news-items" class="news-items" aria-live="polite"></div>
+          <div id="news-items" class="news-items"></div>
+          <p id="news-status" class="sr-only" role="status" aria-atomic="true"></p>
           <div id="news-more" class="load-more"></div>
         </div>
         <aside class="news-side" aria-label="Coming later">
@@ -151,8 +155,8 @@
           <div class="toolbar-end"><label class="select" id="catalog-sort-label" hidden><span class="sr-only">Sort the catalog</span><select id="catalog-sort"><option value="newest">Newest releases</option><option value="reviewed">Most reviewed</option><option value="name">Title: A to Z</option></select></label><label class="select" id="sort-label"><span class="sr-only">Sort games</span><select id="sort"><option value="name">Title: A to Z</option><option value="playtime">Most played</option><option value="achievements">Achievement progress</option></select></label><div class="view-toggle" role="group" aria-label="Display style"><button id="grid-view" aria-pressed="true">Grid</button><button id="list-view" aria-pressed="false">List</button></div></div>
         </div>
         <p id="collection-note" class="collection-note">Games in the PlayGraph catalog. Connect Steam to see your own collection.</p>
-        <div id="games" class="game-grid" aria-live="polite"><p class="empty-message">Loading games…</p></div>
-        <div class="load-more"><button id="load-more" class="button secondary" hidden>Show more games</button><span id="shown-count" class="helper"></span></div>
+        <div id="games" class="game-grid"><p class="empty-message">Loading games…</p></div>
+        <div class="load-more"><button id="load-more" class="button secondary" hidden>Show more games</button><span id="shown-count" class="helper" role="status" aria-atomic="true"></span></div>
       </section>
       <section id="cta-band" class="cta-band" aria-labelledby="cta-title" hidden>
         <div id="cta-wall" class="cta-wall" aria-hidden="true"></div>
@@ -170,6 +174,14 @@
           </nav>
         </div>
         <p class="footer-tagline">A game library with reviews. Playtime comes from your linked Steam and PlayStation accounts.</p>
+        <details id="accessibility-settings" class="accessibility-settings" data-accessibility>
+          <summary>Accessibility settings</summary>
+          <p class="helper">Preferences stay in this browser when storage is available. Browser zoom and text-size settings are supported.</p>
+          <label><input id="a11y-motion" type="checkbox" aria-describedby="a11y-motion-help"> Pause animations</label>
+          <p id="a11y-motion-help" class="helper"></p>
+          <label><input id="a11y-contrast" type="checkbox"> Increase contrast</label>
+          <label><input id="a11y-shortcuts" type="checkbox" checked> Enable / to focus search</label>
+        </details>
         <p class="legal-notice">Game details and art from <a href="https://www.igdb.com/" target="_blank" rel="noopener noreferrer">IGDB.com</a>, Steam and PlayStation. PlayGraph is not affiliated with or endorsed by Valve, Sony Interactive Entertainment, Twitch or IGDB. Steam is a trademark of Valve Corporation. PlayStation and PSN are trademarks of Sony Interactive Entertainment Inc.</p></footer>
     </main>
   </div>

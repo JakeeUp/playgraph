@@ -17,6 +17,7 @@ import { createGameSearch } from './game-search.js';
 import { createNotifications } from './notifications.js';
 import { createReplay } from './replay.js';
 import { STATUSES, statusLabel, indexStatuses, filterByStatus, statusCounts } from './status.js';
+import { accessibility, focusHeading } from './accessibility.js';
 
 // Page copy per view. pageKey() folds the signed-out library and playtime
 // views into the welcome copy, which is what they have always shown. `tab`
@@ -94,7 +95,9 @@ const sessionChannel = typeof BroadcastChannel === 'function' ? new BroadcastCha
 let sessionReady = false;
 let checkingSession = false;
 function notify(message, error = false) {
-  $('#notice').textContent = message; $('#notice').classList.toggle('error', error); $('#notice').hidden = !message;
+  const notice = error ? $('#error-notice') : $('#notice');
+  $('#notice').hidden = true; $('#error-notice').hidden = true;
+  notice.hidden = !message; notice.textContent = message;
 }
 function report(error) { if (!aborted(error)) notify(error.message || 'Something went wrong. Please try again.', true); }
 async function api(path, { anonymous = false, ...options } = {}) {
@@ -147,7 +150,6 @@ function renderShell() {
   if (state.user) {
     const manage = el('a', 'account-manage');
     manage.href = profileHref(state.user.id); manage.title = 'Your profile and game room';
-    manage.setAttribute('aria-label', `Open profile for ${state.user.display_name}`);
     const avatar = avatarFor(state.user.display_name, state.user.id, 'avatar', state.user.avatar_url);
     manage.append(avatar,
       el('span', 'account-name', state.user.display_name));
@@ -380,11 +382,6 @@ function renderCollection() {
   if (own) { renderFilterCounts(shelf); renderStatusFilter(); }
   for (const entry of visible) {
     const game = entry.game; const card = el('article', 'game-card'); const open = button('', '', () => gameDialog.open(game));
-    const psn = entry.source === 'psn';
-    open.setAttribute('aria-label', `Open ${game.name}${!own ? '' : entry.unowned
-      ? `, not in your library, ${statusLabel(state.statuses.get(game.id)?.status)}` : psn
-      ? `, PlayStation, ${entry.playtime_minutes == null ? 'hours not shared' : `${hours(entry.playtime_minutes)} hours played`}`
-      : `, ${hours(entry.playtime_minutes)} hours ${shelf.verb}`}`);
     const art = cover(game); const badge = own && coverBadge(entry); if (badge) art.append(badge);
     open.append(art, el('h3', 'game-name', game.name), numbered('span', 'game-meta', caption(entry, own, shelf)));
     card.append(open); grid.append(card);
@@ -403,7 +400,7 @@ function renderCollection() {
     grid.append(empty);
   }
   $('#result-count').textContent = integer(total); $('#load-more').hidden = own ? visible.length >= total : state.catalogAfter === null;
-  setNumbers($('#shown-count'), total ? `${integer(visible.length)} of ${integer(total)} ${shelf.plural}` : '');
+  setNumbers($('#shown-count'), `${integer(visible.length)} of ${integer(total)} ${shelf.plural}`);
   document.querySelectorAll('[data-filter]').forEach((chip) => { chip.classList.toggle('selected', chip.dataset.filter === state.filter); chip.setAttribute('aria-pressed', String(chip.dataset.filter === state.filter)); });
 }
 // Your shelf after search, genre, played and status filters. Choosing a
@@ -497,6 +494,7 @@ function navigate(view, remember = true) {
   Object.assign(state, { view, query: '', genre: '', filter: 'all', status: '', shown: 48 }); state.catalogRequest += 1;
   if (view !== 'library') state.platform = 'steam';
   $('#search').value = ''; $('#genre').value = ''; clearTimeout(state.searchTimer); renderShell();
+  focusHeading($('#welcome').hidden ? $('#page-title') : $('#welcome-title'));
   if (view === 'feed') return feed.load(); else if (view === 'news') return news.load();
   else if (view === 'notifications') return notifications.load();
   else if (view === 'replay') return replay.load();
@@ -565,7 +563,8 @@ for (const mode of ['grid', 'list']) $('#'+mode+'-view').addEventListener('click
 $('#load-more').addEventListener('click', () => { if (privateView()) { state.shown += 48; renderCollection(); } else void loadCatalog(true); });
 $('#sync-button').addEventListener('click', syncLibrary);
 document.addEventListener('keydown', (event) => {
-  if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !$('#game-dialog').open
+  if (accessibility.shortcuts && event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !$('#game-dialog').open
+    && !$('.search').hidden && !document.activeElement.isContentEditable
     && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) { event.preventDefault(); $('#search').focus(); }
 });
 window.addEventListener('pagehide', () => { stopPolling(); state.controller.abort(); });

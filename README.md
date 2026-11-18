@@ -27,19 +27,32 @@ together, with your play history alongside them.
 - Playtime by genre, with apps like Wallpaper Engine kept out of your game stats
 - Drag half-star ratings, plus verified hours and achievements when available
 - Comments, a public feed, and a For You feed ranked by your library and genres
+- Likes, reposts, quote reviews and private bookmarks
+- Trending games and reviews on Explore, plus players to follow
+- Notifications for likes, replies, reposts and follows, kept for 90 days
+- Profiles with a game room, and a private Year in Review
+- Settings to pause motion, raise contrast, or turn off slash-to-search
 - Game pages with community reviews, your review, and shareable links
 - Edit or delete your own reviews without changing their original playtime snapshot
 
 | Your games | Reviews and news |
 |---|---|
-| ![The library grid, sorted by achievement progress](docs/screenshots/library-grid.webp) | ![A game page with playtime, achievements and a review](docs/screenshots/game-page.webp) |
-| Sort by achievement progress; finished games get a 100% tag | Your hours and achievements next to the reviews |
-| ![Playtime by genre and a top 10 by hours](docs/screenshots/playtime.webp) | ![The reviews page](docs/screenshots/reviews.webp) |
-| Where the hours went, by genre and by game | Verified hours on reviews, when Steam has them |
-| ![The catalog on the Explore page](docs/screenshots/explore.webp) | ![Game news on the For you page](docs/screenshots/for-you.webp) |
-| Every game imported into PlayGraph so far | Game news from Steam and the big gaming sites |
+| ![The library grid, with hours and a 100% tag on finished games](docs/screenshots/library-grid.webp) | ![A game page with playtime, achievements and a review](docs/screenshots/game-page.webp) |
+| Hours on each game; finished ones get a 100% tag | Your hours and achievements next to the reviews |
+| ![Playtime by genre and a top 10 by hours](docs/screenshots/playtime.webp) | ![The reviews feed, with verified hours and a rail of headlines and trends](docs/screenshots/reviews.webp) |
+| Where the hours went, by genre and by game | A feed of reviews with verified hours, plus headlines and trends |
+| ![Trending games, trending reviews and players to follow](docs/screenshots/explore.webp) | ![Game news on the For you page](docs/screenshots/for-you.webp) |
+| Trending this week, and players to follow | Game news from Steam and the big gaming sites |
 | ![The PlayStation shelf with hours, trophies and most played](docs/screenshots/psn-library.webp) | ![A PlayStation game page with hours, trophies and IGDB details](docs/screenshots/psn-game.webp) |
 | Your PlayStation games, hours and trophies, never mixed with Steam | Trophy breakdown and game details from IGDB |
+| ![A profile with a game room: favorites, playing now, completed and want to play](docs/screenshots/game-room.webp) | ![Notifications for likes, replies, reposts and follows](docs/screenshots/notifications.webp) |
+| Favorites and shelves on a profile | Likes, replies, reposts and follows, kept for 90 days |
+| ![A private Year in Review with hours, ratings and a card to save](docs/screenshots/year-in-review.webp) | ![The reviews feed on a phone](docs/screenshots/reviews-phone.webp) |
+| Hours and reviews for the year, private to you | The same feed, with the bottom navigation |
+
+Accessibility settings stay in this browser.
+
+![Accessibility settings for motion, contrast and the search shortcut](docs/screenshots/accessibility.webp)
 
 Sign-in runs through Clerk. Once you're in, the account page lets you connect
 Steam. This is the development build; the email address is obscured in the

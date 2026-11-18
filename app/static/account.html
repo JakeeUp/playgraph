@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/assets/styles.css">
   <link rel="stylesheet" href="/assets/account.css">
   <link rel="modulepreload" href="/assets/dom.js">
+  <link rel="modulepreload" href="/assets/accessibility.js">
   <link rel="modulepreload" href="/assets/covers.js">
   <link rel="modulepreload" href="/assets/net.js">
   <link rel="modulepreload" href="/assets/library.js">
@@ -30,6 +31,7 @@
     <div class="frame">
       <a class="brand" href="/app">PlayGraph</a>
       <a href="/app">Browse games</a>
+      <button id="accessibility-open" class="accessibility-open" type="button" aria-label="Accessibility settings" title="Accessibility settings" aria-controls="accessibility-settings" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="6.5" r="1.5"/><path d="M6 10h12M12 9v6m0 0-4 5m4-5 4 5"/></svg></button>
     </div>
   </header>
   <main id="account-main" class="account-layout frame" tabindex="-1">
@@ -156,6 +158,15 @@
       <noscript><p>Sign-in needs JavaScript. You can still <a href="/app">browse the catalog</a>.</p></noscript>
     </section>
   </main>
-  <footer class="frame account-footer"><p class="legal-notice">Game details and art from <a href="https://www.igdb.com/" target="_blank" rel="noopener noreferrer">IGDB.com</a>, Steam and PlayStation. PlayGraph is not affiliated with or endorsed by Valve, Sony Interactive Entertainment, Twitch or IGDB. Steam is a trademark of Valve Corporation. PlayStation and PSN are trademarks of Sony Interactive Entertainment Inc.</p></footer>
+  <footer class="frame account-footer">
+    <details id="accessibility-settings" class="accessibility-settings" data-accessibility>
+      <summary>Accessibility settings</summary>
+      <p class="helper">Preferences stay in this browser when storage is available. Browser zoom and text-size settings are supported.</p>
+      <label><input id="a11y-motion" type="checkbox" aria-describedby="a11y-motion-help"> Pause animations</label>
+      <p id="a11y-motion-help" class="helper"></p>
+      <label><input id="a11y-contrast" type="checkbox"> Increase contrast</label>
+      <label><input id="a11y-shortcuts" type="checkbox" checked> Enable / to focus search</label>
+    </details>
+    <p class="legal-notice">Game details and art from <a href="https://www.igdb.com/" target="_blank" rel="noopener noreferrer">IGDB.com</a>, Steam and PlayStation. PlayGraph is not affiliated with or endorsed by Valve, Sony Interactive Entertainment, Twitch or IGDB. Steam is a trademark of Valve Corporation. PlayStation and PSN are trademarks of Sony Interactive Entertainment Inc.</p></footer>
 </body>
 </html>

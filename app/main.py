@@ -48,6 +48,9 @@ async def lifespan(app: FastAPI):
 
 
 STATIC_DIR = Path(__file__).parent / "static"
+# The interview demo, built into the image by the Dockerfile. Absent in a
+# plain checkout, where /mocktest simply does not exist.
+MOCKTEST_DIR = Path(__file__).parent.parent / "mocktest"
 
 app = FastAPI(
     title="PlayGraph",
@@ -137,3 +140,25 @@ def health():
 @app.get("/account", include_in_schema=False)
 def account_page():
     return FileResponse(STATIC_DIR / "account.html")
+
+
+def mount_mocktest(target: FastAPI, directory: Path) -> bool:
+    """Serve the mock-data demo at /mocktest/ when it was built.
+
+    It is the same static build as the public demo: sample data, a stand-in
+    API that answers in the browser, nothing sent to this server's API and
+    nothing read from the real database. It is unlisted, not secret: nothing on
+    the site links to it and search engines are told not to index it.
+    """
+    if not (directory / "index.html").is_file():
+        return False
+
+    @target.get("/mocktest", include_in_schema=False)
+    def mocktest_root():
+        return RedirectResponse("/mocktest/", status_code=308)
+
+    target.mount("/mocktest", StaticFiles(directory=directory, html=True), name="mocktest")
+    return True
+
+
+mount_mocktest(app, MOCKTEST_DIR)

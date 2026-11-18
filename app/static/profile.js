@@ -1,6 +1,7 @@
 import { $, el, button, cover, heroArt, timeLabel, emptyState, numbered, formError, aborted, loadingState } from './dom.js';
 import { postCard, loadLikes, loadReposts, loadBookmarks, clampBodies, avatarFor, handleText, compactCount, badgeFor } from './post.js';
 import { limitedNote, profileHref, profileStats, REPORT_REASONS } from './social.js';
+import { focusHeading } from './accessibility.js';
 
 // A "Report" text button that opens a small form under it: a reason, an
 // optional note, send. `type` is review, comment or user. Used on profiles,
@@ -54,6 +55,7 @@ export function createProfile(state, api, gameDialog, report) {
 
   async function open(id) {
     const request = ++requestId;
+    const trigger = document.activeElement;
     root.setAttribute('aria-busy', 'true');
     root.replaceChildren(loadingState('Loading profile…'));
     let data;
@@ -63,15 +65,18 @@ export function createProfile(state, api, gameDialog, report) {
       // A missing player, a private profile and someone who blocked you all
       // look the same here, as they do on the server.
       root.replaceChildren(failure.status === 404
-        ? emptyState({ title: 'Player not found', text: 'This profile doesn’t exist or isn’t shared with you.' })
-        : emptyState({ kind: 'error', title: 'Couldn’t load this profile', text: failure.message,
+        ? emptyState({ title: 'Player not found', headingTag: 'h1', text: 'This profile doesn’t exist or isn’t shared with you.' })
+        : emptyState({ kind: 'error', title: 'Couldn’t load this profile', headingTag: 'h1', text: failure.message,
           actions: [button('Try again', 'button secondary', () => void open(id))] }));
-      if (failure.status !== 404) report(failure);
+      const heading = root.querySelector('h1'); heading.id = 'profile-name';
+      document.title = 'Player | PlayGraph';
+      if (document.activeElement === trigger || document.activeElement === document.body) focusHeading(heading);
       return;
     }
     if (request !== requestId) return;
     root.removeAttribute('aria-busy');
     render(data);
+    if (document.activeElement === trigger || document.activeElement === document.body) focusHeading(root.querySelector('#profile-name'));
   }
 
   function render(data) {
@@ -115,7 +120,7 @@ export function createProfile(state, api, gameDialog, report) {
       const games = data.room[status] || [];
       const row = el('div', 'room-games');
       for (const game of games) {
-        const open = button('', 'room-game', () => gameDialog.open(game)); open.setAttribute('aria-label', `Open ${game.name}`);
+        const open = button('', 'room-game', () => gameDialog.open(game));
         open.append(cover(game), el('span', '', game.name)); row.append(open);
       }
       if (!games.length) row.append(el('p', 'helper', data.viewer.is_self ? 'Set a game’s status on its game page to fill this shelf.' : 'No games on this shelf yet.'));
@@ -149,8 +154,8 @@ export function createProfile(state, api, gameDialog, report) {
     const label = following ? 'Following' : requested ? 'Requested' : data.profile_visibility === 'followers' ? 'Ask to follow' : 'Follow';
     const follow = button(label, engaged ? 'button secondary' : 'button primary', () => {});
     follow.setAttribute('aria-pressed', String(engaged));
-    if (following) follow.setAttribute('aria-label', `Unfollow ${data.display_name}`);
-    if (requested) follow.setAttribute('aria-label', `Cancel your follow request to ${data.display_name}`);
+    if (following) follow.setAttribute('aria-label', `Following. Unfollow ${data.display_name}`);
+    if (requested) follow.setAttribute('aria-label', `Requested. Cancel your follow request to ${data.display_name}`);
     follow.addEventListener('click', act(follow, `/users/${data.id}/follow`, engaged ? 'DELETE' : 'POST'));
     // Blocking asks once, and says what it does.
     const confirmBox = el('div', 'block-confirmation'); confirmBox.hidden = true;
@@ -236,9 +241,11 @@ export function createProfile(state, api, gameDialog, report) {
     data.favorites.forEach((game, index) => {
       const item = el('li', index === 0 ? 'favorite crowned' : 'favorite');
       const open = button('', 'favorite-open', () => gameDialog.open(game));
-      open.setAttribute('aria-label', `${index === 0 ? 'Top favorite' : `Favorite ${index + 1}`}: ${game.name}`);
-      open.append(cover(game));
-      if (index === 0) { const crown = el('span', 'crown', 'Top pick'); crown.setAttribute('aria-hidden', 'true'); open.append(crown); }
+      // The button is named by what it shows: the crown's "Top pick", then the
+      // game. The cover art repeats the title as artwork, so it stays decorative.
+      const art = cover(game); art.setAttribute('aria-hidden', 'true'); open.append(art);
+      if (index === 0) open.append(el('span', 'crown', 'Top pick'));
+      open.append(el('span', 'sr-only', index === 0 ? game.name : `Favorite ${index + 1}: ${game.name}`));
       item.append(open, el('span', 'favorite-name', game.name)); row.append(item);
     });
     if (!data.favorites.length) row.append(el('li', 'helper', 'Pin up to four games from your account page.'));

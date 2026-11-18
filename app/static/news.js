@@ -38,24 +38,23 @@ function newsCard(item) {
   return row;
 }
 
-// Pages arrive as the end of the list nears the screen. Cards are built once
-// and kept, so searching and re-rendering never reload their pictures.
+// Explicit paging keeps focus and the reading position under the reader's control.
 export function createNews(state, api) {
-  const list = $('#news-items'); const more = $('#news-more');
+  const list = $('#news-items'); const more = $('#news-more'); const status = $('#news-status');
   let items = null; let next = 0; let loading = false; let requestId = 0;
   const cards = new Map();
-  const observer = new IntersectionObserver((entries) => {
-    if (entries.some((entry) => entry.isIntersecting)) void loadMore();
-  }, { rootMargin: '0px 0px 1200px 0px' });
+  const control = button('More headlines', 'button secondary', () => void loadMore()); control.hidden = true;
+  const note = el('span', 'helper'); more.replaceChildren(control, note);
 
   function render() {
     if (!items) return;  // still loading: keep that message
     const query = state.query.trim().toLocaleLowerCase();
     const shown = items.filter((item) => !query || `${item.title} ${item.source}`.toLocaleLowerCase().includes(query));
     list.replaceChildren(...shown.map((item) => cards.get(item.url)));
-    if (!shown.length) list.append(el('p', 'empty-message', query ? 'No headlines match that search.' : 'No headlines right now.'));
-    more.replaceChildren();
-    if (next === null && items.length) more.append(el('span', 'helper', 'You’re all caught up.'));
+    if (!shown.length) list.append(el('p', 'empty-message', query ? 'No loaded headlines match that search.' : 'No headlines right now.'));
+    control.hidden = next === null; control.setAttribute('aria-disabled', String(loading)); control.textContent = 'More headlines';
+    note.textContent = next === null && items.length ? 'You’re all caught up.' : query && next !== null ? 'Search checks loaded headlines. Load more to search further.' : '';
+    status.textContent = `${shown.length} ${query ? 'matching ' : ''}headlines shown. ${items.length} loaded.`;
   }
   function add(page) {
     for (const item of page) {
@@ -67,17 +66,22 @@ export function createNews(state, api) {
   async function loadMore() {
     if (loading || !items || next === null) return;
     const request = requestId; loading = true;
-    more.replaceChildren(el('span', 'helper', 'Loading more…'));
+    control.setAttribute('aria-disabled', 'true'); status.textContent = 'Loading more headlines…';
     try {
       const data = await api(`/news?offset=${next}`);
       if (request !== requestId) return;
+      const previous = items.length;
+      const focused = document.activeElement === control;
       add(data.items); next = data.next; render();
-      // Re-observing re-checks at once, so a short page keeps filling the screen.
-      observer.unobserve(more); if (next !== null) observer.observe(more);
+      if (focused) {
+        const first = items.slice(previous).find((item) => cards.get(item.url)?.isConnected);
+        if (first) cards.get(first.url).querySelector('.news-title')?.focus();
+        else if (control.hidden) (list.querySelector('.news-title') || $('#search')).focus();
+      }
     } catch (error) {
       if (request !== requestId || aborted(error)) return;
-      more.replaceChildren(el('span', 'helper', 'Couldn’t load more.'), button('Try again', 'button secondary', () => void loadMore()));
-    } finally { loading = false; }
+      note.textContent = 'Couldn’t load more headlines. Try again.'; status.textContent = note.textContent; control.textContent = 'Try again';
+    } finally { if (request === requestId) { loading = false; control.setAttribute('aria-disabled', 'false'); } }
   }
   async function load() {
     if (items) { render(); return; }
@@ -87,7 +91,6 @@ export function createNews(state, api) {
       const data = await api('/news');
       if (request !== requestId) return;
       items = []; add(data.items); next = data.next; render();
-      if (next !== null) observer.observe(more);
     } catch (error) {
       if (request !== requestId || aborted(error)) return;
       const empty = el('div', 'empty-message');
@@ -96,5 +99,5 @@ export function createNews(state, api) {
       list.replaceChildren(empty);
     }
   }
-  return { load, render, invalidate() { requestId += 1; } };
+  return { load, render, invalidate() { requestId += 1; loading = false; control.setAttribute('aria-disabled', 'false'); } };
 }

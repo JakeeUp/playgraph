@@ -59,7 +59,7 @@ def security_headers(path: str, status: int, content_type: str) -> dict[str, str
         # Public static files are stored but revalidated against their ETag,
         # so repeat visits get 304s. Everything else, every API response
         # included, is never stored.
-        "Cache-Control": "no-cache" if path.startswith("/assets/") else "no-store",
+        "Cache-Control": "no-cache" if path.startswith(("/assets/", "/mocktest/")) else "no-store",
         "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
         # Isolate this origin's windows from other sites' windows, and refuse
         # to let another site's page embed these responses, JSON included.
@@ -69,7 +69,12 @@ def security_headers(path: str, status: int, content_type: str) -> dict[str, str
     }
     if settings.environment == "production":
         headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    if path == "/app":
+    if path.startswith("/mocktest/"):
+        # The demo build runs the app's own scripts and styles, so it gets the
+        # app's policy. Unlisted pages stay out of search results.
+        headers["Content-Security-Policy"] = APP_CSP
+        headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+    elif path == "/app":
         headers["Content-Security-Policy"] = APP_CSP
     elif path == "/account":
         headers["Content-Security-Policy"] = account_csp()
@@ -127,7 +132,7 @@ class SecurityMiddleware:
                     raise HTTPException(413, "Request body too large")
             # Static files are public and fixed, and one page load pulls in dozens of
             # them, so counting them would 429 a visitor's stylesheets on a reload.
-            static = request.method in ("GET", "HEAD") and request.url.path.startswith("/assets/")
+            static = request.method in ("GET", "HEAD") and request.url.path.startswith(("/assets/", "/mocktest/"))
             if request.url.path != "/health" and not static:
                 # Proxy headers are only meaningful when the ASGI server trusts the proxy.
                 # Never parse X-Forwarded-For here: a direct client can forge it.

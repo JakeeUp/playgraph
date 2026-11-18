@@ -8,7 +8,7 @@
 dialog {
   border:1px solid var(--rule-strong); border-radius:6px; padding:0;
   background:var(--surface); color:var(--ink-2); box-shadow:var(--shadow-pop);
-  width:min(1100px,calc(100vw - var(--s-7))); max-height:90vh; overflow:auto;
+  width:min(1100px,calc(100vw - var(--s-7))); max-height:90vh; overflow:auto; scroll-padding-block:64px 20px;
 }
 dialog::backdrop { background:var(--scrim); }
 dialog[open] { animation:dialog-in var(--dur-3) var(--ease); }
