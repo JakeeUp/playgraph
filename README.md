@@ -8,10 +8,20 @@ Connect Steam and PlayGraph imports your playtime and achievements. When that
 data is available, your review keeps a snapshot of it. Two hundred hours or
 twenty minutes, there's some context behind the take.
 
-**[Try the demo](https://jakeeup.github.io/playgraph/).** It's the real front
-end running on sample data in your browser, so click around, rate things and
-write reviews. Nothing you do there is saved or sent anywhere. Sign-in, Steam
-sync and the news feed are stand-ins.
+## Try it
+
+| | Link | What it is |
+|---|---|---|
+| **Private beta** | [playgraph-beta.fly.dev](https://playgraph-beta.fly.dev/app) | The live site with real accounts. Sign-up is invite-only for now; anyone can browse the catalog. |
+| **Mock showcase** | [playgraph-beta.fly.dev/mocktest](https://playgraph-beta.fly.dev/mocktest/) | The full site filled with sample players, reviews and libraries, to show how it looks once it's busy. |
+| **Demo** | [jakeeup.github.io/playgraph](https://jakeeup.github.io/playgraph/) | The same sample-data site on GitHub Pages. |
+
+The showcase and the demo are the real front end running on sample data in your
+browser, so click around, rate things and write reviews. Nothing you do there is
+saved or sent anywhere. Sign-in, Steam sync and the news feed are stand-ins.
+
+> We will buy an official domain soon. Until then, PlayGraph lives at
+> playgraph-beta.fly.dev.
 
 I'm building it around that idea: a place to keep your games and reviews
 together, with your play history alongside them.
@@ -210,10 +220,12 @@ Locust load test in `loadtest/`, and the file explains how to run it.
 
 ## Status
 
-Personal project, actively being built, not deployed yet.
+Personal project, actively being built. It runs as an invite-only private
+beta on Fly.io, with daily encrypted off-site backups. The public catalog is
+being imported from IGDB in the background.
 
-Next up is finishing account-linking acceptance, Steam connections for new
-PlayGraph accounts, and recovery controls. After that: a cross-platform catalog through IGDB, want-to-play and
-diary tracking, privacy controls, then public profiles.
+Next up is real-account acceptance on the beta (Steam sign-in and sync,
+privacy and blocks, a real phone), an official domain, and then opening
+sign-up more widely.
 
 No license yet, so all rights reserved for now.
