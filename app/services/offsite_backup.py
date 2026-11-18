@@ -157,8 +157,11 @@ def _counts(path: Path) -> dict:
         if check != "ok":
             raise BackupError(f"Integrity check failed: {check}")
         tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        missing = set(REHEARSAL_TABLES) - tables
+        if missing:
+            raise BackupError(f"Missing required tables: {', '.join(sorted(missing))}.")
         counts = {name: connection.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0]  # nosec B608 - name comes from a fixed allowlist of table names
-                  for name in REHEARSAL_TABLES if name in tables}
+                  for name in REHEARSAL_TABLES}
     return {"integrity": check, "rows": counts}
 
 

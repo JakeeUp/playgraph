@@ -136,6 +136,30 @@ def test_verify_latest_detects_corrupt_database(aws):
         service.verify_latest(config())
 
 
+@pytest.mark.parametrize("missing", [("users",), ("games",), ("reviews",), service.REHEARSAL_TABLES])
+def test_verify_latest_refuses_missing_core_tables(aws, database, missing):
+    engine, live = database
+    with sqlite3.connect(live) as connection:
+        for table in missing:
+            connection.execute(f'DROP TABLE "{table}"')
+    service.backup(engine, config(), now=WHEN)
+
+    with pytest.raises(service.BackupError, match="Missing required tables"):
+        service.verify_latest(config())
+
+
+def test_verify_latest_accepts_empty_core_tables(aws, database):
+    engine, live = database
+    with sqlite3.connect(live) as connection:
+        for table in service.REHEARSAL_TABLES:
+            connection.execute(f'DELETE FROM "{table}"')
+    service.backup(engine, config(), now=WHEN)
+
+    result = service.verify_latest(config())
+    assert result["integrity"] == "ok"
+    assert result["rows"] == {"users": 0, "games": 0, "reviews": 0}
+
+
 def test_verify_latest_with_empty_bucket(aws):
     with pytest.raises(service.BackupError, match="No backups"):
         service.verify_latest(config())
