@@ -104,7 +104,7 @@
 *, *::before, *::after { box-sizing:border-box; }
 ::selection { background:rgba(255,122,0,0.4); color:var(--ink); }
 
-html { background:var(--paper); scroll-padding-block:calc(var(--sticky-header-size,var(--header-h)) + 16px) 80px; }
+html { background:var(--paper); scroll-padding-block:calc(var(--sticky-header-size,var(--header-h)) + 16px) 80px; scrollbar-gutter:stable; }
 
 /* Scrollbars: a slim slate thumb on the dark page that warms to the accent on
    hover. Chrome, Edge and Safari draw the ::-webkit-scrollbar rules, which
