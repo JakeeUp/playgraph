@@ -1,3 +1,4 @@
+import './accessibility.js';
 import { steamArt, storeArt } from './library.js';
 import { placeholderFor } from './covers.js';
 import { sendRequest, AUTH_HEADER } from './net.js';
@@ -144,7 +145,7 @@ export function coverWall(games, { rows = 3, perRow = 9 } = {}) {
   return wall;
 }
 export function cover(game) {
-  const frame = el('span', 'cover'); frame.append(placeholder(game));
+  const frame = el('span', 'cover'); frame.setAttribute('aria-hidden', 'true'); frame.append(placeholder(game));
   // Games from other stores have no Steam art. They use IGDB's cover, then
   // Sony's own image, then the title placeholder. The demo's synthetic Steam
   // ids have no art either, so it never asks Steam for any.
@@ -191,10 +192,10 @@ export async function copyText(text) {
 // A loading, empty or error block: a title, one sentence saying why, and an
 // action. `kind` is 'empty' or 'error'; `actions` are already-built buttons
 // or links. Errors are announced, empties are not.
-export function emptyState({ kind = 'empty', title, text, actions = [], className = '' }) {
+export function emptyState({ kind = 'empty', title, text, actions = [], className = '', headingTag = 'strong' }) {
   const node = el('div', `empty-message is-${kind} ${className}`.trim());
   if (kind === 'error') node.setAttribute('role', 'alert');
-  node.append(el('strong', '', title));
+  node.append(el(headingTag, '', title));
   if (text) node.append(el('span', '', text));
   if (actions.length) { const row = el('div', 'empty-actions'); row.append(...actions); node.append(row); }
   return node;
