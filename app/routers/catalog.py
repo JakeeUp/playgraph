@@ -19,7 +19,7 @@ from app.models import Game, GameExternalId, GamePlatform, Review, User, utcnow
 from app.routers.parameters import MAX_OFFSET, MAX_RESOURCE_ID, ResourceId
 from app.schemas import GameDetailOut, GameOut
 from app.security import app_store, rate_limit, redis_call, state_key
-from app.services.igdb import IGDBClient, IGDBError, IGDBRateLimitedError, RESTRICTED_SUMMARY, cover_url, search_text
+from app.services.igdb import IGDBClient, IGDBError, IGDBRateLimitedError, cover_url, search_text
 
 router = APIRouter(tags=["games"])
 
@@ -45,14 +45,13 @@ def imports_enabled():
 
 
 def browseable(query):
-    # IGDB keeps a restricted page as a title plus this sentence. Those pages
-    # stay out of search and the catalog. A direct library link is unchanged.
-    hidden = Game.summary.ilike("%" + RESTRICTED_SUMMARY + "%")
-    return query.filter(or_(Game.summary.is_(None), ~hidden))
+    # The flag is filled from IGDB's erotic theme, eroge, digb, and restricted
+    # pages. Checking the summary here would read every row on the first load.
+    return query.filter(Game.excluded.is_(False))
 
 
 def restricted(game) -> bool:
-    return bool(game.summary and RESTRICTED_SUMMARY in game.summary.casefold())
+    return bool(game.excluded)
 
 
 @router.get("/games/search", dependencies=[Depends(imports_enabled)])
@@ -93,6 +92,8 @@ async def import_game(body: GameImport, request: Request, user: User = Depends(g
                       db: Session = Depends(get_db)):
     existing = imported(db, body.igdb_id)
     if existing:
+        if existing.excluded:
+            raise HTTPException(status_code=404, detail="No eligible game found.")
         return existing
     await rate_limit(request, "igdb-import", str(user.id), 30, 86400)
     try:
