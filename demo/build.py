@@ -31,10 +31,10 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; "
        "img-src 'self' data: https://shared.fastly.steamstatic.com https://shared.akamai.steamstatic.com "
        "https://cdn.akamai.steamstatic.com https://cdn.cloudflare.steamstatic.com; "
        "font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'")
-BANNER = ('<div class="demo-banner" role="note"><div class="demo-banner-inner">'
+BANNER = ('<section class="demo-banner" aria-label="Interactive demo notice"><div class="demo-banner-inner">'
           '<strong>Demo</strong><span>Sample data, running in your browser. Anything you post stays in this tab.</span>'
           '<span class="demo-links"><button type="button" id="demo-reset" class="text-button">Reset demo</button>'
-          '<a href="https://github.com/JakeeUp/playgraph">Source on GitHub</a></span></div></div>')
+          '<a href="https://github.com/JakeeUp/playgraph">Source on GitHub</a></span></div></section>')
 
 # The app is served from the domain root; the demo is not. Absolute links become relative ones.
 HTML_RULES = [('="/assets/', '="assets/'), ('href="/app"', 'href="./"'), ('href="/account"', 'href="account.html"')]
