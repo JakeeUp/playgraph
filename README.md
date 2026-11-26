@@ -218,6 +218,23 @@ node --test tests/*.mjs
 CI runs both, plus `pip-audit` and `bandit`, on every push. There's also a
 Locust load test in `loadtest/`, and the file explains how to run it.
 
+A separate CI job runs browser journeys in real Chromium on every push and
+pull request. Run them locally with:
+
+```bash
+python -m pip install -r requirements-dev.lock -r requirements-e2e.txt
+python -m playwright install chromium
+python -m pytest e2e -q
+```
+
+These cover navigation, game dialogs and background scroll locking, likes,
+reposts, play statuses, saved accessibility settings, keyboard entry, profiles
+and phone-width layouts. Each test starts with fresh browser storage. They
+build and serve the static demo locally with sample data and substitute CDN
+images. No real account, API keys, database or Redis is used. This tests the
+front end against its mock API, not Steam sign-in or a real backend workflow.
+The API suites cover the server separately on SQLite and PostgreSQL with Redis.
+
 ## Status
 
 Personal project, actively being built. It runs as an invite-only private
