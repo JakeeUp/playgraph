@@ -206,17 +206,46 @@ raising public offset limits. This does not replace the reviewed store-merge
 workflow or remove games when the provider deletes or reclassifies them.
 Keep the existing IGDB attribution and commercial-partnership launch gate.
 
-## Tests
+## Testing
 
-Node.js is needed for the browser-module checks.
+- **pytest server tests** check routes, validation, sessions, privacy, jobs and
+  database behavior. These include unit and API integration tests.
+- **Node module tests** check front-end logic without a browser.
+- **Playwright journeys** click through the demo build in real Chromium, with
+  fresh storage and sample data. They catch broken navigation, interactions,
+  persistence and phone layouts, not real Steam login or provider availability.
+
+pytest runs twice in CI: SQLite, then real Postgres 16 with Redis. SQLite is
+used locally and on the current beta; Postgres is a supported deployment option.
+Testing both caught [feed ages being relabeled as UTC instead of converted
+across daylight saving](https://github.com/JakeeUp/playgraph/commit/7bc6fcc02c2d0bada396640ffd8ade18edb9e6a8)
+and [NUL characters that Postgres cannot store](https://github.com/JakeeUp/playgraph/commit/4a7ad65ef56902ca0d695d75897d970649e9274d).
+The Postgres run sets `PGTZ=EST5` for a fixed UTC-5 database session. A separate
+regression checks the daylight-saving fold. Psycopg returns UTC on hosts without
+an `EST5` timezone entry; that driver-level coverage gap remains open.
+
+CI pins actions to full commit SHAs, grants `contents: read`, and runs
+`pip-audit` against PyPI and OSV plus Bandit. Weekly CI and Dependabot also run.
 
 ```bash
-python -m pytest -q
+python -m pip install -r requirements-dev.lock -r requirements-e2e.txt
+python -m playwright install chromium
+python -m pytest -q --cov=app --cov-report=term-missing --cov-report=xml
 node --test tests/*.mjs
+python -m pytest e2e -q -m "not backend"
 ```
 
-CI runs both, plus `pip-audit` and `bandit`, on every push. There's also a
-Locust load test in `loadtest/`, and the file explains how to run it.
+SQLite line coverage for `app/`: **90.68%** (local run, 2026-11-27).
+CI prints missing lines and uploads `coverage.xml`, with no failure threshold.
+For Locust, install `requirements-loadtest.txt`, start an isolated local Redis,
+then run `python loadtest/ci_check.py`. It uses temporary SQLite and 20 synthetic
+games, 9 players and 36 reviews, not live data or the larger benchmark above.
+The 50-user, 35-second check fails on request errors, missing samples or any
+public route p95 above **1,410 ms**: 3 times the worst of 470, 150 and 150 ms locally.
+Failed browser tests retain screenshots and traces under `test-results/`.
+Open one with `python -m playwright show-trace path/to/trace.zip`.
+CI also runs one `backend` browser journey against real FastAPI, migrated
+Postgres and Redis: browse the public catalog, search, then open a game.
 
 ## Status
 

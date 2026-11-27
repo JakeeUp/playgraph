@@ -10,6 +10,104 @@ permissions:
   contents: read
 
 jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - run: python -m pip install -r requirements-dev.lock -r requirements-e2e.txt
+      - run: python -m pip check
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m pytest e2e -q -m "not backend"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: browser-failures
+          path: test-results/
+          retention-days: 7
+
+  backend-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: playgraph_e2e_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - run: python -m pip install -r requirements-dev.lock -r requirements-e2e.txt -r requirements-postgres.txt
+      - run: python -m pip check
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m pytest e2e -q -m backend
+        env:
+          E2E_DATABASE_URL: postgresql+psycopg://postgres:ci-only@localhost:5432/playgraph_e2e_test
+          E2E_REDIS_URL: redis://localhost:6379/0
+          PGTZ: EST5
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: failure()
+        with:
+          name: backend-browser-failures
+          path: test-results/
+          retention-days: 7
+
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+      - run: python -m pip install -r requirements.lock -r requirements-loadtest.txt
+      - run: python -m pip check
+      - run: python loadtest/ci_check.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: performance-results
+          path: test-results/performance/
+          retention-days: 7
+
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -46,9 +144,15 @@ jobs:
           python-version: "3.14"
       - run: python -m pip install -r requirements-dev.lock
       - run: python -m pip check
-      - run: python -m pytest -q
-      # The same suite again on Postgres, the production database, with the
-      # session in a zone other than UTC so time handling cannot lean on it.
+      - run: python -m pytest -q --cov=app --cov-report=term-missing --cov-report=xml
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: sqlite-coverage
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 7
+      # A non-UTC Postgres session catches assumptions SQLite cannot expose.
       - run: python -m pip install -r requirements-postgres.txt
       - run: python -m pytest -q
         env:

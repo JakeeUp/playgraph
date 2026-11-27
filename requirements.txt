@@ -22,6 +22,7 @@ boto3>=1.44
 Pillow>=13.0
 
 pytest>=8.3
+pytest-cov>=7.1.0
 pytest-asyncio>=1.4.0
 # Test only: an in-process fake of S3 and KMS, so no test reaches AWS.
 moto[s3]>=5.1
